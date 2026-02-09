@@ -1,0 +1,102 @@
+--------- beginning of main
+01-28 20:26:51.088  8027  8027 W zygote64: Activation of cgroup controller +memory failed in path /sys/fs/cgroup/apps/uid_10118: Invalid argument
+01-28 20:26:51.102  8027  8027 I Zygote  : seccomp disabled by setenforce 0
+01-28 20:26:51.105  8027  8027 I Zygote  : Process 8027 crated for com.bass.bumpdesk
+01-28 20:26:51.106  8027  8027 I m.bass.bumpdesk: Late-enabling -Xcheck:jni
+01-28 20:26:51.131  8027  8027 I m.bass.bumpdesk: Using CollectorTypeCMC GC.
+01-28 20:26:51.138  8027  8027 D nativeloader: Load libframework-connectivity-tiramisu-jni.so using APEX ns com_android_tethering for caller /apex/com.android.tethering/javalib/framework-connectivity-t.jar: ok
+01-28 20:26:51.154  8027  8027 D CompatChangeReporter: Compat change id reported: 242716250; UID 10118; state: ENABLED
+01-28 20:26:51.174  8027  8027 D nativeloader: Configuring clns-9 for other apk /data/app/~~RgczYnM3Gr8smnp546PBrg==/com.bass.bumpdesk-tZH9LvgeFtSSWUaJxvhYow==/base.apk. target_sdk_version=34, uses_libraries=, library_path=/data/app/~~RgczYnM3Gr8smnp546PBrg==/com.bass.bumpdesk-tZH9LvgeFtSSWUaJxvhYow==/lib/arm64, permitted_path=/data:/mnt/expand:/data/user/0/com.bass.bumpdesk
+01-28 20:26:51.184  8027  8027 V GraphicsEnvironment: Currently set values for:
+01-28 20:26:51.184  8027  8027 V GraphicsEnvironment:   angle_gl_driver_selection_pkgs=[]
+01-28 20:26:51.184  8027  8027 V GraphicsEnvironment:   angle_gl_driver_selection_values=[]
+01-28 20:26:51.184  8027  8027 V GraphicsEnvironment: com.bass.bumpdesk is not listed in per-application setting
+01-28 20:26:51.184  8027  8027 V GraphicsEnvironment: ANGLE allowlist from config: 
+01-28 20:26:51.184  8027  8027 V GraphicsEnvironment: com.bass.bumpdesk is not listed in ANGLE allowlist or settings, returning default
+01-28 20:26:51.185  8027  8027 V GraphicsEnvironment: Neither updatable production driver nor prerelease driver is supported.
+--------- beginning of system
+01-28 20:26:51.218  8027  8041 I DisplayManager: Choreographer implicitly registered for the refresh rate.
+01-28 20:26:51.220  8027  8027 I RenderThread: type=1400 audit(0.0:585): avc:  denied  { open } for  path="/dev/__properties__/u:object_r:vendor_default_prop:s0" dev="tmpfs" ino=365 scontext=u:r:untrusted_app:s0:c118,c256,c512,c768 tcontext=u:object_r:vendor_default_prop:s0 tclass=file permissive=1 app=com.bass.bumpdesk
+01-28 20:26:51.258  8027  8027 D AppCompatDelegate: Checking for metadata for AppLocalesMetadataHolderService : Service not found
+01-28 20:26:51.220  8027  8027 I RenderThread: type=1400 audit(0.0:586): avc:  denied  { getattr } for  path="/dev/__properties__/u:object_r:vendor_default_prop:s0" dev="tmpfs" ino=365 scontext=u:r:untrusted_app:s0:c118,c256,c512,c768 tcontext=u:object_r:vendor_default_prop:s0 tclass=file permissive=1 app=com.bass.bumpdesk
+01-28 20:26:51.301  8027  8027 E ashmem  : Pinning is deprecated since Android Q. Please use trim or other methods.
+01-28 20:26:51.323  8027  8027 D DesktopExperienceFlags: Toggle override initialized to: true
+01-28 20:26:51.323  8027  8027 D DesktopModeFlags: Toggle override initialized to: OVERRIDE_ON
+01-28 20:26:51.333  8027  8027 I m.bass.bumpdesk: hiddenapi: Accessing hidden method Landroid/view/View;->computeFitSystemWindows(Landroid/graphics/Rect;Landroid/graphics/Rect;)Z (runtime_flags=0, domain=platform, api=unsupported) from Landroidx/appcompat/widget/ViewUtils; (domain=app) using reflection: allowed
+01-28 20:26:51.333  8027  8027 I m.bass.bumpdesk: hiddenapi: Accessing hidden method Landroid/view/ViewGroup;->makeOptionalFitsSystemWindows()V (runtime_flags=0, domain=platform, api=unsupported) from Landroidx/appcompat/widget/ViewUtils; (domain=app) using reflection: allowed
+01-28 20:26:51.220  8027  8027 I RenderThread: type=1400 audit(0.0:587): avc:  denied  { map } for  path="/dev/__properties__/u:object_r:vendor_default_prop:s0" dev="tmpfs" ino=365 scontext=u:r:untrusted_app:s0:c118,c256,c512,c768 tcontext=u:object_r:vendor_default_prop:s0 tclass=file permissive=1 app=com.bass.bumpdesk
+01-28 20:26:51.368  8027  8041 I MESA    : Using IMapper 5 API
+01-28 20:26:51.369  8027  8041 W EGL-MAIN: failed to get driver name for fd -1
+01-28 20:26:51.369  8027  8041 W EGL-MAIN: MESA-LOADER: failed to retrieve device information
+01-28 20:26:51.369  8027  8041 W EGL-MAIN: failed to get driver name for fd -1
+01-28 20:26:51.374  8027  8041 W HidlServiceManagement: hwservicemanager is not supported on the device.
+01-28 20:26:51.374  8027  8041 I HidlServiceManagement: Trying to get transport of android.hardware.configstore@1.0::ISurfaceFlingerConfigs/default without hwservicemanager
+01-28 20:26:51.374  8027  8041 E HWUI    : Device claims wide gamut support, cannot find matching config, error = EGL_SUCCESS
+01-28 20:26:51.374  8027  8041 W HWUI    : Failed to initialize 101010-2 format, error = EGL_SUCCESS
+01-28 20:26:51.556  8027  8046 I HWUI    : Using FreeType backend (prop=Auto)
+01-28 20:26:51.589  8027  8027 W HWUI    : Unknown dataspace 0
+01-28 20:26:51.638  8027  8027 D WindowOnBackDispatcher: setTopOnBackInvokedCallback (unwrapped): android.view.ViewRootImpl$$ExternalSyntheticLambda12@8b3933a
+01-28 20:26:51.703  8027  8046 E TextureManager: Error loading texture BumpTop/BumpTop Classic/floor_desktop.jpg
+01-28 20:26:51.703  8027  8046 E TextureManager: java.io.FileNotFoundException: BumpTop/BumpTop Classic/floor_desktop.jpg
+01-28 20:26:51.703  8027  8046 E TextureManager: 	at android.content.res.AssetManager.nativeOpenAsset(Native Method)
+01-28 20:26:51.703  8027  8046 E TextureManager: 	at android.content.res.AssetManager.open(AssetManager.java:1012)
+01-28 20:26:51.703  8027  8046 E TextureManager: 	at android.content.res.AssetManager.open(AssetManager.java:989)
+01-28 20:26:51.703  8027  8046 E TextureManager: 	at com.bass.bumpdesk.TextureManager.loadTextureFromAsset(TextureManager.kt:17)
+01-28 20:26:51.703  8027  8046 E TextureManager: 	at com.bass.bumpdesk.ThemeManager.getFloorTexture(ThemeManager.kt:26)
+01-28 20:26:51.703  8027  8046 E TextureManager: 	at com.bass.bumpdesk.BumpRenderer.loadThemeTextures(BumpRenderer.kt:256)
+01-28 20:26:51.703  8027  8046 E TextureManager: 	at com.bass.bumpdesk.BumpRenderer.onSurfaceCreated(BumpRenderer.kt:252)
+01-28 20:26:51.703  8027  8046 E TextureManager: 	at android.opengl.GLSurfaceView$GLThread.guardedRun(GLSurfaceView.java:1541)
+01-28 20:26:51.703  8027  8046 E TextureManager: 	at android.opengl.GLSurfaceView$GLThread.run(GLSurfaceView.java:1272)
+01-28 20:26:51.704  8027  8046 E TextureManager: Error loading texture floor.png
+01-28 20:26:51.704  8027  8046 E TextureManager: java.io.FileNotFoundException: floor.png
+01-28 20:26:51.704  8027  8046 E TextureManager: 	at android.content.res.AssetManager.nativeOpenAsset(Native Method)
+01-28 20:26:51.704  8027  8046 E TextureManager: 	at android.content.res.AssetManager.open(AssetManager.java:1012)
+01-28 20:26:51.704  8027  8046 E TextureManager: 	at android.content.res.AssetManager.open(AssetManager.java:989)
+01-28 20:26:51.704  8027  8046 E TextureManager: 	at com.bass.bumpdesk.TextureManager.loadTextureFromAsset(TextureManager.kt:17)
+01-28 20:26:51.704  8027  8046 E TextureManager: 	at com.bass.bumpdesk.ThemeManager.getFloorTexture(ThemeManager.kt:28)
+01-28 20:26:51.704  8027  8046 E TextureManager: 	at com.bass.bumpdesk.BumpRenderer.loadThemeTextures(BumpRenderer.kt:256)
+01-28 20:26:51.704  8027  8046 E TextureManager: 	at com.bass.bumpdesk.BumpRenderer.onSurfaceCreated(BumpRenderer.kt:252)
+01-28 20:26:51.704  8027  8046 E TextureManager: 	at android.opengl.GLSurfaceView$GLThread.guardedRun(GLSurfaceView.java:1541)
+01-28 20:26:51.704  8027  8046 E TextureManager: 	at android.opengl.GLSurfaceView$GLThread.run(GLSurfaceView.java:1272)
+01-28 20:26:51.705  8027  8046 E TextureManager: Error loading texture BumpTop/BumpTop Classic/wall.png
+01-28 20:26:51.705  8027  8046 E TextureManager: java.io.FileNotFoundException: BumpTop/BumpTop Classic/wall.png
+01-28 20:26:51.705  8027  8046 E TextureManager: 	at android.content.res.AssetManager.nativeOpenAsset(Native Method)
+01-28 20:26:51.705  8027  8046 E TextureManager: 	at android.content.res.AssetManager.open(AssetManager.java:1012)
+01-28 20:26:51.705  8027  8046 E TextureManager: 	at android.content.res.AssetManager.open(AssetManager.java:989)
+01-28 20:26:51.705  8027  8046 E TextureManager: 	at com.bass.bumpdesk.TextureManager.loadTextureFromAsset(TextureManager.kt:17)
+01-28 20:26:51.705  8027  8046 E TextureManager: 	at com.bass.bumpdesk.ThemeManager.getWallTexture(ThemeManager.kt:35)
+01-28 20:26:51.705  8027  8046 E TextureManager: 	at com.bass.bumpdesk.BumpRenderer.loadThemeTextures(BumpRenderer.kt:257)
+01-28 20:26:51.705  8027  8046 E TextureManager: 	at com.bass.bumpdesk.BumpRenderer.onSurfaceCreated(BumpRenderer.kt:252)
+01-28 20:26:51.705  8027  8046 E TextureManager: 	at android.opengl.GLSurfaceView$GLThread.guardedRun(GLSurfaceView.java:1541)
+01-28 20:26:51.705  8027  8046 E TextureManager: 	at android.opengl.GLSurfaceView$GLThread.run(GLSurfaceView.java:1272)
+01-28 20:26:51.706  8027  8046 E TextureManager: Error loading texture wall.png
+01-28 20:26:51.706  8027  8046 E TextureManager: java.io.FileNotFoundException: wall.png
+01-28 20:26:51.706  8027  8046 E TextureManager: 	at android.content.res.AssetManager.nativeOpenAsset(Native Method)
+01-28 20:26:51.706  8027  8046 E TextureManager: 	at android.content.res.AssetManager.open(AssetManager.java:1012)
+01-28 20:26:51.706  8027  8046 E TextureManager: 	at android.content.res.AssetManager.open(AssetManager.java:989)
+01-28 20:26:51.706  8027  8046 E TextureManager: 	at com.bass.bumpdesk.TextureManager.loadTextureFromAsset(TextureManager.kt:17)
+01-28 20:26:51.706  8027  8046 E TextureManager: 	at com.bass.bumpdesk.ThemeManager.getWallTexture(ThemeManager.kt:37)
+01-28 20:26:51.706  8027  8046 E TextureManager: 	at com.bass.bumpdesk.BumpRenderer.loadThemeTextures(BumpRenderer.kt:257)
+01-28 20:26:51.706  8027  8046 E TextureManager: 	at com.bass.bumpdesk.BumpRenderer.onSurfaceCreated(BumpRenderer.kt:252)
+01-28 20:26:51.706  8027  8046 E TextureManager: 	at android.opengl.GLSurfaceView$GLThread.guardedRun(GLSurfaceView.java:1541)
+01-28 20:26:51.706  8027  8046 E TextureManager: 	at android.opengl.GLSurfaceView$GLThread.run(GLSurfaceView.java:1272)
+01-28 20:26:51.944  8027  8027 D ImeBackDispatcher: switch root view (mImeCallbacks.size=0)
+01-28 20:26:51.948  8027  8027 D InsetsController: hide(ime())
+01-28 20:26:51.948  8027  8027 I ImeTracker: com.bass.bumpdesk:31d80051: onCancelled at PHASE_CLIENT_ALREADY_HIDDEN
+01-28 20:26:52.533  8027  8031 I m.bass.bumpdesk: Compiler allocated 4938KB to compile void android.view.ViewRootImpl.performTraversals()
+01-28 20:26:55.668  8027  8046 W EGL-MAIN: ANativeWindow_cancelBuffer failed
+01-28 20:26:55.668  8027  8046 E Surface : [a91b830 SurfaceView[com.bass.bumpdesk/com.bass.bumpdesk.LauncherActivity]#1(BLAST Consumer)1](id:1f5b00000001) freeAllBuffers: 1 buffers were freed while being dequeued!
+--------- beginning of crash
+01-28 20:26:55.671  8027  8046 E AndroidRuntime: FATAL EXCEPTION: GLThread 44
+01-28 20:26:55.671  8027  8046 E AndroidRuntime: Process: com.bass.bumpdesk, PID: 8027
+01-28 20:26:55.671  8027  8046 E AndroidRuntime: java.lang.IllegalArgumentException: result.length < resultOffset + 16
+01-28 20:26:55.671  8027  8046 E AndroidRuntime: 	at android.opengl.Matrix.multiplyMM(Matrix.java:137)
+01-28 20:26:55.671  8027  8046 E AndroidRuntime: 	at com.bass.bumpdesk.InteractionManager.calculateRay(InteractionManager.kt:154)
+01-28 20:26:55.671  8027  8046 E AndroidRuntime: 	at com.bass.bumpdesk.InteractionManager.handleTouchDown(InteractionManager.kt:32)
+01-28 20:26:55.671  8027  8046 E AndroidRuntime: 	at com.bass.bumpdesk.BumpRenderer.handleTouchDown(BumpRenderer.kt:385)
+01-28 20:26:55.671  8027  8046 E AndroidRuntime: 	at com.bass.bumpdesk.LauncherActivity.setupGestures$lambda$10$lambda$7(LauncherActivity.kt:175)
+01-28 20:26:55.671  8027  8046 E AndroidRuntime: 	at com.bass.bumpdesk.LauncherActivity.$r8$lambda$vpayzYdTtDJ_Ic5YZtzgwaRYKH0(Unknown Source:0)
+01-28 20:26:55.671  8027  8046 E AndroidRuntime: 	at com.bass.bumpdesk.LauncherActivity$$ExternalSyntheticLambda7.run(D8$$SyntheticClass:0)
+01-28 20:26:55.671  8027  8046 E AndroidRuntime: 	at android.opengl.GLSurfaceView$GLThread.guardedRun(GLSurfaceView.java:1502)
+01-28 20:26:55.671  8027  8046 E AndroidRuntime: 	at android.opengl.GLSurfaceView$GLThread.run(GLSurfaceView.java:1272)
+01-28 20:26:55.675  8027  8046 I Process : Sending signal. PID: 8027 SIG: 9

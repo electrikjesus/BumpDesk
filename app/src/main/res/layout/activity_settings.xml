@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:background="#121212">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="BumpDesk Settings"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:textColor="#FFFFFF"
+        android:layout_marginBottom="24dp" />
+
+    <CheckBox
+        android:id="@+id/cbShowRecentApps"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Show Recent Apps Pile"
+        android:textColor="#FFFFFF"
+        android:checked="true"
+        android:layout_marginBottom="16dp" />
+
+    <CheckBox
+        android:id="@+id/cbUseWallpaperAsFloor"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Use System Wallpaper as Floor"
+        android:textColor="#FFFFFF"
+        android:layout_marginBottom="24dp" />
+
+    <Button
+        android:id="@+id/btnChangeTheme"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Select Visual Theme"
+        android:layout_marginBottom="16dp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Visual Appearance"
+        android:textColor="#888888"
+        android:textSize="12sp"
+        android:layout_marginBottom="8dp" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#333333"
+        android:layout_marginBottom="16dp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Advanced Options"
+        android:textColor="#888888"
+        android:textSize="12sp"
+        android:layout_marginBottom="8dp" />
+
+    <Button
+        android:id="@+id/btnClearCache"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Clear Texture Cache"
+        android:backgroundTint="#444444" />
+
+</LinearLayout>
