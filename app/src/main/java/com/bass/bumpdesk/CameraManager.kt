@@ -20,20 +20,22 @@ class CameraManager {
     var currentViewMode = ViewMode.DEFAULT
 
     fun update() {
-        for (i in 0..2) {
-            // Camera position relative to lookAt
-            val relX = targetPos[0] - targetLookAt[0]
-            val relY = targetPos[1] - targetLookAt[1]
-            val relZ = targetPos[2] - targetLookAt[2]
-            
-            val zoomedTargetPosX = targetLookAt[0] + relX * zoomLevel
-            val zoomedTargetPosY = targetLookAt[1] + relY * zoomLevel
-            val zoomedTargetPosZ = targetLookAt[2] + relZ * zoomLevel
+        // Apply zoom to the target position relative to lookAt
+        val relX = targetPos[0] - targetLookAt[0]
+        val relY = targetPos[1] - targetLookAt[1]
+        val relZ = targetPos[2] - targetLookAt[2]
+        
+        val zoomedTargetPosX = targetLookAt[0] + relX * zoomLevel
+        val zoomedTargetPosY = targetLookAt[1] + relY * zoomLevel
+        val zoomedTargetPosZ = targetLookAt[2] + relZ * zoomLevel
 
-            currentPos[0] += (zoomedTargetPosX - currentPos[0]) * 0.1f
-            currentPos[1] += (zoomedTargetPosY - currentPos[1]) * 0.1f
-            currentPos[2] += (zoomedTargetPosZ - currentPos[2]) * 0.1f
-            
+        for (i in 0..2) {
+            val targetP = when(i) {
+                0 -> zoomedTargetPosX
+                1 -> zoomedTargetPosY
+                else -> zoomedTargetPosZ
+            }
+            currentPos[i] += (targetP - currentPos[i]) * 0.1f
             currentLookAt[i] += (targetLookAt[i] - currentLookAt[i]) * 0.1f
         }
     }
@@ -56,6 +58,7 @@ class CameraManager {
         targetPos = savedPos.clone()
         targetLookAt = savedLookAt.clone()
         currentViewMode = savedViewMode
+        zoomLevel = 1.0f
     }
 
     private fun saveCurrentView() {
@@ -66,18 +69,54 @@ class CameraManager {
         }
     }
 
-    fun handlePan(dx: Float, dz: Float) {
-        targetPos[0] += dx
-        targetPos[2] += dz
-        targetLookAt[0] += dx
-        targetLookAt[2] += dz
+    /**
+     * Context-aware panning based on the current view mode.
+     */
+    fun handlePan(dx: Float, dy: Float) {
+        // Sensitivity adjustment
+        val s = 0.02f * zoomLevel
+        
+        when (currentViewMode) {
+            ViewMode.BACK_WALL -> {
+                targetPos[0] += dx * s
+                targetPos[1] += dy * s
+                targetLookAt[0] += dx * s
+                targetLookAt[1] += dy * s
+            }
+            ViewMode.LEFT_WALL -> {
+                targetPos[2] += dx * s
+                targetPos[1] += dy * s
+                targetLookAt[2] += dx * s
+                targetLookAt[1] += dy * s
+            }
+            ViewMode.RIGHT_WALL -> {
+                targetPos[2] -= dx * s
+                targetPos[1] += dy * s
+                targetLookAt[2] -= dx * s
+                targetLookAt[1] += dy * s
+            }
+            ViewMode.FLOOR -> {
+                targetPos[0] += dx * s
+                targetPos[2] += dy * s
+                targetLookAt[0] += dx * s
+                targetLookAt[2] += dy * s
+            }
+            else -> {
+                // Default view panning (constrained XZ)
+                targetPos[0] += dx * s
+                targetPos[2] += dy * s
+                targetLookAt[0] += dx * s
+                targetLookAt[2] += dy * s
+            }
+        }
     }
 
     fun focusOnWall(wall: CameraManager.ViewMode, pos: FloatArray, lookAt: FloatArray) {
         saveCurrentView()
-        targetPos = pos
-        targetLookAt = lookAt
+        targetPos = pos.clone()
+        targetLookAt = lookAt.clone()
         currentViewMode = wall
+        zoomLevel = 1.0f
     }
 
     fun focusOnFloor() {
@@ -85,6 +124,7 @@ class CameraManager {
         targetPos = floatArrayOf(0f, 12f, 0.1f)
         targetLookAt = floatArrayOf(0f, 0f, 0f)
         currentViewMode = ViewMode.FLOOR
+        zoomLevel = 1.0f
     }
 
     fun focusOnFolder(folderPos: FloatArray) {
@@ -92,6 +132,7 @@ class CameraManager {
         targetPos = floatArrayOf(folderPos[0], 11f, folderPos[2] + 2f)
         targetLookAt = floatArrayOf(folderPos[0], 3f, folderPos[2])
         currentViewMode = ViewMode.FOLDER_EXPANDED
+        zoomLevel = 1.0f
     }
 
     fun focusOnWidget(widget: WidgetItem) {
@@ -110,12 +151,12 @@ class CameraManager {
                 targetPos = floatArrayOf(widget.position[0] - dist, widget.position[1], widget.position[2])
                 targetLookAt = floatArrayOf(widget.position[0], widget.position[1], widget.position[2])
             }
-            else -> {}
+            else -> {
+                targetPos = floatArrayOf(widget.position[0], 8f, widget.position[2] + 4f)
+                targetLookAt = floatArrayOf(widget.position[0], 0.1f, widget.position[2])
+            }
         }
         currentViewMode = ViewMode.WIDGET_FOCUS
-    }
-
-    fun enterFolderMode() {
-        currentViewMode = ViewMode.FOLDER_EXPANDED
+        zoomLevel = 1.0f
     }
 }

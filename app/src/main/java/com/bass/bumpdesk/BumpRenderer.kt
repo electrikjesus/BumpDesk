@@ -157,31 +157,51 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         sceneState.widgetItems.add(WidgetItem(appWidgetId = appWidgetId, position = pos, surface = hit?.first ?: BumpItem.Surface.BACK_WALL))
     }
 
+    fun removeWidget(widget: WidgetItem) {
+        sceneState.widgetItems.remove(widget)
+        sceneState.widgetViews.remove(widget.appWidgetId)
+    }
+
+    fun togglePin(item: BumpItem) { item.isPinned = !item.isPinned }
+
     fun updateRecents(recents: List<AppInfo>) {
         if (sceneState.recentsPile == null) {
             sceneState.recentsPile = Pile(mutableListOf(), floatArrayOf(0f, 4f, -9.4f), name = "Recents", layoutMode = Pile.LayoutMode.CAROUSEL, surface = BumpItem.Surface.BACK_WALL, isSystem = true)
             sceneState.piles.add(sceneState.recentsPile!!)
         }
-        if (recents.isEmpty()) { sceneState.recentsPile?.items?.clear(); return }
-        val recentBumpItems = recents.map { appInfo ->
-            val existing = sceneState.bumpItems.find { it.appInfo?.packageName == appInfo.packageName } ?:
+        
+        val oldItems = sceneState.recentsPile!!.items.toList()
+        val newItems = recents.map { appInfo ->
+            val existing = oldItems.find { it.appInfo?.packageName == appInfo.packageName } ?:
+                           sceneState.bumpItems.find { it.appInfo?.packageName == appInfo.packageName } ?:
                            sceneState.piles.flatMap { it.items }.find { it.appInfo?.packageName == appInfo.packageName }
-            val item = existing?.copy()?.apply { 
-                type = BumpItem.Type.RECENT_APP; position = sceneState.recentsPile!!.position.clone()
-                scale = 1.2f; surface = BumpItem.Surface.BACK_WALL; textureId = -1 
-            } ?: BumpItem(type = BumpItem.Type.RECENT_APP, appInfo = appInfo, position = sceneState.recentsPile!!.position.clone(), scale = 1.2f, surface = BumpItem.Surface.BACK_WALL)
-            item.textureId = TextureUtils.loadRecentTaskTexture(context, appInfo.snapshot, appInfo.icon, appInfo.label)
+            
+            val item = existing?.copy() ?: BumpItem(type = BumpItem.Type.RECENT_APP, appInfo = appInfo)
+            
+            item.apply {
+                type = BumpItem.Type.RECENT_APP
+                position = sceneState.recentsPile!!.position.clone()
+                scale = 1.2f
+                surface = BumpItem.Surface.BACK_WALL
+                if (existing?.appInfo?.snapshot != appInfo.snapshot) {
+                    textureId = -1
+                }
+            }
             item
         }
+        
         sceneState.recentsPile!!.items.clear()
-        sceneState.recentsPile!!.items.addAll(recentBumpItems)
+        sceneState.recentsPile!!.items.addAll(newItems)
     }
 
     fun reloadTheme() {
         glSurfaceView?.queueEvent { 
             textureManager.clearCache()
             sceneState.bumpItems.forEach { it.textureId = -1 }
-            sceneState.piles.forEach { p -> p.items.forEach { it.textureId = -1 } }
+            sceneState.piles.forEach { p -> 
+                p.items.forEach { it.textureId = -1 }
+                p.nameTextureId = -1
+            }
             sceneState.widgetItems.forEach { it.textureId = -1 }
             loadThemeTextures() 
         }
@@ -200,7 +220,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
 
         itemRenderer = ItemRenderer(context, shader, textureManager, sceneState)
         widgetRenderer = WidgetRenderer(context, shader, textureManager)
-        pileRenderer = PileRenderer(context, shader, textureManager, itemRenderer, overlayRenderer)
+        pileRenderer = PileRenderer(context, shader, textureManager, itemRenderer, overlayRenderer, sceneState)
         uiRenderer = UIRenderer(shader, overlayRenderer)
         
         loadThemeTextures()
@@ -226,13 +246,12 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         Matrix.invertM(interactionManager.invertedVPMatrix, 0, vPMatrix, 0)
         
         roomRenderer.draw(vPMatrix, floorTextureId, wallTextureIds, lightPos)
-        itemRenderer.drawItems(vPMatrix, sceneState.bumpItems, lightPos, searchQuery) { event ->
-            glSurfaceView?.queueEvent(event)
-        }
-        widgetRenderer.drawWidgets(vPMatrix, sceneState.widgetItems, sceneState.widgetViews, frameCount) { event ->
-            glSurfaceView?.queueEvent(event)
-        }
-        pileRenderer.drawPiles(vPMatrix, sceneState.piles, lightPos, searchQuery, camera.currentViewMode)
+        
+        val onUpdateTexture: (Runnable) -> Unit = { event -> glSurfaceView?.queueEvent(event) }
+
+        itemRenderer.drawItems(vPMatrix, sceneState.bumpItems, lightPos, searchQuery, onUpdateTexture)
+        widgetRenderer.drawWidgets(vPMatrix, sceneState.widgetItems, sceneState.widgetViews, frameCount, onUpdateTexture)
+        pileRenderer.drawPiles(vPMatrix, sceneState.piles, lightPos, searchQuery, camera.currentViewMode, onUpdateTexture)
         uiRenderer.drawOverlays(vPMatrix, sceneState, camera, uiAssets, lightPos)
         
         if (interactionManager.lassoPoints.isNotEmpty()) lasso.draw(vPMatrix, interactionManager.lassoPoints)
@@ -270,6 +289,13 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 val iX = rS[0] + tFloor * (rE[0] - rS[0]); val iZ = rS[2] + tFloor * (rE[2] - rS[2]); val (halfDim, totalHalfDimZ, pos) = overlayRenderer.getConstrainedFolderUI(expandedPile)
                 val cbX = pos[0] + halfDim - 0.2f * expandedPile.scale; val cbZ = pos[1] - totalHalfDimZ + 0.2f * expandedPile.scale
                 if (Math.abs(iX - cbX) < 0.4f && Math.abs(iZ - cbZ) < 0.4f) { dismissExpandedPile(); return }
+                
+                if (expandedPile == sceneState.recentsPile && camera.currentViewMode == CameraManager.ViewMode.BACK_WALL) {
+                    val width = 6f * expandedPile.scale
+                    if (Math.abs(iX - (expandedPile.position[0] - width + 0.5f)) < 0.5f) { expandedPile.currentIndex = (expandedPile.currentIndex - 1).coerceAtLeast(0); return }
+                    if (Math.abs(iX - (expandedPile.position[0] + width - 0.5f)) < 0.5f) { expandedPile.currentIndex = (expandedPile.currentIndex + 1).coerceAtMost(expandedPile.items.size - 1); return }
+                }
+
                 if (expandedPile.layoutMode == Pile.LayoutMode.GRID) {
                     val suX = pos[0] - halfDim + 0.4f * expandedPile.scale; val suZ = pos[1] - totalHalfDimZ + 0.2f * expandedPile.scale
                     if (Math.abs(iX - suX) < 0.4f && Math.abs(iZ - suZ) < 0.4f) { expandedPile.scrollIndex = (expandedPile.scrollIndex - 1).coerceAtLeast(0); return }
@@ -345,6 +371,6 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
     fun resetView() { sceneState.piles.removeAll { it.isSystem && it.name == "All Apps" }; sceneState.piles.forEach { it.isExpanded = false }; camera.reset(); (context as? LauncherActivity)?.showResetButton(false) }
     fun dismissExpandedPile() { sceneState.piles.removeAll { it.isSystem && it.name == "All Apps" }; sceneState.piles.forEach { it.isExpanded = false }; camera.restorePreviousView(); (context as? LauncherActivity)?.showResetButton(camera.currentViewMode != CameraManager.ViewMode.DEFAULT) }
     fun handleZoom(sf: Float) { camera.zoomLevel = (camera.zoomLevel / sf).coerceIn(0.5f, 2.0f); if (camera.zoomLevel != 1.0f) (context as? LauncherActivity)?.showResetButton(true) }
-    fun handlePan(dx: Float, dz: Float) { camera.handlePan(dx * 0.01f, dz * 0.01f); (context as? LauncherActivity)?.showResetButton(true) }
+    fun handlePan(dx: Float, dz: Float) { camera.handlePan(dx, dz); (context as? LauncherActivity)?.showResetButton(true) }
     override fun onSurfaceChanged(unused: GL10, w: Int, h: Int) { GLES20.glViewport(0, 0, w, h); interactionManager.screenWidth = w; interactionManager.screenHeight = h; Matrix.perspectiveM(projectionMatrix, 0, 60f, w.toFloat() / h, 0.1f, 100f) }
 }

@@ -24,53 +24,78 @@ class WidgetRenderer(
     ) {
         widgetItems.forEach { widget ->
             val view = widgetViews[widget.appWidgetId]
-            if (view != null && (widget.textureId <= 0 || (frameCount % 30 == 0))) {
-                updateWidgetTexture(widget, view, onUpdateTexture)
+            if (view != null) {
+                // Task: Live widget updates. Update texture every 15 frames for smoother animation (e.g. clocks)
+                if (widget.textureId <= 0 || (frameCount % 15 == 0)) {
+                    updateWidgetTexture(widget, view, onUpdateTexture)
+                }
             }
             drawWidget(vPMatrix, widget)
         }
     }
 
     private fun updateWidgetTexture(widget: WidgetItem, view: View, onUpdateTexture: (Runnable) -> Unit) {
+        // Ensure the view is laid out. Even if off-screen, it needs dimensions.
+        if (view.width <= 0 || view.height <= 0) {
+            val widthSpec = View.MeasureSpec.makeMeasureSpec(1024, View.MeasureSpec.EXACTLY)
+            val heightSpec = View.MeasureSpec.makeMeasureSpec(1024, View.MeasureSpec.EXACTLY)
+            view.measure(widthSpec, heightSpec)
+            view.layout(0, 0, view.measuredWidth, view.measuredHeight)
+        }
+
+        // Request a redraw of the underlying Android view logic
         view.post {
-            if (view.width <= 0 || view.height <= 0) {
-                val spec = View.MeasureSpec.makeMeasureSpec(1024, View.MeasureSpec.EXACTLY)
-                view.measure(spec, spec)
-                view.layout(0, 0, view.measuredWidth, view.measuredHeight)
-            }
+            view.invalidate()
             val w = view.width.coerceAtLeast(1)
             val h = view.height.coerceAtLeast(1)
-            val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-            view.draw(Canvas(bitmap))
-            onUpdateTexture(Runnable {
-                if (widget.textureId <= 0) {
-                    widget.textureId = textureManager.loadTextureFromBitmap(bitmap)
-                } else {
-                    textureManager.updateTextureFromBitmap(widget.textureId, bitmap)
-                }
-                bitmap.recycle()
-            })
+            
+            try {
+                val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+                val canvas = Canvas(bitmap)
+                view.draw(canvas)
+                
+                onUpdateTexture(Runnable {
+                    if (widget.textureId <= 0) {
+                        widget.textureId = textureManager.loadTextureFromBitmap(bitmap)
+                    } else {
+                        textureManager.updateTextureFromBitmap(widget.textureId, bitmap)
+                    }
+                    bitmap.recycle()
+                })
+            } catch (e: Exception) {
+                // Handle potential OOM or other bitmap issues
+            }
         }
     }
 
     private fun drawWidget(vPMatrix: FloatArray, widget: WidgetItem) {
         Matrix.setIdentityM(modelMatrix, 0)
-        Matrix.translateM(modelMatrix, 0, widget.position[0], widget.position[1], widget.position[2])
+        
+        // Task: Offset widgets slightly from the surface to prevent Z-fighting
+        val zOffset = 0.02f
+        val posX = widget.position[0]
+        val posY = widget.position[1]
+        val posZ = widget.position[2]
         
         when (widget.surface) {
             BumpItem.Surface.BACK_WALL -> {
+                Matrix.translateM(modelMatrix, 0, posX, posY, posZ + zOffset)
                 Matrix.rotateM(modelMatrix, 0, 180f, 0f, 1f, 0f)
                 Matrix.rotateM(modelMatrix, 0, 90f, 1f, 0f, 0f)
             }
             BumpItem.Surface.LEFT_WALL -> {
+                Matrix.translateM(modelMatrix, 0, posX + zOffset, posY, posZ)
                 Matrix.rotateM(modelMatrix, 0, 90f, 0f, 1f, 0f)
                 Matrix.rotateM(modelMatrix, 0, 90f, 1f, 0f, 0f)
             }
             BumpItem.Surface.RIGHT_WALL -> {
+                Matrix.translateM(modelMatrix, 0, posX - zOffset, posY, posZ)
                 Matrix.rotateM(modelMatrix, 0, -90f, 0f, 1f, 0f)
                 Matrix.rotateM(modelMatrix, 0, 90f, 1f, 0f, 0f)
             }
-            BumpItem.Surface.FLOOR -> {}
+            BumpItem.Surface.FLOOR -> {
+                Matrix.translateM(modelMatrix, 0, posX, posY + zOffset, posZ)
+            }
         }
         
         Matrix.scaleM(modelMatrix, 0, widget.size[0], 1f, widget.size[1])

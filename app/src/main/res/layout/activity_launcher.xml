@@ -6,19 +6,19 @@
     android:layout_height="match_parent"
     android:background="@android:color/black">
 
-    <android.opengl.GLSurfaceView
-        android:id="@+id/glSurfaceView"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent" />
-
     <!-- Container for widgets to allow them to be laid out and drawn.
-         Positioned off-screen so they are 'shown' but not visible. -->
+         Placed first so it's behind the GLSurfaceView. -->
     <FrameLayout
         android:id="@+id/widgetContainer"
         android:layout_width="1024dp"
         android:layout_height="1024dp"
-        android:layout_marginLeft="-2000dp"
-        android:visibility="visible" />
+        android:visibility="visible"
+        android:translationX="-2000dp" />
+
+    <android.opengl.GLSurfaceView
+        android:id="@+id/glSurfaceView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
 
     <!-- Overlay UI -->
     <RelativeLayout

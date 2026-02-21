@@ -68,7 +68,7 @@
 - [x] Fix icons showing 3D edges (Made them invisible by not drawing side faces in Box class)
 - [x] Setup .gitignore so we can push this to a github repo
 - [x] Add a detailed project readme
-- [ ] Fix interacting with widgets and let them update live on the desktop if shown. 
+- [x] Fix interacting with widgets and let them update live on the desktop if shown. 
 - [ ] Fix Recents Widget only showing the arrows (nothing else is showing. Maybe it is widget spacing in z plane issue again?)
 - [ ] Fix pinch to zoom on all views
 - [ ] Update settings activity with missing features/options
