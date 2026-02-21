@@ -144,7 +144,7 @@ class ItemRenderer(
             BumpItem.Surface.BACK_WALL -> {
                 posZ += zOffset
                 Matrix.translateM(modelMatrix, 0, posX, posY, posZ)
-                Matrix.rotateM(modelMatrix, 0, 180f, 0f, 1f, 0f)
+                // Task: Fix recents items facing the wall by removing the 180 rotation
                 Matrix.rotateM(modelMatrix, 0, 90f, 1f, 0f, 0f)
             }
             BumpItem.Surface.LEFT_WALL -> {

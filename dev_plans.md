@@ -1,5 +1,7 @@
 # BumpDesk Development
 
+## Rules:
+
 - document plans and changes in this file
 - work on one task at a time
 - create tests to verify tasks are working
@@ -37,7 +39,7 @@
 - [x] Fix Open As... context menu. It is not showing the secondary menu layer when selected. We are expecting to see the radial menu reveal a second outside layer of options for that submenu. 
 - [x] Allow adding normal Android widgets wherever the user has long-clicked to select Add Widget option. 
 - [x] Add the Theme Manager and use the assets found in assets/BumpTop/*. Each folder in there is a separate theme. 
-- [x] Study external/BumpTop windows code to see if there are any features that would fit well with our Android setup (Implemented SoftPile logic and improved Stacking/Gridding)
+- [x] Study external/BumpTop windows code to see if there any features that would fit well with our Android setup (Implemented SoftPile logic and improved Stacking/Gridding)
 - [x] Allow moving the Recents Widget to lay flat on the floor like the app icons can. 
 - [x] Fix dragging an app into a stack. Currently the app just intersects with the stack. The stack should have higher gravity/mass, so when an app starts to intersect, ask the user if they would like to add the app to the stack
 - [x] Fix themes not applying. Make it so the app automatically loads theme configs and restarts the UI. 
@@ -69,7 +71,7 @@
 - [x] Setup .gitignore so we can push this to a github repo
 - [x] Add a detailed project readme
 - [x] Fix interacting with widgets and let them update live on the desktop if shown. 
-- [ ] Fix Recents Widget only showing the arrows (nothing else is showing. Maybe it is widget spacing in z plane issue again?)
+- [ ] **In Progress**: Fix Recents Widget only showing the arrows (nothing else is showing. Maybe it is widget spacing in z plane issue again?)
 - [ ] Fix pinch to zoom on all views
 - [ ] Update settings activity with missing features/options
 - [ ] fix themes still requiring a full app reload to switch

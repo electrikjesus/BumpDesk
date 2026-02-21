@@ -55,7 +55,6 @@ class PhysicsEngine {
 
             if (!item.isPinned) {
                 if (item.surface != BumpItem.Surface.FLOOR) {
-                    // Slight gravity towards floor if on wall and not pinned
                     item.velocity[1] -= 0.01f
                 }
 
@@ -96,20 +95,19 @@ class PhysicsEngine {
                 val limit = ROOM_SIZE - halfDim - UI_MARGIN
                 pile.position[0] = pile.position[0].coerceIn(-limit, limit)
                 pile.position[1] = pile.position[1].coerceIn(0.05f + halfDim, 12f - halfDim)
-                // Task: Fixed Z position for wall-mounted piles to avoid clipping
-                pile.position[2] = pile.position[2].coerceIn(-9.95f, -8.5f)
+                pile.position[2] = -9.4f // Standardized Recents/Wall Pile depth
             }
             BumpItem.Surface.LEFT_WALL -> {
                 val limit = ROOM_SIZE - halfDim - UI_MARGIN
                 pile.position[2] = pile.position[2].coerceIn(-limit, limit)
                 pile.position[1] = pile.position[1].coerceIn(0.05f + halfDim, 12f - halfDim)
-                pile.position[0] = pile.position[0].coerceIn(-9.95f, -8.5f)
+                pile.position[0] = -9.4f
             }
             BumpItem.Surface.RIGHT_WALL -> {
                 val limit = ROOM_SIZE - halfDim - UI_MARGIN
                 pile.position[2] = pile.position[2].coerceIn(-limit, limit)
                 pile.position[1] = pile.position[1].coerceIn(0.05f + halfDim, 12f - halfDim)
-                pile.position[0] = pile.position[0].coerceIn(8.5f, 9.95f)
+                pile.position[0] = 9.4f
             }
         }
     }
@@ -129,9 +127,7 @@ class PhysicsEngine {
             BumpItem.Surface.BACK_WALL -> {
                 item.position[2] = -9.95f
                 if (!item.isPinned && item.position[1] <= 0.05f) {
-                    item.surface = BumpItem.Surface.FLOOR
-                    item.position[1] = 0.05f
-                    item.velocity[1] = 0f
+                    item.surface = BumpItem.Surface.FLOOR; item.position[1] = 0.05f; item.velocity[1] = 0f
                 }
                 item.position[0] = item.position[0].coerceIn(-9.5f, 9.5f)
                 item.position[1] = item.position[1].coerceIn(0.05f, 11.5f)
@@ -139,9 +135,7 @@ class PhysicsEngine {
             BumpItem.Surface.LEFT_WALL -> {
                 item.position[0] = -9.95f
                 if (!item.isPinned && item.position[1] <= 0.05f) {
-                    item.surface = BumpItem.Surface.FLOOR
-                    item.position[1] = 0.05f
-                    item.velocity[1] = 0f
+                    item.surface = BumpItem.Surface.FLOOR; item.position[1] = 0.05f; item.velocity[1] = 0f
                 }
                 item.position[2] = item.position[2].coerceIn(-9.5f, 9.5f)
                 item.position[1] = item.position[1].coerceIn(0.05f, 11.5f)
@@ -149,9 +143,7 @@ class PhysicsEngine {
             BumpItem.Surface.RIGHT_WALL -> {
                 item.position[0] = 9.95f
                 if (!item.isPinned && item.position[1] <= 0.05f) {
-                    item.surface = BumpItem.Surface.FLOOR
-                    item.position[1] = 0.05f
-                    item.velocity[1] = 0f
+                    item.surface = BumpItem.Surface.FLOOR; item.position[1] = 0.05f; item.velocity[1] = 0f
                 }
                 item.position[2] = item.position[2].coerceIn(-9.5f, 9.5f)
                 item.position[1] = item.position[1].coerceIn(0.05f, 11.5f)
@@ -170,13 +162,12 @@ class PhysicsEngine {
         if (pile.isExpanded) {
             val limitX = INFINITE_SIZE - halfDim - UI_MARGIN
             val limitZ = INFINITE_SIZE - totalHalfDimZ - UI_MARGIN
-            
             val uiX = pile.position[0].coerceIn(-limitX, limitX)
             val uiZ = pile.position[2].coerceIn(-limitZ, limitZ)
 
             return floatArrayOf(
                 uiX + (index % side - (side - 1) / 2f) * spacing,
-                3.0f,
+                3.05f, // Task: Slightly higher than UI background (2.98) and elements (2.99)
                 uiZ + (index / side - (side - 1) / 2f) * spacing + 0.5f * pile.scale
             )
         } else if (pile.isFannedOut) {
@@ -191,34 +182,22 @@ class PhysicsEngine {
             }
         } else if (pile.layoutMode == Pile.LayoutMode.CAROUSEL) {
             val carouselSpacing = 3.5f * pile.scale
-            val xOffset = (index - pile.currentIndex) * carouselSpacing
-            return floatArrayOf(
-                pile.position[0] + xOffset,
-                pile.position[1],
-                pile.position[2]
-            )
-        } else if (pile.layoutMode == Pile.LayoutMode.GRID) {
-            val gridSpacing = 2.0f * pile.scale
+            val offset = (index - pile.currentIndex) * carouselSpacing
             
             return when (pile.surface) {
-                BumpItem.Surface.FLOOR -> {
-                    floatArrayOf(
-                        pile.position[0] + (index % side - (side - 1) / 2f) * gridSpacing,
-                        0.05f,
-                        pile.position[2] + (index / side - (side - 1) / 2f) * gridSpacing
-                    )
-                }
-                BumpItem.Surface.BACK_WALL -> {
-                    floatArrayOf(
-                        pile.position[0] + (index % side - (side - 1) / 2f) * gridSpacing,
-                        pile.position[1] + ((side - 1) / 2f - index / side) * gridSpacing,
-                        pile.position[2]
-                    )
-                }
+                BumpItem.Surface.BACK_WALL -> floatArrayOf(pile.position[0] + offset, pile.position[1], pile.position[2])
+                BumpItem.Surface.LEFT_WALL -> floatArrayOf(pile.position[0], pile.position[1], pile.position[2] + offset)
+                BumpItem.Surface.RIGHT_WALL -> floatArrayOf(pile.position[0], pile.position[1], pile.position[2] - offset)
+                else -> floatArrayOf(pile.position[0] + offset, pile.position[1], pile.position[2])
+            }
+        } else if (pile.layoutMode == Pile.LayoutMode.GRID) {
+            val gridSpacing = 2.0f * pile.scale
+            return when (pile.surface) {
+                BumpItem.Surface.FLOOR -> floatArrayOf(pile.position[0] + (index % side - (side - 1) / 2f) * gridSpacing, 0.05f, pile.position[2] + (index / side - (side - 1) / 2f) * gridSpacing)
+                BumpItem.Surface.BACK_WALL -> floatArrayOf(pile.position[0] + (index % side - (side - 1) / 2f) * gridSpacing, pile.position[1] + ((side - 1) / 2f - index / side) * gridSpacing, pile.position[2])
                 else -> floatArrayOf(pile.position[0], pile.position[1], pile.position[2])
             }
         } else {
-            // Stack: show leafed item on top
             val leafOffset = if (index == pile.currentIndex) 0.5f else index * 0.05f
             return floatArrayOf(pile.position[0], pile.position[1] + leafOffset, pile.position[2])
         }
@@ -243,28 +222,16 @@ class PhysicsEngine {
         if (distSq < minDist * minDist && distSq > 0.0001f) {
             val dist = sqrt(distSq.toDouble()).toFloat()
             val overlap = (minDist - dist)
-            val nx = dx / dist
-            val ny = dy / dist
-            val nz = dz / dist
+            val nx = dx / dist; val ny = dy / dist; val nz = dz / dist
 
             if (itemCanMove && !otherCanMove) {
-                item.position[0] += nx * overlap
-                item.position[1] += ny * overlap
-                item.position[2] += nz * overlap
+                item.position[0] += nx * overlap; item.position[1] += ny * overlap; item.position[2] += nz * overlap
             } else if (!itemCanMove && otherCanMove) {
-                other.position[0] -= nx * overlap
-                other.position[1] -= ny * overlap
-                other.position[2] -= nz * overlap
+                other.position[0] -= nx * overlap; other.position[1] -= ny * overlap; other.position[2] -= nz * overlap
             } else {
-                val itemRatio = otherMass / totalMass
-                val otherRatio = itemMass / totalMass
-                
-                item.position[0] += nx * overlap * itemRatio
-                item.position[1] += ny * overlap * itemRatio
-                item.position[2] += nz * overlap * itemRatio
-                other.position[0] -= nx * overlap * otherRatio
-                other.position[1] -= ny * overlap * otherRatio
-                other.position[2] -= nz * overlap * otherRatio
+                val itemRatio = otherMass / totalMass; val otherRatio = itemMass / totalMass
+                item.position[0] += nx * overlap * itemRatio; item.position[1] += ny * overlap * itemRatio; item.position[2] += nz * overlap * itemRatio
+                other.position[0] -= nx * overlap * otherRatio; other.position[1] -= ny * overlap * otherRatio; other.position[2] -= nz * overlap * otherRatio
             }
 
             val relVelX = item.velocity[0] - other.velocity[0]
@@ -275,23 +242,12 @@ class PhysicsEngine {
             if (velAlongNormal < 0) {
                 val j = -(1 + restitution) * velAlongNormal
                 val impulse = j / (1 / itemMass + 1 / otherMass)
-                
-                if (itemCanMove) {
-                    item.velocity[0] += (impulse / itemMass) * nx
-                    item.velocity[1] += (impulse / itemMass) * ny
-                    item.velocity[2] += (impulse / itemMass) * nz
-                }
-                if (otherCanMove) {
-                    other.velocity[0] -= (impulse / otherMass) * nx
-                    other.velocity[1] -= (impulse / otherMass) * ny
-                    other.velocity[2] -= (impulse / otherMass) * nz
-                }
+                if (itemCanMove) { item.velocity[0] += (impulse / itemMass) * nx; item.velocity[1] += (impulse / itemMass) * ny; item.velocity[2] += (impulse / itemMass) * nz }
+                if (otherCanMove) { other.velocity[0] -= (impulse / otherMass) * nx; other.velocity[1] -= (impulse / otherMass) * ny; other.velocity[2] -= (impulse / otherMass) * nz }
                 if (abs(j) > 0.1f) onBump()
             }
         }
     }
 
-    fun isInPile(item: BumpItem, piles: List<Pile>): Boolean {
-        return piles.any { it.items.contains(item) }
-    }
+    fun isInPile(item: BumpItem, piles: List<Pile>) = piles.any { it.items.contains(item) }
 }
