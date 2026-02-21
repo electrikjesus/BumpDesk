@@ -11,12 +11,14 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <!-- Hidden container for widgets to allow them to be laid out and drawn -->
+    <!-- Container for widgets to allow them to be laid out and drawn.
+         Positioned off-screen so they are 'shown' but not visible. -->
     <FrameLayout
         android:id="@+id/widgetContainer"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:visibility="invisible" />
+        android:layout_width="1024dp"
+        android:layout_height="1024dp"
+        android:layout_marginLeft="-2000dp"
+        android:visibility="visible" />
 
     <!-- Overlay UI -->
     <RelativeLayout

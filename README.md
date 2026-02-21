@@ -1,54 +1,58 @@
-# BumpDesk
+# BumpDesk - 3D Android Workspace
 
-BumpDesk is a 3D Android launcher inspired by the BumpTop desktop metaphor. It provides an immersive workspace where apps, widgets, and files are treated as physical objects in a 3D room.
+BumpDesk is an experimental 3D launcher for Android that reimagines the traditional home screen as a physical workspace. Inspired by the classic "BumpTop" desktop metaphor, it treats applications, widgets, and notes as physical objects that can be moved, stacked, pinned to walls, and interacted with in a natural way.
 
-## Features
+## 🌟 Key Features
 
-- **3D Room Metaphor**: Use the floor and walls to organize your digital life.
-- **Radial Context Menus**: Touch-first context menus that appear around your point of interaction.
-- **Piles and Folders**: Stack icons into piles or expand them into organized 3D grids.
-- **Recent Apps Carousel**: A dedicated widget on the back wall to quickly navigate through recently used apps using snapshots.
-- **Advanced Launch Options**: Open apps in Fullscreen, Freeform, or Pinned modes directly from the context menu.
+- **Physics-Based Workspace**: Objects collide, bounce, and have "weight". Move items naturally around the room.
+- **Surface Organization**: Use the floor for active work and walls for pinning important apps or widgets.
+- **Smart Piles**: Gather items into piles by "lassoing" them. Piles can be fanned out for quick scanning or expanded into an organized grid.
+- **Immersive Widgets**: Android widgets are rendered as 3D panels. Interact with them directly in the 3D scene.
+- **Recent Tasks Carousel**: A dedicated 3D view on the back wall showing live snapshots of your recently used applications.
+- **Dynamic Themes**: Fully customizable workspace appearance, including wall textures, floor materials, and selection colors.
+- **Contextual UI**: Intuitive radial menus provide quick access to advanced launch modes (Freeform, Pinned, Fullscreen) and item properties.
 
-## System Features & ADB Commands
-
-Some features require system-level permissions or settings to be enabled. Use the following ADB commands to grant necessary access for testing:
-
-### 1. Enable Recent Apps Carousel (Usage Stats)
-BumpDesk needs to see which apps you've used recently to fill the carousel.
-```bash
-adb shell appops set com.bass.bumpdesk GET_USAGE_STATS allow
-```
-
-### 2. Enable Freeform Window Support
-To test the "Open As > Freeform" feature, freeform windows must be enabled at the system level.
-```bash
-adb shell settings put global enable_freeform_support 1
-adb shell settings put global force_resizable_activities 1
-# A reboot is usually required for these changes to take effect.
-adb reboot
-```
-
-### 3. Grant Signature Permissions (AOSP/Root Required)
-For actual recents snapshots (instead of placeholders), the app needs `REAL_GET_TASKS`. If you are testing on a rooted device or custom AOSP build where you can grant signature permissions:
-```bash
-adb shell pm grant com.bass.bumpdesk android.permission.REAL_GET_TASKS
-```
-
-### 4. Set as Default Launcher
-```bash
-adb shell cmd package set-home-activity com.bass.bumpdesk/.LauncherActivity
-```
-
-## Development
+## 🚀 Getting Started
 
 ### Prerequisites
-- Android Studio Hedgehog or newer.
-- Android device running API 29 (Android 10) or higher.
-- Developer Options enabled.
+- Android device running Android 10 (API 29) or higher.
+- Support for OpenGL ES 2.0.
 
-### Build
-Run the following command to build the debug APK:
-```bash
-./gradlew :app:assembleDebug
-```
+### Installation & Permissions
+For the best experience, several system-level settings should be configured via ADB:
+
+1. **Enable Usage Statistics** (Required for Recent Apps):
+   ```bash
+   adb shell appops set com.bass.bumpdesk GET_USAGE_STATS allow
+   ```
+
+2. **Enable Freeform Windowing** (For "Open As > Freeform"):
+   ```bash
+   adb shell settings put global enable_freeform_support 1
+   adb shell settings put global force_resizable_activities 1
+   adb reboot
+   ```
+
+3. **Grant Snapshot Permissions** (Optional - Requires Root/AOSP Privileges):
+   To see live app snapshots in the Recents carousel instead of icons:
+   ```bash
+   adb shell pm grant com.bass.bumpdesk android.permission.REAL_GET_TASKS
+   ```
+
+## 🛠 Architecture
+
+BumpDesk is built using:
+- **OpenGL ES 2.0**: For high-performance 3D rendering.
+- **Custom Physics Engine**: Optimized for touch-based mobile interaction.
+- **Kotlin & Coroutines**: For efficient state management and background processing.
+- **Room Persistence**: To save your desktop layout across reboots.
+
+## 📂 Project Structure
+
+- `com.bass.bumpdesk`: Core launcher logic.
+- `com.bass.bumpdesk.persistence`: Database and entity definitions for layout saving.
+- `assets/BumpTop`: Themed resources including textures and `theme.json` configurations.
+
+## 📜 License
+
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.

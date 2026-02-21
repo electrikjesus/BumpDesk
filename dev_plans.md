@@ -1,5 +1,17 @@
+# BumpDesk Development
+
+- document plans and changes in this file
+- work on one task at a time
+- create tests to verify tasks are working
+- use gradle build to validate work after each task is complete
+- work on tasks autonomously until user feedback is required
+
 # BumpDesk changes
 
+- [ ] **Context Improvement**: Modularize Rendering Logic (Extract ItemRenderer, WidgetRenderer, PileRenderer, UIRenderer from BumpRenderer)
+- [ ] **Context Improvement**: Extract Business Logic from LauncherActivity (Create DialogManager and ActionHandler)
+- [ ] **Context Improvement**: Improve SceneState and Persistence (Implement Repository pattern and move state logic)
+- [ ] **Context Improvement**: Create Architecture Summary (`docs/architecture.md`)
 - [x] Fix app icons not being able to drag from folder view.
 - [x] Fix app loading to black screen, but acting like it is displaying scene (reset view button shows when double tapping on the black screen)
 - [x] Fix stacks not allowing to be dragged and moved
@@ -55,9 +67,13 @@
 - [x] If view is centered on the floor and a folder is expanded from that view, return to that view when the folder is closed or dismissed (Implemented view restoration in CameraManager)
 - [x] Fix icons showing 3D edges (Made them invisible by not drawing side faces in Box class)
 - [x] Setup .gitignore so we can push this to a github repo
+- [x] Add a detailed project readme
 - [ ] Fix interacting with widgets and let them update live on the desktop if shown. 
 - [ ] Fix Recents Widget only showing the arrows (nothing else is showing. Maybe it is widget spacing in z plane issue again?)
 - [ ] Fix pinch to zoom on all views
+- [ ] Update settings activity with missing features/options
+- [ ] fix themes still requiring a full app reload to switch
+- [ ] find a fix or work around for any features that would prevent the app being submitted to Play Store
 
 ## Planned Features from BumpTop Study
 

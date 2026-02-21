@@ -63,6 +63,7 @@ class InteractionManager(
     }
 
     fun handleTouchMove(x: Float, y: Float, sceneState: SceneState, pointerCount: Int) {
+        // Task: Ensure lasso/drag only works with 1 finger to avoid interference with pan/zoom
         if (pointerCount > 1) {
             isDragging = false
             isLeafing = false
@@ -113,8 +114,6 @@ class InteractionManager(
             val item = sceneState.selectedItem!!
             val pile = sceneState.getPileOf(item)
             
-            // Task: Allow All Apps stack to be dragged (removed the return)
-
             val floorY = if (pile?.isExpanded == true) 3.0f else 0.05f
             val hit = findWallOrFloorHit(rS, rE, floorY)
             hit?.let { (surface, pos) ->

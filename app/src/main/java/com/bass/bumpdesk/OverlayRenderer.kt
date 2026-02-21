@@ -58,14 +58,17 @@ class OverlayRenderer(private val shader: DefaultShader) {
         val width = 6f * pile.scale
         val height = 4f * pile.scale
         
+        // Background - Task: Place BEHIND items (items are at pile.position[2])
         Matrix.setIdentityM(modelMatrix, 0)
-        Matrix.translateM(modelMatrix, 0, pile.position[0], pile.position[1], pile.position[2] - 0.1f)
+        Matrix.translateM(modelMatrix, 0, pile.position[0], pile.position[1], pile.position[2] - 0.05f)
         Matrix.rotateM(modelMatrix, 0, 90f, 1f, 0f, 0f)
         Matrix.scaleM(modelMatrix, 0, width, 1f, height)
         folderBgPlane.draw(vPMatrix, modelMatrix, floatArrayOf(0.1f, 0.1f, 0.1f, 0.7f), -1, lightPos, 1.0f, false)
 
-        drawArrow(vPMatrix, pile.position[0] - width + 0.5f, pile.position[1], pile.position[2] + 0.2f, arrowLeftTextureId, lightPos)
-        drawArrow(vPMatrix, pile.position[0] + width - 0.5f, pile.position[1], pile.position[2] + 0.2f, arrowRightTextureId, lightPos)
+        // Task: Ensure arrows are in front of items or background correctly
+        // Items are at Z = pile.position[2]. Arrows at Z = pile.position[2] + 0.1f
+        drawArrow(vPMatrix, pile.position[0] - width + 0.5f, pile.position[1], pile.position[2] + 0.1f, arrowLeftTextureId, lightPos)
+        drawArrow(vPMatrix, pile.position[0] + width - 0.5f, pile.position[1], pile.position[2] + 0.1f, arrowRightTextureId, lightPos)
     }
 
     private fun drawArrow(vPMatrix: FloatArray, x: Float, y: Float, z: Float, textureId: Int, lightPos: FloatArray) {
