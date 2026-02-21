@@ -8,10 +8,10 @@
 
 # BumpDesk changes
 
-- [ ] **Context Improvement**: Modularize Rendering Logic (Extract ItemRenderer, WidgetRenderer, PileRenderer, UIRenderer from BumpRenderer)
-- [ ] **Context Improvement**: Extract Business Logic from LauncherActivity (Create DialogManager and ActionHandler)
-- [ ] **Context Improvement**: Improve SceneState and Persistence (Implement Repository pattern and move state logic)
-- [ ] **Context Improvement**: Create Architecture Summary (`docs/architecture.md`)
+- [x] **Context Improvement**: Modularize Rendering Logic (Extract ItemRenderer, WidgetRenderer, PileRenderer, UIRenderer from BumpRenderer)
+- [x] **Context Improvement**: Extract Business Logic from LauncherActivity (Create DialogManager and ActionHandler)
+- [x] **Context Improvement**: Improve SceneState and Persistence (Implement Repository pattern and move state logic)
+- [x] **Context Improvement**: Create Architecture Summary (`docs/architecture.md`)
 - [x] Fix app icons not being able to drag from folder view.
 - [x] Fix app loading to black screen, but acting like it is displaying scene (reset view button shows when double tapping on the black screen)
 - [x] Fix stacks not allowing to be dragged and moved

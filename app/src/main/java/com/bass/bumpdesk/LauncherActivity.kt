@@ -1,23 +1,17 @@
 package com.bass.bumpdesk
 
-import android.app.ActivityOptions
-import android.app.AlertDialog
 import android.appwidget.AppWidgetHost
 import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.graphics.Color
-import android.graphics.Rect
-import android.net.Uri
 import android.opengl.GLSurfaceView
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
-import android.provider.Settings
 import android.view.*
 import android.widget.Button
-import android.widget.EditText
 import android.widget.FrameLayout
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.view.ContextThemeWrapper
@@ -41,10 +35,15 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
     
     private lateinit var appManager: AppManager
     private lateinit var menuManager: MenuManager
+    
+    private lateinit var dialogManager: DialogManager
+    private lateinit var actionHandler: ActionHandler
 
     private var isScaling = false
     private var lastTouchX = 0f
     private var lastTouchY = 0f
+    private var lastMidX = 0f
+    private var lastMidY = 0f
     private var selectedItemForPhoto: BumpItem? = null
 
     companion object {
@@ -87,6 +86,9 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
         renderer.glSurfaceView = glSurfaceView
         glSurfaceView.setRenderer(renderer)
 
+        dialogManager = DialogManager(this, glSurfaceView, renderer)
+        actionHandler = ActionHandler(this, glSurfaceView, renderer)
+
         btnResetView = findViewById(R.id.btnResetView)
         radialMenu = findViewById(R.id.radialMenu)
         widgetContainer = findViewById(R.id.widgetContainer)
@@ -98,7 +100,7 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
 
         setupGestures()
         loadApps()
-        handleIntent(intent)
+        actionHandler.handleIntent(intent) { showResetButton(it) }
     }
 
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
@@ -119,18 +121,7 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
 
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
-        intent?.let { handleIntent(it) }
-    }
-
-    private fun handleIntent(intent: Intent) {
-        if (intent.action == ACTION_RECENTS) {
-            glSurfaceView.queueEvent {
-                renderer.sceneState.recentsPile?.let {
-                    renderer.camera.focusOnWall(CameraManager.ViewMode.BACK_WALL, floatArrayOf(0f, 4f, 2f), floatArrayOf(0f, 4f, -10f))
-                    showResetButton(true)
-                }
-            }
-        }
+        intent?.let { actionHandler.handleIntent(it) { show -> showResetButton(show) } }
     }
 
     private fun setupSystemUi() {
@@ -196,10 +187,24 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
             }
             scaleGestureDetector.onTouchEvent(event)
             gestureDetector.onTouchEvent(event)
-            when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> glSurfaceView.queueEvent { renderer.handleTouchDown(event.x, event.y) }
-                MotionEvent.ACTION_MOVE -> glSurfaceView.queueEvent { renderer.handleTouchMove(event.x, event.y, event.pointerCount) }
-                MotionEvent.ACTION_UP -> glSurfaceView.queueEvent { renderer.handleTouchUp() }
+            
+            val pointerCount = event.pointerCount
+            if (pointerCount == 2) {
+                val midX = (event.getX(0) + event.getX(1)) / 2f
+                val midY = (event.getY(0) + event.getY(1)) / 2f
+                if (event.actionMasked == MotionEvent.ACTION_MOVE && !isScaling) {
+                    val dx = midX - lastMidX
+                    val dy = midY - lastMidY
+                    glSurfaceView.queueEvent { renderer.handlePan(-dx * 0.5f, dy * 0.5f) }
+                }
+                lastMidX = midX
+                lastMidY = midY
+            } else if (pointerCount == 1) {
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> glSurfaceView.queueEvent { renderer.handleTouchDown(event.x, event.y) }
+                    MotionEvent.ACTION_MOVE -> glSurfaceView.queueEvent { renderer.handleTouchMove(event.x, event.y, pointerCount) }
+                    MotionEvent.ACTION_UP -> glSurfaceView.queueEvent { renderer.handleTouchUp() }
+                }
             }
             true
         }
@@ -208,161 +213,39 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
     fun showItemMenu(x: Float, y: Float, item: BumpItem) = runOnUiThread { menuManager.showItemMenu(x, y, item) }
     fun showPileMenu(x: Float, y: Float, pile: Pile, onBreak: () -> Unit) = runOnUiThread { menuManager.showPileMenu(x, y, pile, onBreak) }
     fun showWidgetMenu(x: Float, y: Float, widget: WidgetItem) = runOnUiThread { menuManager.showWidgetMenu(x, y, widget) }
-    fun showLassoMenu(x: Float, y: Float, selectedItems: List<BumpItem>) = runOnUiThread { 
-        menuManager.showLassoMenu(x, y, selectedItems)
-    }
+    fun showLassoMenu(x: Float, y: Float, selectedItems: List<BumpItem>) = runOnUiThread { menuManager.showLassoMenu(x, y, selectedItems) }
     fun showDesktopMenu(x: Float, y: Float) = runOnUiThread { menuManager.showDesktopMenu(x, y) }
 
-    fun showAddToPileMenu(item: BumpItem, pile: Pile) = runOnUiThread {
-        AlertDialog.Builder(this)
-            .setTitle("Add to Stack?")
-            .setMessage("Do you want to add ${item.appInfo?.label ?: "this item"} to ${pile.name}?")
-            .setPositiveButton("Yes") { _, _ ->
-                glSurfaceView.queueEvent {
-                    renderer.sceneState.bumpItems.remove(item)
-                    pile.items.add(item)
-                }
-            }
-            .setNegativeButton("No", null)
-            .show()
-    }
-
-    fun promptAddStickyNote(x: Float, y: Float) = runOnUiThread {
-        val input = EditText(this)
-        AlertDialog.Builder(this)
-            .setTitle("Add Sticky Note")
-            .setView(input)
-            .setPositiveButton("OK") { _, _ ->
-                val text = input.text.toString()
-                if (text.isNotBlank()) {
-                    glSurfaceView.queueEvent { renderer.addStickyNote(text, x, y) }
-                }
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    fun promptEditStickyNote(item: BumpItem) = runOnUiThread {
-        val input = EditText(this).apply { setText(item.text) }
-        AlertDialog.Builder(this)
-            .setTitle("Edit Note")
-            .setView(input)
-            .setPositiveButton("OK") { _, _ ->
-                val text = input.text.toString()
-                glSurfaceView.queueEvent {
-                    item.text = text
-                    item.textureId = -1
-                }
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
+    fun showAddToPileMenu(item: BumpItem, pile: Pile) = dialogManager.showAddToPileMenu(item, pile)
+    fun promptAddStickyNote(x: Float, y: Float) = dialogManager.promptAddStickyNote(x, y)
+    fun promptEditStickyNote(item: BumpItem) = dialogManager.promptEditStickyNote(item)
+    fun promptAddWebWidget(x: Float, y: Float) = dialogManager.promptAddWebWidget(x, y)
+    fun promptEditWebWidget(item: BumpItem) = dialogManager.promptEditWebWidget(item)
+    fun promptSearch() = dialogManager.promptSearch()
+    fun promptRenamePile(pile: Pile, onRenamed: (String) -> Unit) = dialogManager.promptRenamePile(pile, onRenamed)
 
     fun promptAddPhotoFrame(x: Float, y: Float) {
-        lastTouchX = x
-        lastTouchY = y
-        val intent = Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
-        startActivityForResult(intent, REQUEST_PICK_IMAGE)
+        lastTouchX = x; lastTouchY = y
+        startActivityForResult(Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI), REQUEST_PICK_IMAGE)
     }
 
     fun promptChangePhoto(item: BumpItem) {
         selectedItemForPhoto = item
-        val intent = Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
-        startActivityForResult(intent, REQUEST_PICK_IMAGE_FOR_FRAME)
+        startActivityForResult(Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI), REQUEST_PICK_IMAGE_FOR_FRAME)
     }
 
-    fun promptAddWebWidget(x: Float, y: Float) = runOnUiThread {
-        val input = EditText(this).apply { setText("https://") }
-        AlertDialog.Builder(this)
-            .setTitle("Add Web Widget")
-            .setView(input)
-            .setPositiveButton("Add") { _, _ ->
-                val url = input.text.toString()
-                if (url.isNotBlank()) {
-                    glSurfaceView.queueEvent { renderer.addWebWidget(url, x, y) }
-                }
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    fun promptEditWebWidget(item: BumpItem) = runOnUiThread {
-        val input = EditText(this).apply { setText(item.text) }
-        AlertDialog.Builder(this)
-            .setTitle("Edit URL")
-            .setView(input)
-            .setPositiveButton("OK") { _, _ ->
-                val url = input.text.toString()
-                glSurfaceView.queueEvent {
-                    item.text = url
-                    item.textureId = -1
-                    renderer.sceneState.webViews.remove(item.hashCode())
-                }
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    fun promptSearch() = runOnUiThread {
-        val input = EditText(this)
-        AlertDialog.Builder(this)
-            .setTitle("Search Desk")
-            .setView(input)
-            .setPositiveButton("Search") { _, _ ->
-                val query = input.text.toString()
-                glSurfaceView.queueEvent { renderer.performSearch(query) }
-            }
-            .setNegativeButton("Clear") { _, _ ->
-                glSurfaceView.queueEvent { renderer.performSearch("") }
-            }
-            .show()
-    }
-
-    fun saveLastTouchPosition(x: Float, y: Float) {
-        lastTouchX = x
-        lastTouchY = y
-    }
+    fun saveLastTouchPosition(x: Float, y: Float) { lastTouchX = x; lastTouchY = y }
 
     fun createPileFromCaptured(capturedItems: List<BumpItem>) {
-        renderer.sceneState.piles.forEach { pile -> pile.items.removeAll(capturedItems) }
+        renderer.sceneState.piles.forEach { it.items.removeAll(capturedItems) }
         renderer.sceneState.piles.removeAll { it.items.size < 2 && !it.isSystem }
         val pPos = floatArrayOf(capturedItems.map { it.position[0] }.average().toFloat(), 0.05f, capturedItems.map { it.position[2] }.average().toFloat())
         renderer.sceneState.piles.add(Pile(capturedItems.toMutableList(), pPos))
     }
 
-    fun launchApp(item: BumpItem, windowingMode: Int = WINDOWING_MODE_UNDEFINED) {
-        val packageName = item.appInfo?.packageName ?: return
-        val intent = packageManager.getLaunchIntentForPackage(packageName) ?: return
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        
-        val options = ActivityOptions.makeBasic()
-        if (windowingMode != WINDOWING_MODE_UNDEFINED) {
-            try {
-                val setLaunchWindowingModeMethod = ActivityOptions::class.java.getMethod("setLaunchWindowingMode", Int::class.javaPrimitiveType)
-                setLaunchWindowingModeMethod.invoke(options, windowingMode)
-                
-                if (windowingMode == WINDOWING_MODE_FREEFORM) {
-                    val dm = resources.displayMetrics
-                    val rect = Rect(dm.widthPixels/4, dm.heightPixels/4, dm.widthPixels*3/4, dm.heightPixels*3/4)
-                    val setLaunchBoundsMethod = ActivityOptions::class.java.getMethod("setLaunchBounds", Rect::class.java)
-                    setLaunchBoundsMethod.invoke(options, rect)
-                }
-            } catch (e: Exception) {
-                if (windowingMode == WINDOWING_MODE_FREEFORM) {
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK)
-                }
-            }
-        }
-        startActivity(intent, options.toBundle())
+    fun launchApp(item: BumpItem, mode: Int = WINDOWING_MODE_UNDEFINED) {
+        actionHandler.launchApp(item, mode)
         glSurfaceView.postDelayed({ updateRecents() }, 1000)
-    }
-
-    fun promptRenamePile(pile: Pile, onRenamed: (String) -> Unit) = runOnUiThread {
-        val input = EditText(this).apply { setText(pile.name); setSelection(pile.name.length) }
-        AlertDialog.Builder(this).setTitle("Rename Folder").setView(input).setPositiveButton("OK") { _, _ ->
-            val newName = input.text.toString()
-            if (newName.isNotBlank()) glSurfaceView.queueEvent { onRenamed(newName) }
-        }.setNegativeButton("Cancel", null).show()
     }
 
     fun openWidgetPicker() {
@@ -386,36 +269,15 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
         super.onActivityResult(requestCode, resultCode, data)
         if (resultCode == RESULT_OK) {
             when (requestCode) {
-                REQUEST_PICK_APPWIDGET -> {
-                    data?.extras?.getInt(AppWidgetManager.EXTRA_APPWIDGET_ID, -1)?.let { id ->
-                        if (id != -1) configureWidget(id)
-                    }
+                REQUEST_PICK_APPWIDGET -> data?.extras?.getInt(AppWidgetManager.EXTRA_APPWIDGET_ID, -1)?.let { if (it != -1) configureWidget(it) }
+                REQUEST_CREATE_APPWIDGET -> data?.extras?.getInt(AppWidgetManager.EXTRA_APPWIDGET_ID, -1)?.let { if (it != -1) addWidgetToRenderer(it) }
+                REQUEST_PICK_IMAGE -> data?.data?.let { uri ->
+                    try { contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (e: Exception) {}
+                    glSurfaceView.queueEvent { renderer.addPhotoFrame(uri.toString(), lastTouchX, lastTouchY) }
                 }
-                REQUEST_CREATE_APPWIDGET -> {
-                    data?.extras?.getInt(AppWidgetManager.EXTRA_APPWIDGET_ID, -1)?.let { id ->
-                        if (id != -1) addWidgetToRenderer(id)
-                    }
-                }
-                REQUEST_PICK_IMAGE -> {
-                    data?.data?.let { uri ->
-                        try {
-                            contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                        } catch (e: SecurityException) {}
-                        glSurfaceView.queueEvent { renderer.addPhotoFrame(uri.toString(), lastTouchX, lastTouchY) }
-                    }
-                }
-                REQUEST_PICK_IMAGE_FOR_FRAME -> {
-                    data?.data?.let { uri ->
-                        try {
-                            contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                        } catch (e: SecurityException) {}
-                        selectedItemForPhoto?.let { item ->
-                            glSurfaceView.queueEvent {
-                                item.text = uri.toString()
-                                item.textureId = -1
-                            }
-                        }
-                    }
+                REQUEST_PICK_IMAGE_FOR_FRAME -> data?.data?.let { uri ->
+                    try { contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (e: Exception) {}
+                    selectedItemForPhoto?.let { it.text = uri.toString(); it.textureId = -1 }
                 }
             }
         }
