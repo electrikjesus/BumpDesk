@@ -2,11 +2,16 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Standard permission for launchers to see other apps -->
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />
+
+    <!-- Standard permission for launchers to track usage for 'Recents' features -->
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
         tools:ignore="ProtectedPermissions" />
-    <!-- Permission for recents in AOSP -->
+
+    <!-- Optional: For AOSP integration as a Recents Provider.
+         These may be removed or ignored for Play Store builds. -->
     <uses-permission android:name="android.permission.STOP_APP_SWITCHES" />
     <uses-permission android:name="android.permission.REAL_GET_TASKS" />
 
@@ -34,6 +39,7 @@
             </intent-filter>
         </activity>
 
+        <!-- Recents surface entry point -->
         <activity
             android:name=".RecentsActivity"
             android:exported="true"

@@ -1,12 +1,14 @@
 package com.bass.bumpdesk
 
 import android.app.ActivityManager
+import android.app.AppOpsManager
 import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.os.Build
+import android.os.Process
 import android.util.Log
 
 class AppManager(private val context: Context) {
@@ -24,6 +26,17 @@ class AppManager(private val context: Context) {
         }
     }
 
+    fun hasUsageStatsPermission(): Boolean {
+        val appOps = context.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
+        val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            appOps.unsafeCheckOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), context.packageName)
+        } else {
+            @Suppress("DEPRECATION")
+            appOps.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), context.packageName)
+        }
+        return mode == AppOpsManager.MODE_ALLOWED
+    }
+
     fun getRecentApps(limit: Int = 12): List<AppInfo> {
         val prefs = context.getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
         val showRecents = prefs.getBoolean("show_recent_apps", true)
@@ -33,6 +46,9 @@ class AppManager(private val context: Context) {
         val recentApps = mutableListOf<AppInfo>()
 
         try {
+            // Task: Fetch actual task snapshots if possible (AOSP style)
+            // Note: This requires REAL_GET_TASKS which is only for system/signed apps.
+            @Suppress("DEPRECATION")
             val tasks = am.getRecentTasks(limit, ActivityManager.RECENT_IGNORE_UNAVAILABLE)
             tasks.forEach { task ->
                 val resolveInfo = packageManager.resolveActivity(task.baseIntent, 0)
@@ -50,8 +66,9 @@ class AppManager(private val context: Context) {
             Log.e("AppManager", "Error getting recent tasks", e)
         }
 
-        // Task: Fallback if no other apps found (likely restricted by API 30+)
-        if (recentApps.isEmpty()) {
+        // Fallback to UsageStats if no other apps found or permission issues.
+        // This is the standard path for Play Store devices.
+        if (recentApps.isEmpty() && hasUsageStatsPermission()) {
             return getRecentAppsViaUsageStats(limit)
         }
 

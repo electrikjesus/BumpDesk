@@ -107,8 +107,13 @@ class RadialMenuView @JvmOverloads constructor(
     private fun drawItem(canvas: Canvas, item: RadialMenuItem, angle: Float, sweepAngle: Float, rect: RectF, innerRect: RectF, isSelected: Boolean, isSecondary: Boolean) {
         paint.style = Paint.Style.FILL
         if (isSelected) {
+            // Task: Use theme selection color for radial menu highlights
+            val selectionColor = ThemeManager.getSelectionColor()
+            val colorInt = Color.argb((selectionColor[3] * 255).toInt(), (selectionColor[0] * 255).toInt(), (selectionColor[1] * 255).toInt(), (selectionColor[2] * 255).toInt())
+            
+            // Use a gradient based on theme color
             paint.shader = LinearGradient(centerX, centerY - rect.width()/2, centerX, centerY - innerRect.width()/2,
-                intArrayOf(Color.parseColor("#448AFF"), Color.parseColor("#2979FF")),
+                intArrayOf(colorInt, adjustAlpha(colorInt, 0.8f)),
                 null, Shader.TileMode.CLAMP)
         } else {
             paint.shader = null
@@ -154,6 +159,14 @@ class RadialMenuView @JvmOverloads constructor(
         }
     }
 
+    private fun adjustAlpha(color: Int, factor: Float): Int {
+        val alpha = (Color.alpha(color) * factor).toInt()
+        val red = Color.red(color)
+        val green = Color.green(color)
+        val blue = Color.blue(color)
+        return Color.argb(alpha, red, green, blue)
+    }
+
     override fun onTouchEvent(event: MotionEvent): Boolean {
         val x = event.x
         val y = event.y
@@ -186,8 +199,6 @@ class RadialMenuView @JvmOverloads constructor(
                         item.action?.invoke()
                         dismiss()
                     }
-                    // If it has sub-items, we don't dismiss on primary click, 
-                    // we expect the user to move to the outer ring.
                 } else {
                     if (!isFirstUpAfterShow) dismiss()
                 }
@@ -223,7 +234,6 @@ class RadialMenuView @JvmOverloads constructor(
         while (normalizedAngle < 0) normalizedAngle += 360f
 
         if (dist <= outerRadius) {
-            // Inner ring
             if (normalizedAngle < totalArc) {
                 val sweepAngle = totalArc / items.size
                 selectedIndex = (normalizedAngle / sweepAngle).toInt().coerceIn(0, items.size - 1)
@@ -232,7 +242,6 @@ class RadialMenuView @JvmOverloads constructor(
                 selectedIndex = -1
             }
         } else {
-            // Outer ring
             if (selectedIndex != -1 && items[selectedIndex].subItems != null) {
                 val subItems = items[selectedIndex].subItems!!
                 val sweepAngle = totalArc / items.size
@@ -244,12 +253,8 @@ class RadialMenuView @JvmOverloads constructor(
                     val relAngle = normalizedAngle - itemStartAngle
                     selectedSubIndex = (relAngle / subSweepAngle).toInt().coerceIn(0, subItems.size - 1)
                 } else {
-                    // If moved out of the slice angle, maybe we should keep selectedIndex 
-                    // but clear selectedSubIndex? Or find NEW selectedIndex.
-                    // Let's find NEW selectedIndex.
                     if (normalizedAngle < totalArc) {
                         selectedIndex = (normalizedAngle / sweepAngle).toInt().coerceIn(0, items.size - 1)
-                        // Re-check subIndex for new selectedIndex
                         val newSubItems = items[selectedIndex].subItems
                         if (newSubItems != null) {
                             val newSubSweep = sweepAngle / newSubItems.size
@@ -264,8 +269,6 @@ class RadialMenuView @JvmOverloads constructor(
                     }
                 }
             } else {
-                // Not in inner ring, and no primary item selected or selected item has no subitems
-                // Try to find selectedIndex based on angle anyway
                 if (normalizedAngle < totalArc) {
                     val sweepAngle = totalArc / items.size
                     selectedIndex = (normalizedAngle / sweepAngle).toInt().coerceIn(0, items.size - 1)

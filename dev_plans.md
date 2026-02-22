@@ -74,8 +74,12 @@
 - [x] Fix Recents Widget only showing the arrows (nothing else is showing. Maybe it is widget spacing in z plane issue again?)
 - [x] Fix pinch to zoom on all views
 - [x] Update settings activity with missing features/options
-- [ ] **Task**: Fix themes still requiring a full app reload to switch
-- [ ] **Task**: Find a fix or work around for any features that would prevent the app being submitted to Play Store
+- [x] Fix themes still requiring a full app reload to switch
+- [ ] **In Progress**: Find a fix or work around for any features that would prevent the app being submitted to Play Store
+    - [x] Implement permission checks and prompts for "Usage Access" (needed for Recents fallback).
+    - [x] Review `QUERY_ALL_PACKAGES` and add necessary documentation/declaration info.
+    - [x] Ensure all hidden API calls (AOSP specific) have stable fallbacks for Play Store devices.
+    - [ ] Update `dev_plans.md` rules and structure.
 
 ## Planned Features from BumpTop Study
 

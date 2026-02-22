@@ -1,21 +1,31 @@
 package com.bass.bumpdesk
 
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
+import android.provider.Settings
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 
 class SettingsActivity : AppCompatActivity() {
+    private lateinit var appManager: AppManager
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings)
 
+        appManager = AppManager(this)
         val prefs = getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
         
         // General Toggles
         findViewById<CheckBox>(R.id.cbShowRecentApps).apply {
             isChecked = prefs.getBoolean("show_recent_apps", true)
-            setOnCheckedChangeListener { _, isChecked -> prefs.edit().putBoolean("show_recent_apps", isChecked).apply() }
+            setOnCheckedChangeListener { _, isChecked -> 
+                if (isChecked && !appManager.hasUsageStatsPermission()) {
+                    showUsageAccessDialog()
+                }
+                prefs.edit().putBoolean("show_recent_apps", isChecked).apply() 
+            }
         }
 
         findViewById<CheckBox>(R.id.cbUseWallpaperAsFloor).apply {
@@ -47,8 +57,6 @@ class SettingsActivity : AppCompatActivity() {
         setupSeekBar(R.id.sbGridSpacing, "layout_grid_spacing", 60, 100)
 
         findViewById<Button>(R.id.btnClearCache).setOnClickListener {
-            // Logic to clear cache usually involves resetting textures in renderer
-            // For now we just clear prefs and notify
             prefs.edit().clear().apply()
             Toast.makeText(this, "Cache cleared. Some changes require restart.", Toast.LENGTH_SHORT).show()
         }
@@ -79,5 +87,22 @@ class SettingsActivity : AppCompatActivity() {
                 override fun onStopTrackingTouch(seekBar: SeekBar?) {}
             })
         }
+    }
+
+    private fun showUsageAccessDialog() {
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Usage Access Required")
+            .setMessage("To display recent apps, BumpDesk needs 'Usage Access' permission. This is used only to find your most recently used applications.")
+            .setPositiveButton("Settings") { _, _ ->
+                try {
+                    startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
+                } catch (e: Exception) {
+                    Toast.makeText(this, "Could not open settings", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("Cancel") { _, _ ->
+                findViewById<CheckBox>(R.id.cbShowRecentApps).isChecked = false
+            }
+            .show()
     }
 }
