@@ -72,14 +72,11 @@
 - [x] Add a detailed project readme
 - [x] Fix interacting with widgets and let them update live on the desktop if shown. 
 - [x] Fix Recents Widget only showing the arrows (nothing else is showing. Maybe it is widget spacing in z plane issue again?)
-- [ ] **Task**: Fix pinch to zoom on all views
-    - [ ] Refine `ScaleGestureDetector` logic in `LauncherActivity`
-    - [ ] Adjust zoom sensitivity and limits in `CameraManager`
-    - [ ] Ensure smooth transitions when zooming in specialized views (Walls, Folders)
-- [ ] **Task**: Update settings activity with missing features/options
-    - [ ] Add Physics tuning (friction, gravity)
-    - [ ] Add Grid spacing options
-    - [ ] Add Item scale options
+- [x] Fix pinch to zoom on all views
+- [ ] **In Progress**: Update settings activity with missing features/options
+    - [x] Design layout with SeekBars for friction, bounciness, gravity, item scale, grid spacing.
+    - [x] Implement logic in `SettingsActivity` to save these to `SharedPreferences`.
+    - [ ] Integrate these settings into `PhysicsEngine` and `BumpRenderer`.
 - [ ] **Task**: Fix themes still requiring a full app reload to switch
 - [ ] **Task**: Find a fix or work around for any features that would prevent the app being submitted to Play Store
 

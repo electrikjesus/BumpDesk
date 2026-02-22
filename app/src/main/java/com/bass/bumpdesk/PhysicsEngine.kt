@@ -8,9 +8,12 @@ class PhysicsEngine {
     var friction = 0.94f
     var wallBounce = 0.4f
     var restitution = 0.25f
+    var gravity = 0.01f
+    var defaultScale = 0.5f
+    var gridSpacingBase = 1.2f
+    
     val ROOM_SIZE = 10.0f
     val INFINITE_SIZE = 50.0f
-    val DEFAULT_SCALE = 0.5f
     val UI_MARGIN = 0.2f
 
     fun update(
@@ -26,10 +29,10 @@ class PhysicsEngine {
                 if (item == selectedItem) return@forEachIndexed
                 
                 val targetScale = when {
-                    pile.isExpanded -> DEFAULT_SCALE
+                    pile.isExpanded -> defaultScale
                     pile.layoutMode == Pile.LayoutMode.CAROUSEL -> 1.5f * pile.scale
                     pile.layoutMode == Pile.LayoutMode.GRID -> 0.8f * pile.scale
-                    else -> DEFAULT_SCALE
+                    else -> defaultScale
                 }
                 
                 item.scale += (targetScale - item.scale) * 0.1f
@@ -55,7 +58,8 @@ class PhysicsEngine {
 
             if (!item.isPinned) {
                 if (item.surface != BumpItem.Surface.FLOOR) {
-                    item.velocity[1] -= 0.01f
+                    // Applied configurable gravity towards floor if on wall and not pinned
+                    item.velocity[1] -= gravity
                 }
 
                 item.position[0] += item.velocity[0]
@@ -81,7 +85,7 @@ class PhysicsEngine {
     private fun constrainPile(pile: Pile) {
         val count = pile.items.size
         val side = ceil(sqrt(count.toDouble())).toInt().coerceAtLeast(1)
-        val spacing = if (pile.layoutMode == Pile.LayoutMode.GRID) 2.0f * pile.scale else 1.2f
+        val spacing = if (pile.layoutMode == Pile.LayoutMode.GRID) 2.0f * pile.scale else gridSpacingBase * pile.scale
         val halfDim = (side * spacing) / 2f
         
         when (pile.surface) {
@@ -95,7 +99,7 @@ class PhysicsEngine {
                 val limit = ROOM_SIZE - halfDim - UI_MARGIN
                 pile.position[0] = pile.position[0].coerceIn(-limit, limit)
                 pile.position[1] = pile.position[1].coerceIn(0.05f + halfDim, 12f - halfDim)
-                pile.position[2] = -9.4f // Standardized Recents/Wall Pile depth
+                pile.position[2] = -9.4f
             }
             BumpItem.Surface.LEFT_WALL -> {
                 val limit = ROOM_SIZE - halfDim - UI_MARGIN
@@ -154,10 +158,9 @@ class PhysicsEngine {
     private fun calculateTargetPositionInPile(pile: Pile, index: Int): FloatArray {
         val count = pile.items.size
         val side = ceil(sqrt(count.toDouble())).toInt().coerceAtLeast(1)
-        val spacing = 1.2f
-        val sideDim = side * spacing
-        val halfDim = (sideDim / 2f + 0.2f) * pile.scale
-        val totalHalfDimZ = (sideDim / 2f + 0.6f) * pile.scale
+        val spacing = if (pile.layoutMode == Pile.LayoutMode.GRID) 2.0f * pile.scale else gridSpacingBase * pile.scale
+        val halfDim = (side * spacing) / 2f
+        val totalHalfDimZ = (side * spacing) / 2f + 0.6f * pile.scale
 
         if (pile.isExpanded) {
             val limitX = INFINITE_SIZE - halfDim - UI_MARGIN
@@ -167,11 +170,11 @@ class PhysicsEngine {
 
             return floatArrayOf(
                 uiX + (index % side - (side - 1) / 2f) * spacing,
-                3.05f, // Task: Slightly higher than UI background (2.98) and elements (2.99)
+                3.05f,
                 uiZ + (index / side - (side - 1) / 2f) * spacing + 0.5f * pile.scale
             )
         } else if (pile.isFannedOut) {
-            val fanOutSpacing = 1.2f * pile.scale
+            val fanOutSpacing = spacing
             val offset = (index - (count - 1) / 2f) * fanOutSpacing
             
             return when (pile.surface) {

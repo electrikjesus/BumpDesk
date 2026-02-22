@@ -69,6 +69,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         bumpSoundId = context.resources.getIdentifier("bump", "raw", context.packageName).let {
             if (it != 0) soundPool?.load(context, it, 1) ?: -1 else -1
         }
+        updateSettings()
         startPhysics()
     }
 
@@ -80,6 +81,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
     }
 
     fun onResume() {
+        updateSettings()
         if (physicsThread == null || !physicsThread!!.isAlive) startPhysics()
     }
 
@@ -87,6 +89,19 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         physicsThread?.stopPhysics()
         physicsThread = null
         saveState()
+    }
+
+    fun updateSettings() {
+        val prefs = context.getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
+        
+        // Physics
+        physicsEngine.friction = prefs.getInt("physics_friction", 94) / 100f
+        physicsEngine.restitution = prefs.getInt("physics_bounciness", 25) / 100f
+        physicsEngine.gravity = prefs.getInt("physics_gravity", 10) / 1000f
+        
+        // Layout
+        physicsEngine.defaultScale = (prefs.getInt("layout_item_scale", 50) / 100f) + 0.2f
+        physicsEngine.gridSpacingBase = (prefs.getInt("layout_grid_spacing", 60) / 100f) * 2.0f
     }
 
     private fun saveState() {
@@ -263,7 +278,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
 
     fun gridSelectedItems(items: List<BumpItem>, mode: GridLayout) {
         if (items.isEmpty()) return
-        val spacing = 1.5f; val startX = items.map { it.position[0] }.average().toFloat(); val startZ = items.map { it.position[2] }.average().toFloat()
+        val spacing = physicsEngine.gridSpacingBase; val startX = items.map { it.position[0] }.average().toFloat(); val startZ = items.map { it.position[2] }.average().toFloat()
         when (mode) {
             GridLayout.GRID -> {
                 val side = Math.ceil(Math.sqrt(items.size.toDouble())).toInt(); val offset = (side * spacing) / 2f
@@ -372,5 +387,6 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
     fun dismissExpandedPile() { sceneState.piles.removeAll { it.isSystem && it.name == "All Apps" }; sceneState.piles.forEach { it.isExpanded = false }; camera.restorePreviousView(); (context as? LauncherActivity)?.showResetButton(camera.currentViewMode != CameraManager.ViewMode.DEFAULT) }
     fun handleZoom(sf: Float) { camera.zoomLevel = (camera.zoomLevel / sf).coerceIn(0.5f, 2.0f); if (camera.zoomLevel != 1.0f) (context as? LauncherActivity)?.showResetButton(true) }
     fun handlePan(dx: Float, dz: Float) { camera.handlePan(dx, dz); (context as? LauncherActivity)?.showResetButton(true) }
+    fun handlePan(dx: Float, dz: Float, dummy: Boolean) { camera.handlePan(dx, dz); (context as? LauncherActivity)?.showResetButton(true) }
     override fun onSurfaceChanged(unused: GL10, w: Int, h: Int) { GLES20.glViewport(0, 0, w, h); interactionManager.screenWidth = w; interactionManager.screenHeight = h; Matrix.perspectiveM(projectionMatrix, 0, 60f, w.toFloat() / h, 0.1f, 100f) }
 }
