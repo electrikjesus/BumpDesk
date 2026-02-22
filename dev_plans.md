@@ -73,10 +73,7 @@
 - [x] Fix interacting with widgets and let them update live on the desktop if shown. 
 - [x] Fix Recents Widget only showing the arrows (nothing else is showing. Maybe it is widget spacing in z plane issue again?)
 - [x] Fix pinch to zoom on all views
-- [ ] **In Progress**: Update settings activity with missing features/options
-    - [x] Design layout with SeekBars for friction, bounciness, gravity, item scale, grid spacing.
-    - [x] Implement logic in `SettingsActivity` to save these to `SharedPreferences`.
-    - [ ] Integrate these settings into `PhysicsEngine` and `BumpRenderer`.
+- [x] Update settings activity with missing features/options
 - [ ] **Task**: Fix themes still requiring a full app reload to switch
 - [ ] **Task**: Find a fix or work around for any features that would prevent the app being submitted to Play Store
 

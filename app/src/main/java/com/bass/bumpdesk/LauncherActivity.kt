@@ -104,9 +104,10 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
     }
 
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
-        if (key == "selected_theme" || key == "use_wallpaper_as_floor" || key == "show_recent_apps") {
+        if (key == "selected_theme" || key == "use_wallpaper_as_floor" || key == "show_recent_apps" || key?.startsWith("physics_") == true || key?.startsWith("layout_") == true) {
             ThemeManager.init(this, forceReload = true)
             renderer.reloadTheme()
+            renderer.updateSettings()
             if (key == "show_recent_apps") {
                 updateRecents()
             }
@@ -177,7 +178,6 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
                 return true
             }
             override fun onScaleEnd(detector: ScaleGestureDetector) {
-                // Task: Delay reset of isScaling to avoid a 'jump' when releasing fingers
                 glSurfaceView.postDelayed({ isScaling = false }, 100)
             }
         })
@@ -208,7 +208,7 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
                         glSurfaceView.queueEvent { renderer.handlePan(dx, dy) }
                         lastMidX = midX
                         lastMidY = midY
-                    } else if (pointerCount == 1) {
+                    } else if (pointerCount == 1 && !isScaling) {
                         glSurfaceView.queueEvent { renderer.handleTouchMove(event.x, event.y, pointerCount) }
                     }
                 }

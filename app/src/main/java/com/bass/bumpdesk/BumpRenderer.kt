@@ -218,6 +218,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 p.nameTextureId = -1
             }
             sceneState.widgetItems.forEach { it.textureId = -1 }
+            // Task: Reload theme textures including UI assets to avoid black surfaces
             loadThemeTextures() 
         }
     }
@@ -244,6 +245,8 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
     private fun loadThemeTextures() {
         floorTextureId = ThemeManager.getFloorTexture(context, textureManager)
         wallTextureIds = ThemeManager.getWallTextures(context, textureManager)
+        
+        // Task: Ensure uiAssets is updated when loading theme textures
         uiAssets = UIRenderer.UIAssets(
             closeBtn = textureManager.loadTextureFromBitmap(TextRenderer.createTextBitmap("X", 64, 64)),
             arrowLeft = textureManager.loadTextureFromBitmap(TextRenderer.createTextBitmap(" < ", 64, 64)),

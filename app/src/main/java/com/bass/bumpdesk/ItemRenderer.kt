@@ -3,6 +3,7 @@ package com.bass.bumpdesk
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
 import android.opengl.Matrix
 import android.webkit.WebView
@@ -40,14 +41,17 @@ class ItemRenderer(
         when (item.type) {
             BumpItem.Type.APP -> {
                 item.appInfo?.let { app ->
-                    if (app.icon != null) {
-                        val iconBitmap = TextureUtils.getBitmapFromDrawable(app.icon)
+                    val overrideBitmap = ThemeManager.getIconOverride(context, app.packageName)
+                    val iconBitmap = overrideBitmap ?: (app.icon?.let { TextureUtils.getBitmapFromDrawable(it) })
+                    
+                    if (iconBitmap != null) {
                         val labelBitmap = TextRenderer.createTextBitmap(app.label, 256, 64)
                         val combined = TextureUtils.getCombinedBitmap(context, iconBitmap, labelBitmap, false)
                         item.textureId = textureManager.loadTextureFromBitmap(combined)
+                        
                         combined.recycle()
-                        iconBitmap.recycle()
                         labelBitmap.recycle()
+                        iconBitmap.recycle()
                     }
                 }
             }
@@ -81,7 +85,13 @@ class ItemRenderer(
             }
             BumpItem.Type.RECENT_APP -> {
                 item.appInfo?.let { app ->
-                    item.textureId = TextureUtils.loadRecentTaskTexture(context, app.snapshot, app.icon, app.label)
+                    // Task: Support theme overrides for recents icons
+                    val overrideBitmap = ThemeManager.getIconOverride(context, app.packageName)
+                    val iconDrawable = if (overrideBitmap != null) BitmapDrawable(context.resources, overrideBitmap) else app.icon
+                    val bitmap = TextureUtils.createRecentTaskBitmap(context, app.snapshot, iconDrawable, app.label)
+                    item.textureId = textureManager.loadTextureFromBitmap(bitmap)
+                    bitmap.recycle()
+                    overrideBitmap?.recycle()
                 }
             }
             BumpItem.Type.APP_DRAWER -> {
@@ -138,8 +148,6 @@ class ItemRenderer(
         var posY = item.position[1]
         var posZ = item.position[2]
 
-        // Task: Uniform rotation logic to ensure right-side up and facing camera.
-        // Combo: 180 Y, 90 X, 180 Z
         when (surfaceToUse) {
             BumpItem.Surface.BACK_WALL -> {
                 posZ += zOffset
@@ -151,7 +159,7 @@ class ItemRenderer(
             BumpItem.Surface.LEFT_WALL -> {
                 posX += zOffset
                 Matrix.translateM(modelMatrix, 0, posX, posY, posZ)
-                Matrix.rotateM(modelMatrix, 0, 90f, 0f, 1f, 0f) // Face +X
+                Matrix.rotateM(modelMatrix, 0, 90f, 0f, 1f, 0f)
                 Matrix.rotateM(modelMatrix, 0, 180f, 0f, 1f, 0f)
                 Matrix.rotateM(modelMatrix, 0, 90f, 1f, 0f, 0f)
                 Matrix.rotateM(modelMatrix, 0, 180f, 0f, 0f, 1f)
@@ -159,7 +167,7 @@ class ItemRenderer(
             BumpItem.Surface.RIGHT_WALL -> {
                 posX -= zOffset
                 Matrix.translateM(modelMatrix, 0, posX, posY, posZ)
-                Matrix.rotateM(modelMatrix, 0, -90f, 0f, 1f, 0f) // Face -X
+                Matrix.rotateM(modelMatrix, 0, -90f, 0f, 1f, 0f)
                 Matrix.rotateM(modelMatrix, 0, 180f, 0f, 1f, 0f)
                 Matrix.rotateM(modelMatrix, 0, 90f, 1f, 0f, 0f)
                 Matrix.rotateM(modelMatrix, 0, 180f, 0f, 0f, 1f)

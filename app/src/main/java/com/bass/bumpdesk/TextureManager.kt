@@ -9,6 +9,7 @@ import android.util.Log
 
 class TextureManager(private val context: Context) {
     private val textureCache = mutableMapOf<String, Int>()
+    private val allTextures = mutableSetOf<Int>()
 
     fun loadTextureFromAsset(fileName: String): Int {
         textureCache[fileName]?.let { return it }
@@ -18,7 +19,9 @@ class TextureManager(private val context: Context) {
             val bitmap = BitmapFactory.decodeStream(inputStream)
             val textureId = loadTextureFromBitmap(bitmap)
             bitmap.recycle()
-            if (textureId != -1) textureCache[fileName] = textureId
+            if (textureId != -1) {
+                textureCache[fileName] = textureId
+            }
             textureId
         } catch (e: Exception) {
             Log.e("TextureManager", "Error loading texture $fileName", e)
@@ -37,6 +40,8 @@ class TextureManager(private val context: Context) {
             GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE)
             GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE)
             GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, bitmap, 0)
+            
+            allTextures.add(textureHandle[0])
             return textureHandle[0]
         }
 
@@ -50,10 +55,11 @@ class TextureManager(private val context: Context) {
     }
 
     fun clearCache() {
-        val textures = textureCache.values.toIntArray()
+        val textures = allTextures.toIntArray()
         if (textures.isNotEmpty()) {
             GLES20.glDeleteTextures(textures.size, textures, 0)
         }
         textureCache.clear()
+        allTextures.clear()
     }
 }

@@ -29,7 +29,6 @@ object ThemeManager {
     private fun loadThemeConfig(context: Context) {
         try {
             val jsonString = context.assets.open("BumpTop/$currentThemeName/theme.json").bufferedReader().use { it.readText() }
-            // Remove comments from theme.json if present
             val cleanJson = jsonString.replace(Regex("//.*"), "")
             themeConfig = JSONObject(cleanJson)
         } catch (e: Exception) {
@@ -56,7 +55,6 @@ object ThemeManager {
         init(context)
         val prefs = context.getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
         
-        // Handle wallpaper option
         if (prefs.getBoolean("use_wallpaper_as_floor", false)) {
             try {
                 val wm = WallpaperManager.getInstance(context)
@@ -65,19 +63,15 @@ object ThemeManager {
                     val tex = textureManager.loadTextureFromBitmap(drawable.bitmap)
                     if (tex != -1) return tex
                 }
-            } catch (e: SecurityException) {
-                Log.e("ThemeManager", "Permission denied to read wallpaper", e)
             } catch (e: Exception) {
                 Log.e("ThemeManager", "Error getting wallpaper", e)
             }
         }
 
-        // Try floor_desktop.jpg first as per task
         val themePathBase = "BumpTop/$currentThemeName/desktop/"
         var textureId = textureManager.loadTextureFromAsset("${themePathBase}floor_desktop.jpg")
         
         if (textureId == -1) {
-            // Fallback to config path
             val relativePath = themeConfig?.optJSONObject("textures")?.optJSONObject("floor")?.optString("desktop", "floor_desktop.jpg") ?: "floor_desktop.jpg"
             textureId = textureManager.loadTextureFromAsset("$themePathBase$relativePath")
         }
@@ -111,6 +105,32 @@ object ThemeManager {
         init(context)
         val themePath = "BumpTop/$currentThemeName/core/pile/background.png"
         return textureManager.loadTextureFromAsset(themePath)
+    }
+
+    /**
+     * Checks if there's a theme override for a specific package name.
+     */
+    fun getIconOverride(context: Context, packageName: String): Bitmap? {
+        init(context)
+        // Check standard override names (folder, txt, pdf, etc are usually handled via type)
+        // For apps, we might use the package name or a mapping.
+        // BT classic uses generic names. We'll try to match some common ones.
+        val genericName = when {
+            packageName.contains("android.calendar") -> "calendar"
+            packageName.contains("android.email") -> "email"
+            packageName.contains("android.browser") || packageName.contains("chrome") -> "browser"
+            packageName.contains("camera") -> "camera"
+            packageName.contains("gallery") || packageName.contains("photos") -> "gallery"
+            else -> null
+        }
+        
+        if (genericName != null) {
+            val bitmap = loadBitmapFromAsset(context, "BumpTop/$currentThemeName/override/$genericName.png")
+            if (bitmap != null) return bitmap
+        }
+        
+        // Also try literal package name as override
+        return loadBitmapFromAsset(context, "BumpTop/$currentThemeName/override/$packageName.png")
     }
 
     fun loadBitmapFromAsset(context: Context, assetPath: String): Bitmap? {
