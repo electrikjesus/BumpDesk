@@ -30,19 +30,37 @@ class InteractionManager(
     private var isLeafing = false
     private var leafStartY = 0f
 
-    fun handleTouchDown(x: Float, y: Float, sceneState: SceneState) {
+    // For widget resizing
+    private var isResizingWidget = false
+    private var resizeWidget: WidgetItem? = null
+    private var resizeStartSize: FloatArray? = null
+    private var resizeStartPos: FloatArray? = null
+
+    fun handleTouchDown(x: Float, y: Float, sceneState: SceneState): Any? {
         lastTouchX = x
         lastTouchY = y
         isDragging = false
         isLeafing = false
+        isResizingWidget = false
         
         val rS = FloatArray(4)
         val rE = FloatArray(4)
         calculateRay(x, y, rS, rE)
         
-        sceneState.selectedItem = findIntersectingItem(rS, rE, sceneState.bumpItems, sceneState.piles)
-        
+        // Task: Check for resize handle intersection first
         val widgetHit = findIntersectingWidget(rS, rE, sceneState.widgetItems)
+        if (widgetHit != null) {
+            val widget = widgetHit.first
+            if (isTouchOnResizeHandle(widget, rS, rE)) {
+                isResizingWidget = true
+                resizeWidget = widget
+                resizeStartSize = widget.size.clone()
+                resizeStartPos = getWidgetPoint(widget, x, y)
+                return widget
+            }
+        }
+
+        sceneState.selectedItem = findIntersectingItem(rS, rE, sceneState.bumpItems, sceneState.piles)
         sceneState.selectedWidget = widgetHit?.first
 
         sceneState.selectedItem?.let {
@@ -53,6 +71,7 @@ class InteractionManager(
             if (pile != null && !pile.isExpanded) {
                 leafStartY = y
             }
+            return it
         }
 
         if (sceneState.selectedItem == null && sceneState.selectedWidget == null && 
@@ -60,12 +79,45 @@ class InteractionManager(
             lassoPoints.clear()
             lassoPoints.add(getFloorPoint(x, y)) 
         }
+        
+        return sceneState.selectedWidget
+    }
+
+    private fun isTouchOnResizeHandle(widget: WidgetItem, rS: FloatArray, rE: FloatArray): Boolean {
+        val t = getWidgetT(widget, rS, rE)
+        if (t < 0) return false
+        
+        val (u, v) = getWidgetUV(widget, rS, rE, t)
+        return u > 0.85f && v > 0.85f
+    }
+
+    private fun getWidgetT(widget: WidgetItem, rS: FloatArray, rE: FloatArray): Float {
+        return when (widget.surface) {
+            BumpItem.Surface.BACK_WALL -> (-9.9f - rS[2]) / (rE[2] - rS[2])
+            BumpItem.Surface.LEFT_WALL -> (-9.9f - rS[0]) / (rE[0] - rS[0])
+            BumpItem.Surface.RIGHT_WALL -> (9.9f - rS[0]) / (rE[0] - rS[0])
+            BumpItem.Surface.FLOOR -> (0.1f - rS[1]) / (rE[1] - rS[1])
+        }
+    }
+
+    private fun getWidgetUV(widget: WidgetItem, rS: FloatArray, rE: FloatArray, t: Float): Pair<Float, Float> {
+        val iX = rS[0] + t * (rE[0] - rS[0])
+        val iY = rS[1] + t * (rE[1] - rS[1])
+        val iZ = rS[2] + t * (rE[2] - rS[2])
+        
+        return when (widget.surface) {
+            BumpItem.Surface.BACK_WALL -> (iX - (widget.position[0] - widget.size[0])) / (2f * widget.size[0]) to 1f - (iY - (widget.position[1] - widget.size[1])) / (2f * widget.size[1])
+            BumpItem.Surface.LEFT_WALL -> (iZ - (widget.position[2] - widget.size[0])) / (2f * widget.size[0]) to 1f - (iY - (widget.position[1] - widget.size[1])) / (2f * widget.size[1])
+            BumpItem.Surface.RIGHT_WALL -> 1f - (iZ - (widget.position[2] - widget.size[0])) / (2f * widget.size[0]) to 1f - (iY - (widget.position[1] - widget.size[1])) / (2f * widget.size[1])
+            BumpItem.Surface.FLOOR -> (iX - (widget.position[0] - widget.size[0])) / (2f * widget.size[0]) to (iZ - (widget.position[2] - widget.size[1])) / (2f * widget.size[1])
+        }
     }
 
     fun handleTouchMove(x: Float, y: Float, sceneState: SceneState, pointerCount: Int) {
         if (pointerCount > 1) {
             isDragging = false
             isLeafing = false
+            isResizingWidget = false
             lassoPoints.clear()
             return
         }
@@ -74,7 +126,7 @@ class InteractionManager(
         val dyTouch = abs(y - lastTouchY)
         
         if (dxTouch > TOUCH_THRESHOLD || dyTouch > TOUCH_THRESHOLD) {
-            if (!isDragging && !isLeafing) {
+            if (!isDragging && !isLeafing && !isResizingWidget) {
                 val selectedItem = sceneState.selectedItem
                 if (selectedItem != null) {
                     val pile = sceneState.getPileOf(selectedItem)
@@ -83,6 +135,8 @@ class InteractionManager(
                     } else {
                         isDragging = true
                     }
+                } else if (resizeWidget != null && isResizingWidget) {
+                    // isResizingWidget is already set in handleTouchDown
                 } else {
                     isDragging = true
                 }
@@ -92,6 +146,19 @@ class InteractionManager(
         val rS = FloatArray(4)
         val rE = FloatArray(4)
         calculateRay(x, y, rS, rE)
+
+        if (isResizingWidget && resizeWidget != null) {
+            val point = getWidgetPoint(resizeWidget!!, x, y)
+            resizeStartPos?.let { start ->
+                val du = point[0] - start[0]
+                val dv = point[1] - start[1]
+                resizeStartSize?.let { size ->
+                    resizeWidget!!.size[0] = (size[0] + du).coerceIn(1.0f, 5.0f)
+                    resizeWidget!!.size[1] = (size[1] + dv).coerceIn(1.0f, 5.0f)
+                }
+            }
+            return
+        }
 
         if (isLeafing) {
             if (abs(y - leafStartY) > 80f) {
@@ -156,13 +223,31 @@ class InteractionManager(
             lassoPoints.add(getFloorPoint(x, y))
         }
         
-        if (isDragging || isLeafing) {
+        if (isDragging || isLeafing || isResizingWidget) {
             lastTouchX = x
             lastTouchY = y
         }
     }
 
+    private fun getWidgetPoint(widget: WidgetItem, x: Float, y: Float): FloatArray {
+        val rS = FloatArray(4); val rE = FloatArray(4); calculateRay(x, y, rS, rE)
+        val t = getWidgetT(widget, rS, rE)
+        val iX = rS[0] + t * (rE[0] - rS[0]); val iY = rS[1] + t * (rE[1] - rS[1]); val iZ = rS[2] + t * (rE[2] - rS[2])
+        return when (widget.surface) {
+            BumpItem.Surface.BACK_WALL -> floatArrayOf(iX, iY)
+            BumpItem.Surface.LEFT_WALL -> floatArrayOf(iZ, iY)
+            BumpItem.Surface.RIGHT_WALL -> floatArrayOf(-iZ, iY)
+            BumpItem.Surface.FLOOR -> floatArrayOf(iX, iZ)
+        }
+    }
+
     fun handleTouchUp(sceneState: SceneState, onCaptured: (List<BumpItem>) -> Unit) {
+        if (isResizingWidget) {
+            isResizingWidget = false
+            resizeWidget = null
+            return
+        }
+
         if (sceneState.selectedItem != null) {
             val item = sceneState.selectedItem!!
             val pile = sceneState.getPileOf(item)
@@ -263,7 +348,6 @@ class InteractionManager(
         val dot = (dX*(rDX/rL) + dY*(rDY/rL) + dZ*(rDZ/rL))
         val pX = rS[0] + dot*(rDX/rL); val pY = rS[1] + dot*(rDY/rL); val pZ = rS[2] + dot*(rDZ/rL)
         val distSq = (pX-item.position[0])*(pX-item.position[0]) + (pY-item.position[1])*(pY-item.position[1]) + (pZ-item.position[2])*(pZ-item.position[2])
-        // Task: Interaction distance check. Using 1.5f for easier selection.
         return if (distSq < 1.5f) dot else -1f
     }
 
@@ -281,12 +365,7 @@ class InteractionManager(
     }
 
     private fun checkWidgetIntersection(widget: WidgetItem, rS: FloatArray, rE: FloatArray): Float {
-        val t = when (widget.surface) {
-            BumpItem.Surface.BACK_WALL -> (-9.9f - rS[2]) / (rE[2] - rS[2])
-            BumpItem.Surface.LEFT_WALL -> (-9.9f - rS[0]) / (rE[0] - rS[0])
-            BumpItem.Surface.RIGHT_WALL -> (9.9f - rS[0]) / (rE[0] - rS[0])
-            BumpItem.Surface.FLOOR -> (0.1f - rS[1]) / (rE[1] - rS[1])
-        }
+        val t = getWidgetT(widget, rS, rE)
         if (t <= 0) return -1f
         
         val iX = rS[0] + t * (rE[0] - rS[0])

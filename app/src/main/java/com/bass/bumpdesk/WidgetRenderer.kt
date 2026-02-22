@@ -6,6 +6,7 @@ import android.graphics.Canvas
 import android.opengl.Matrix
 import android.view.View
 import android.appwidget.AppWidgetHostView
+import android.opengl.GLES20
 
 class WidgetRenderer(
     private val context: Context,
@@ -14,28 +15,28 @@ class WidgetRenderer(
 ) {
     private val widgetBox = Box(shader)
     private val modelMatrix = FloatArray(16)
+    private val handlePlane = Plane(shader)
 
     fun drawWidgets(
         vPMatrix: FloatArray,
         widgetItems: List<WidgetItem>,
         widgetViews: Map<Int, AppWidgetHostView>,
         frameCount: Int,
+        selectedWidget: WidgetItem?,
         onUpdateTexture: (Runnable) -> Unit
     ) {
         widgetItems.forEach { widget ->
             val view = widgetViews[widget.appWidgetId]
             if (view != null) {
-                // Task: Live widget updates. Update texture every 15 frames for smoother animation (e.g. clocks)
                 if (widget.textureId <= 0 || (frameCount % 15 == 0)) {
                     updateWidgetTexture(widget, view, onUpdateTexture)
                 }
             }
-            drawWidget(vPMatrix, widget)
+            drawWidget(vPMatrix, widget, widget == selectedWidget)
         }
     }
 
     private fun updateWidgetTexture(widget: WidgetItem, view: View, onUpdateTexture: (Runnable) -> Unit) {
-        // Ensure the view is laid out. Even if off-screen, it needs dimensions.
         if (view.width <= 0 || view.height <= 0) {
             val widthSpec = View.MeasureSpec.makeMeasureSpec(1024, View.MeasureSpec.EXACTLY)
             val heightSpec = View.MeasureSpec.makeMeasureSpec(1024, View.MeasureSpec.EXACTLY)
@@ -43,7 +44,6 @@ class WidgetRenderer(
             view.layout(0, 0, view.measuredWidth, view.measuredHeight)
         }
 
-        // Request a redraw of the underlying Android view logic
         view.post {
             view.invalidate()
             val w = view.width.coerceAtLeast(1)
@@ -62,16 +62,13 @@ class WidgetRenderer(
                     }
                     bitmap.recycle()
                 })
-            } catch (e: Exception) {
-                // Handle potential OOM or other bitmap issues
-            }
+            } catch (e: Exception) {}
         }
     }
 
-    private fun drawWidget(vPMatrix: FloatArray, widget: WidgetItem) {
+    private fun drawWidget(vPMatrix: FloatArray, widget: WidgetItem, isSelected: Boolean) {
         Matrix.setIdentityM(modelMatrix, 0)
         
-        // Task: Offset widgets slightly from the surface to prevent Z-fighting
         val zOffset = 0.02f
         val posX = widget.position[0]
         val posY = widget.position[1]
@@ -98,7 +95,23 @@ class WidgetRenderer(
             }
         }
         
+        val savedModelMatrix = modelMatrix.clone()
         Matrix.scaleM(modelMatrix, 0, widget.size[0], 1f, widget.size[1])
         widgetBox.draw(vPMatrix, modelMatrix, widget.textureId, floatArrayOf(1f, 1f, 1f, 1.0f))
+
+        // Task: Draw resizing handle if selected
+        if (isSelected) {
+            drawResizeHandle(vPMatrix, savedModelMatrix, widget.size)
+        }
+    }
+
+    private fun drawResizeHandle(vPMatrix: FloatArray, baseModelMatrix: FloatArray, size: FloatArray) {
+        val handleMatrix = baseModelMatrix.clone()
+        // Position handle at bottom-right corner
+        Matrix.translateM(handleMatrix, 0, size[0] - 0.2f, 0.01f, size[1] - 0.2f)
+        Matrix.scaleM(handleMatrix, 0, 0.2f, 1f, 0.2f)
+        
+        val selectionColor = ThemeManager.getSelectionColor()
+        handlePlane.draw(vPMatrix, handleMatrix, floatArrayOf(selectionColor[0], selectionColor[1], selectionColor[2], 1.0f), -1, floatArrayOf(0f, 10f, 0f), 1.0f, false)
     }
 }

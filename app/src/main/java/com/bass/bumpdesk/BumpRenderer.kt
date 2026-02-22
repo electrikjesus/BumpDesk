@@ -127,9 +127,11 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
 
     fun loadSavedState(allApps: List<AppInfo>) {
         repositoryScope.launch {
-            val items = repository.loadState(allApps)
+            val (bumpItems, widgetItems) = repository.loadState(allApps)
             sceneState.bumpItems.clear()
-            sceneState.bumpItems.addAll(items)
+            sceneState.bumpItems.addAll(bumpItems)
+            sceneState.widgetItems.clear()
+            sceneState.widgetItems.addAll(widgetItems)
         }
     }
 
