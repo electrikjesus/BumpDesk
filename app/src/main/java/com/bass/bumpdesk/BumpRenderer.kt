@@ -24,6 +24,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
     private val physicsEngine = PhysicsEngine()
     private var physicsThread: PhysicsThread? = null
     val textureManager = TextureManager(context)
+    val hapticManager = HapticManager(context)
     
     private lateinit var shader: DefaultShader
     private lateinit var roomRenderer: RoomRenderer
@@ -100,6 +101,9 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         physicsThread = PhysicsThread(sceneState, physicsEngine) { magnitude ->
             val vol = (magnitude * 2.0f).coerceIn(0.05f, 1.0f)
             playSound(bumpSoundId, vol)
+            if (magnitude > 0.5f) {
+                hapticManager.heavyImpact(magnitude)
+            }
         }
         physicsThread?.start()
     }
@@ -132,7 +136,11 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
 
     fun loadSavedState(allApps: List<AppInfo>) {
         repositoryScope.launch {
-            val (bumpItems, widgetItems) = repository.loadState(allApps)
+            // Fix Type Mismatch: Use destructuring to handle Pair from repository.loadState
+            val result = repository.loadState(allApps)
+            val bumpItems = result.first
+            val widgetItems = result.second
+            
             sceneState.bumpItems.clear()
             sceneState.bumpItems.addAll(bumpItems)
             sceneState.widgetItems.clear()
@@ -298,19 +306,24 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         val hit = interactionManager.handleTouchDown(x, y, sceneState)
         if (hit != null) {
             playSound(selectionSoundId, 0.2f)
+            hapticManager.selection()
         }
     }
     
     fun handleTouchMove(x: Float, y: Float, pointerCount: Int) {
-        val leafed = interactionManager.handleTouchMove(x, y, sceneState, pointerCount)
-        if (leafed) {
+        val eventConsumed = interactionManager.handleTouchMove(x, y, sceneState, pointerCount)
+        if (eventConsumed) {
             playSound(leafSoundId, 0.15f)
+            hapticManager.tick()
         }
     }
 
     fun handleTouchUp() {
         interactionManager.handleTouchUp(sceneState) { captured -> 
-            if (captured.isNotEmpty()) playSound(lassoSoundId, 0.4f)
+            if (captured.isNotEmpty()) {
+                playSound(lassoSoundId, 0.4f)
+                hapticManager.selection()
+            }
             (context as? LauncherActivity)?.showLassoMenu(interactionManager.lastTouchX, interactionManager.lastTouchY, captured) 
         }
     }
@@ -349,11 +362,13 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                     if (Math.abs(iX - (expandedPile.position[0] - width + 0.5f)) < 0.5f) { 
                         expandedPile.currentIndex = (expandedPile.currentIndex - 1).coerceAtLeast(0)
                         playSound(leafSoundId, 0.2f)
+                        hapticManager.tick()
                         return 
                     }
                     if (Math.abs(iX - (expandedPile.position[0] + width - 0.5f)) < 0.5f) { 
                         expandedPile.currentIndex = (expandedPile.currentIndex + 1).coerceAtMost(expandedPile.items.size - 1)
                         playSound(leafSoundId, 0.2f)
+                        hapticManager.tick()
                         return 
                     }
                 }
@@ -363,11 +378,13 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                     if (Math.abs(iX - suX) < 0.4f && Math.abs(iZ - suZ) < 0.4f) { 
                         expandedPile.scrollIndex = (expandedPile.scrollIndex - 1).coerceAtLeast(0)
                         playSound(leafSoundId, 0.2f)
+                        hapticManager.tick()
                         return 
                     }
                     if (Math.abs(iX - (pos[0] - halfDim + 1.0f * expandedPile.scale)) < 0.4f && Math.abs(iZ - suZ) < 0.4f) { 
                         expandedPile.scrollIndex++
                         playSound(leafSoundId, 0.2f)
+                        hapticManager.tick()
                         return 
                     }
                 }
@@ -378,6 +395,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
             interactWithWidget(widgetHit.first, rS, rE)
             if (camera.currentViewMode != CameraManager.ViewMode.WIDGET_FOCUS) { 
                 playSound(focusSoundId, 0.4f)
+                hapticManager.selection()
                 camera.focusOnWidget(widgetHit.first)
                 (context as? LauncherActivity)?.showResetButton(true) 
             }
@@ -401,6 +419,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
             if (item.type == BumpItem.Type.APP && item.appInfo?.packageName == context.packageName) { context.startActivity(Intent(context, SettingsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return }
             if (pile != null && !pile.isExpanded) {
                 playSound(expandSoundId, 0.3f)
+                hapticManager.selection()
                 if (pile.isSystem && pile == sceneState.recentsPile) camera.focusOnWall(CameraManager.ViewMode.BACK_WALL, floatArrayOf(0f, 4f, 2f), floatArrayOf(0f, 4f, -10f))
                 else { sceneState.piles.forEach { it.isExpanded = false }; pile.isExpanded = true; camera.focusOnFolder(pile.position) }
                 (context as? LauncherActivity)?.showResetButton(true); return
@@ -409,6 +428,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 val apps = sceneState.allAppsList
                 if (apps.isNotEmpty()) {
                     playSound(expandSoundId, 0.3f)
+                    hapticManager.selection()
                     val p = item.position.clone(); val dp = Pile(apps.map { BumpItem(appInfo = it, position = p.clone()) }.toMutableList(), p, name = "All Apps", isSystem = true)
                     sceneState.piles.forEach { it.isExpanded = false }; dp.isExpanded = true; sceneState.piles.add(dp); camera.focusOnFolder(p); (context as? LauncherActivity)?.showResetButton(true)
                 }
@@ -432,7 +452,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         var best: Triple<BumpItem.Surface, FloatArray, FloatArray>? = null; var minT = Float.MAX_VALUE
         walls.forEach { (s, cp, la) -> val t = when (s) { BumpItem.Surface.BACK_WALL -> (-9.95f - rS[2]) / (rE[2] - rS[2]); BumpItem.Surface.LEFT_WALL -> (-9.95f - rS[0]) / (rE[0] - rS[0]); BumpItem.Surface.RIGHT_WALL -> (9.95f - rS[0]) / (rE[0] - rS[0]); else -> -1f }; if (t > 0 && t < minT) { if (Math.abs(rS[0] + t * (rE[0] - rS[0])) <= 10.1f && Math.abs(rS[2] + t * (rE[2] - rS[2])) <= 10.1f && (rS[1] + t * (rE[1] - rS[1])) in 0f..12f) { minT = t; best = Triple(s, cp, la) } } }
         if (best != null) { camera.focusOnWall(when(best!!.first) { BumpItem.Surface.BACK_WALL -> CameraManager.ViewMode.BACK_WALL; BumpItem.Surface.LEFT_WALL -> CameraManager.ViewMode.LEFT_WALL; else -> CameraManager.ViewMode.RIGHT_WALL }, best!!.second, best!!.third); (context as? LauncherActivity)?.showResetButton(true); return }
-        val tf = -rS[1] / (rE[1] - rS[1]); if (tf > 0 && Math.abs(rS[0] + tf * (rE[0] - rS[0])) <= 10f && Math.abs(rS[2] + tf * (rE[2] - rS[2])) <= 10f) { camera.focusOnFloor(); (context as? LauncherActivity)?.showResetButton(true); return }
+        val tf = -rS[1] / (rE[1] - rS[1]); if (tf > 0 && Math.abs(rS[0] + tf * (rE[0] - rS[0])) <= 10f && Math.abs(rS[2] + tf * (rE[2] - rS[2])) <= 10f) { camera.focusOnFloor(); (context as? LauncherActivity)?.showResetButton(true) ; playSound(focusSoundId, 0.4f); hapticManager.selection(); return }
         handleSingleTap(x, y)
     }
 

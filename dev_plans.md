@@ -78,19 +78,17 @@
 - [x] Find a fix or work around for any features that would prevent the app being submitted to Play Store
 - [x] Implement Permission Onboarding Screen (Play Store Compliance)
 - [x] Improve Lasso Selection Visuals (Smooth 3D line strip)
-- [ ] **In Progress**: Sound Effects Integration (Physics-based impacts)
-    - [ ] Add sound effects for: item selection, pile expansion, and widget focusing.
-    - [ ] Implement "Physics-based" sounds (volume based on impact velocity).
-- [ ] **Task**: Widget Resizing Logic
-    - [ ] Implement 3D handles for resizing widgets on the desktop.
-    - [ ] Save resized widget dimensions to database.
-- [ ] **Task**: Haptic Feedback Integration
-    - [ ] Use `Vibrator` or `VibratorManager` to provide haptic feedback on bumps and selection.
-- [ ] **Task**: Auto-Categorization
-    - [ ] Logic to automatically group new apps into category-based piles (e.g., "Games", "Tools").
-- [ ] **Task**: Performance Optimization
-    - [ ] Implement Instanced Rendering for common 3D objects (icons).
-    - [ ] Texture atlas for small UI elements.
+- [x] Sound Effects Integration (Physics-based impacts and interactions)
+- [x] Widget Resizing Logic (3D handles and persistence)
+- [ ] **In Progress**: Haptic Feedback Integration
+    - [ ] Add `VIBRATE` permission to `AndroidManifest.xml`.
+    - [ ] Implement `HapticManager` to wrap vibration logic.
+    - [ ] Integrate haptics into `BumpRenderer` for collisions, selection, and leafing.
+- [ ] **Task**: Auto-Categorization Logic
+- [ ] **Task**: Performance Optimization (Instanced Rendering)
+- [ ] **Task**: Fix widget interaction and recents widget interaction (we can't click on things within the widgets)
+- [ ] **Task**: Fix missing "All Apps" icon on the desktop (we still need a way to access all the possible app icons)
+- [ ] **Task**: Update how Recent Widget and other Widgets updates recents list in the background and pushes changes to the visual Recents widget
 
 ## Planned Features from BumpTop Study
 
