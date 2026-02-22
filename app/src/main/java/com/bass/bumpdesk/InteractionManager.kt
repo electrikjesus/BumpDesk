@@ -113,13 +113,14 @@ class InteractionManager(
         }
     }
 
-    fun handleTouchMove(x: Float, y: Float, sceneState: SceneState, pointerCount: Int) {
+    fun handleTouchMove(x: Float, y: Float, sceneState: SceneState, pointerCount: Int): Boolean {
+        var eventConsumed = false
         if (pointerCount > 1) {
             isDragging = false
             isLeafing = false
             isResizingWidget = false
             lassoPoints.clear()
-            return
+            return false
         }
 
         val dxTouch = abs(x - lastTouchX)
@@ -157,7 +158,7 @@ class InteractionManager(
                     resizeWidget!!.size[1] = (size[1] + dv).coerceIn(1.0f, 5.0f)
                 }
             }
-            return
+            return true
         }
 
         if (isLeafing) {
@@ -171,9 +172,10 @@ class InteractionManager(
                         it.currentIndex = (it.currentIndex - 1 + it.items.size) % it.items.size
                     }
                     leafStartY = y
+                    eventConsumed = true
                 }
             }
-            return
+            return eventConsumed
         }
 
         if (sceneState.selectedItem != null && isDragging) {
@@ -227,6 +229,7 @@ class InteractionManager(
             lastTouchX = x
             lastTouchY = y
         }
+        return false
     }
 
     private fun getWidgetPoint(widget: WidgetItem, x: Float, y: Float): FloatArray {

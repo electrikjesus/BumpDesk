@@ -49,6 +49,8 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
     private var selectionSoundId: Int = -1
     private var expandSoundId: Int = -1
     private var focusSoundId: Int = -1
+    private var leafSoundId: Int = -1
+    private var lassoSoundId: Int = -1
 
     private val repository by lazy { DeskRepository(context) }
     private val repositoryScope = CoroutineScope(Dispatchers.IO)
@@ -75,26 +77,29 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
     }
 
     private fun loadSounds() {
-        bumpSoundId = context.resources.getIdentifier("bump", "raw", context.packageName).let {
-            if (it != 0) soundPool?.load(context, it, 1) ?: -1 else -1
-        }
-        selectionSoundId = context.resources.getIdentifier("select", "raw", context.packageName).let {
-            if (it != 0) soundPool?.load(context, it, 1) ?: -1 else -1
-        }
-        expandSoundId = context.resources.getIdentifier("expand", "raw", context.packageName).let {
-            if (it != 0) soundPool?.load(context, it, 1) ?: -1 else -1
-        }
-        focusSoundId = context.resources.getIdentifier("focus", "raw", context.packageName).let {
-            if (it != 0) soundPool?.load(context, it, 1) ?: -1 else -1
+        bumpSoundId = loadSound("bump")
+        selectionSoundId = loadSound("select")
+        expandSoundId = loadSound("expand")
+        focusSoundId = loadSound("focus")
+        leafSoundId = loadSound("leaf")
+        lassoSoundId = loadSound("lasso")
+    }
+
+    private fun loadSound(name: String): Int {
+        val id = context.resources.getIdentifier(name, "raw", context.packageName)
+        return if (id != 0) soundPool?.load(context, id, 1) ?: -1 else -1
+    }
+
+    fun playSound(soundId: Int, volume: Float = 1.0f) {
+        if (soundId != -1) {
+            soundPool?.play(soundId, volume, volume, 1, 0, 1.0f)
         }
     }
 
     private fun startPhysics() {
         physicsThread = PhysicsThread(sceneState, physicsEngine) { magnitude ->
-            if (bumpSoundId != -1) {
-                val vol = (magnitude * 2.0f).coerceIn(0.05f, 1.0f)
-                soundPool?.play(bumpSoundId, vol, vol, 1, 0, 1.0f)
-            }
+            val vol = (magnitude * 2.0f).coerceIn(0.05f, 1.0f)
+            playSound(bumpSoundId, vol)
         }
         physicsThread?.start()
     }
@@ -291,13 +296,24 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
 
     fun handleTouchDown(x: Float, y: Float) {
         val hit = interactionManager.handleTouchDown(x, y, sceneState)
-        if (hit != null && selectionSoundId != -1) {
-            soundPool?.play(selectionSoundId, 0.2f, 0.2f, 1, 0, 1.0f)
+        if (hit != null) {
+            playSound(selectionSoundId, 0.2f)
         }
     }
     
-    fun handleTouchMove(x: Float, y: Float, pointerCount: Int) = interactionManager.handleTouchMove(x, y, sceneState, pointerCount)
-    fun handleTouchUp() = interactionManager.handleTouchUp(sceneState) { captured -> (context as? LauncherActivity)?.showLassoMenu(interactionManager.lastTouchX, interactionManager.lastTouchY, captured) }
+    fun handleTouchMove(x: Float, y: Float, pointerCount: Int) {
+        val leafed = interactionManager.handleTouchMove(x, y, sceneState, pointerCount)
+        if (leafed) {
+            playSound(leafSoundId, 0.15f)
+        }
+    }
+
+    fun handleTouchUp() {
+        interactionManager.handleTouchUp(sceneState) { captured -> 
+            if (captured.isNotEmpty()) playSound(lassoSoundId, 0.4f)
+            (context as? LauncherActivity)?.showLassoMenu(interactionManager.lastTouchX, interactionManager.lastTouchY, captured) 
+        }
+    }
 
     fun gridSelectedItems(items: List<BumpItem>, mode: GridLayout) {
         if (items.isEmpty()) return
@@ -330,14 +346,30 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 
                 if (expandedPile == sceneState.recentsPile && camera.currentViewMode == CameraManager.ViewMode.BACK_WALL) {
                     val width = 6f * expandedPile.scale
-                    if (Math.abs(iX - (expandedPile.position[0] - width + 0.5f)) < 0.5f) { expandedPile.currentIndex = (expandedPile.currentIndex - 1).coerceAtLeast(0); return }
-                    if (Math.abs(iX - (expandedPile.position[0] + width - 0.5f)) < 0.5f) { expandedPile.currentIndex = (expandedPile.currentIndex + 1).coerceAtMost(expandedPile.items.size - 1); return }
+                    if (Math.abs(iX - (expandedPile.position[0] - width + 0.5f)) < 0.5f) { 
+                        expandedPile.currentIndex = (expandedPile.currentIndex - 1).coerceAtLeast(0)
+                        playSound(leafSoundId, 0.2f)
+                        return 
+                    }
+                    if (Math.abs(iX - (expandedPile.position[0] + width - 0.5f)) < 0.5f) { 
+                        expandedPile.currentIndex = (expandedPile.currentIndex + 1).coerceAtMost(expandedPile.items.size - 1)
+                        playSound(leafSoundId, 0.2f)
+                        return 
+                    }
                 }
 
                 if (expandedPile.layoutMode == Pile.LayoutMode.GRID) {
                     val suX = pos[0] - halfDim + 0.4f * expandedPile.scale; val suZ = pos[1] - totalHalfDimZ + 0.2f * expandedPile.scale
-                    if (Math.abs(iX - suX) < 0.4f && Math.abs(iZ - suZ) < 0.4f) { expandedPile.scrollIndex = (expandedPile.scrollIndex - 1).coerceAtLeast(0); return }
-                    if (Math.abs(iX - (pos[0] - halfDim + 1.0f * expandedPile.scale)) < 0.4f && Math.abs(iZ - suZ) < 0.4f) { expandedPile.scrollIndex++; return }
+                    if (Math.abs(iX - suX) < 0.4f && Math.abs(iZ - suZ) < 0.4f) { 
+                        expandedPile.scrollIndex = (expandedPile.scrollIndex - 1).coerceAtLeast(0)
+                        playSound(leafSoundId, 0.2f)
+                        return 
+                    }
+                    if (Math.abs(iX - (pos[0] - halfDim + 1.0f * expandedPile.scale)) < 0.4f && Math.abs(iZ - suZ) < 0.4f) { 
+                        expandedPile.scrollIndex++
+                        playSound(leafSoundId, 0.2f)
+                        return 
+                    }
                 }
             }
         }
@@ -345,7 +377,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         if (widgetHit != null) { 
             interactWithWidget(widgetHit.first, rS, rE)
             if (camera.currentViewMode != CameraManager.ViewMode.WIDGET_FOCUS) { 
-                if (focusSoundId != -1) soundPool?.play(focusSoundId, 0.4f, 0.4f, 1, 0, 1.0f)
+                playSound(focusSoundId, 0.4f)
                 camera.focusOnWidget(widgetHit.first)
                 (context as? LauncherActivity)?.showResetButton(true) 
             }
@@ -368,7 +400,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
             }
             if (item.type == BumpItem.Type.APP && item.appInfo?.packageName == context.packageName) { context.startActivity(Intent(context, SettingsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return }
             if (pile != null && !pile.isExpanded) {
-                if (expandSoundId != -1) soundPool?.play(expandSoundId, 0.3f, 0.3f, 1, 0, 1.0f)
+                playSound(expandSoundId, 0.3f)
                 if (pile.isSystem && pile == sceneState.recentsPile) camera.focusOnWall(CameraManager.ViewMode.BACK_WALL, floatArrayOf(0f, 4f, 2f), floatArrayOf(0f, 4f, -10f))
                 else { sceneState.piles.forEach { it.isExpanded = false }; pile.isExpanded = true; camera.focusOnFolder(pile.position) }
                 (context as? LauncherActivity)?.showResetButton(true); return
@@ -376,7 +408,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
             if (item.type == BumpItem.Type.APP_DRAWER) {
                 val apps = sceneState.allAppsList
                 if (apps.isNotEmpty()) {
-                    if (expandSoundId != -1) soundPool?.play(expandSoundId, 0.3f, 0.3f, 1, 0, 1.0f)
+                    playSound(expandSoundId, 0.3f)
                     val p = item.position.clone(); val dp = Pile(apps.map { BumpItem(appInfo = it, position = p.clone()) }.toMutableList(), p, name = "All Apps", isSystem = true)
                     sceneState.piles.forEach { it.isExpanded = false }; dp.isExpanded = true; sceneState.piles.add(dp); camera.focusOnFolder(p); (context as? LauncherActivity)?.showResetButton(true)
                 }
