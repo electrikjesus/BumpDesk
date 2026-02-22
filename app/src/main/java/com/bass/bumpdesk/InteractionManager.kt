@@ -63,7 +63,6 @@ class InteractionManager(
     }
 
     fun handleTouchMove(x: Float, y: Float, sceneState: SceneState, pointerCount: Int) {
-        // Task: Ensure lasso/drag only works with 1 finger to avoid interference with pan/zoom
         if (pointerCount > 1) {
             isDragging = false
             isLeafing = false
@@ -264,7 +263,8 @@ class InteractionManager(
         val dot = (dX*(rDX/rL) + dY*(rDY/rL) + dZ*(rDZ/rL))
         val pX = rS[0] + dot*(rDX/rL); val pY = rS[1] + dot*(rDY/rL); val pZ = rS[2] + dot*(rDZ/rL)
         val distSq = (pX-item.position[0])*(pX-item.position[0]) + (pY-item.position[1])*(pY-item.position[1]) + (pZ-item.position[2])*(pZ-item.position[2])
-        return if (distSq < 0.8f) dot else -1f
+        // Task: Interaction distance check. Using 1.5f for easier selection.
+        return if (distSq < 1.5f) dot else -1f
     }
 
     fun findIntersectingWidget(rS: FloatArray, rE: FloatArray, widgetItems: List<WidgetItem>): Pair<WidgetItem, Float>? {

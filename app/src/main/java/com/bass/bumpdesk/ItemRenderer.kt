@@ -27,7 +27,6 @@ class ItemRenderer(
     ) {
         items.forEach { item ->
             ensureItemTexture(item)
-            // Task: Live updates for web widgets. Update every ~1 second (1000ms)
             if (item.type == BumpItem.Type.WEB_WIDGET && (System.currentTimeMillis() % 1000 < 16)) {
                 updateWebTexture(item, onUpdateTexture)
             }
@@ -134,30 +133,36 @@ class ItemRenderer(
         val pile = sceneState.getPileOf(item)
         val surfaceToUse = if (pile?.isExpanded == true) BumpItem.Surface.FLOOR else item.surface
         
-        // Task: Add a small offset to prevent Z-fighting with walls/floor
         val zOffset = 0.01f
         var posX = item.position[0]
         var posY = item.position[1]
         var posZ = item.position[2]
 
+        // Task: Uniform rotation logic to ensure right-side up and facing camera.
+        // Combo: 180 Y, 90 X, 180 Z
         when (surfaceToUse) {
             BumpItem.Surface.BACK_WALL -> {
                 posZ += zOffset
                 Matrix.translateM(modelMatrix, 0, posX, posY, posZ)
-                // Task: Fix recents items facing the wall by removing the 180 rotation
+                Matrix.rotateM(modelMatrix, 0, 180f, 0f, 1f, 0f)
                 Matrix.rotateM(modelMatrix, 0, 90f, 1f, 0f, 0f)
+                Matrix.rotateM(modelMatrix, 0, 180f, 0f, 0f, 1f)
             }
             BumpItem.Surface.LEFT_WALL -> {
                 posX += zOffset
                 Matrix.translateM(modelMatrix, 0, posX, posY, posZ)
-                Matrix.rotateM(modelMatrix, 0, 90f, 0f, 1f, 0f)
+                Matrix.rotateM(modelMatrix, 0, 90f, 0f, 1f, 0f) // Face +X
+                Matrix.rotateM(modelMatrix, 0, 180f, 0f, 1f, 0f)
                 Matrix.rotateM(modelMatrix, 0, 90f, 1f, 0f, 0f)
+                Matrix.rotateM(modelMatrix, 0, 180f, 0f, 0f, 1f)
             }
             BumpItem.Surface.RIGHT_WALL -> {
                 posX -= zOffset
                 Matrix.translateM(modelMatrix, 0, posX, posY, posZ)
-                Matrix.rotateM(modelMatrix, 0, -90f, 0f, 1f, 0f)
+                Matrix.rotateM(modelMatrix, 0, -90f, 0f, 1f, 0f) // Face -X
+                Matrix.rotateM(modelMatrix, 0, 180f, 0f, 1f, 0f)
                 Matrix.rotateM(modelMatrix, 0, 90f, 1f, 0f, 0f)
+                Matrix.rotateM(modelMatrix, 0, 180f, 0f, 0f, 1f)
             }
             BumpItem.Surface.FLOOR -> {
                 posY += zOffset

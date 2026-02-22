@@ -71,42 +71,53 @@ class CameraManager {
 
     /**
      * Context-aware panning based on the current view mode.
+     * Implements "drag content with finger" logic (camera moves opposite to finger).
      */
     fun handlePan(dx: Float, dy: Float) {
-        // Sensitivity adjustment
-        val s = 0.02f * zoomLevel
+        // Sensitivity adjustment. Panning should feel natural at 1.0 zoom.
+        val s = 0.015f * zoomLevel
         
         when (currentViewMode) {
             ViewMode.BACK_WALL -> {
-                targetPos[0] += dx * s
+                // Looking at -Z wall. 
+                // Finger Right (dx > 0) -> Content Right -> Camera Left (X decreases)
+                targetPos[0] -= dx * s
+                // Finger Down (dy > 0) -> Content Down -> Camera Up (Y increases)
                 targetPos[1] += dy * s
-                targetLookAt[0] += dx * s
+                targetLookAt[0] -= dx * s
                 targetLookAt[1] += dy * s
             }
             ViewMode.LEFT_WALL -> {
-                targetPos[2] += dx * s
-                targetPos[1] += dy * s
-                targetLookAt[2] += dx * s
-                targetLookAt[1] += dy * s
-            }
-            ViewMode.RIGHT_WALL -> {
+                // Looking at -X wall. Right is +Z.
+                // Finger Right (dx > 0) -> Content Right (+Z) -> Camera Left (-Z)
                 targetPos[2] -= dx * s
                 targetPos[1] += dy * s
                 targetLookAt[2] -= dx * s
                 targetLookAt[1] += dy * s
             }
+            ViewMode.RIGHT_WALL -> {
+                // Looking at +X wall. Right is -Z.
+                // Finger Right (dx > 0) -> Content Right (-Z) -> Camera Left (+Z)
+                targetPos[2] += dx * s
+                targetPos[1] += dy * s
+                targetLookAt[2] += dx * s
+                targetLookAt[1] += dy * s
+            }
             ViewMode.FLOOR -> {
-                targetPos[0] += dx * s
-                targetPos[2] += dy * s
-                targetLookAt[0] += dx * s
-                targetLookAt[2] += dy * s
+                // Looking down.
+                // Finger Right (dx > 0) -> Content Right (+X) -> Camera Left (-X)
+                targetPos[0] -= dx * s
+                // Finger Down (dy > 0) -> Content Down (+Z) -> Camera Up (-Z)
+                targetPos[2] -= dy * s
+                targetLookAt[0] -= dx * s
+                targetLookAt[2] -= dy * s
             }
             else -> {
-                // Default view panning (constrained XZ)
-                targetPos[0] += dx * s
-                targetPos[2] += dy * s
-                targetLookAt[0] += dx * s
-                targetLookAt[2] += dy * s
+                // Default angled view.
+                targetPos[0] -= dx * s
+                targetPos[2] -= dy * s
+                targetLookAt[0] -= dx * s
+                targetLookAt[2] -= dy * s
             }
         }
     }

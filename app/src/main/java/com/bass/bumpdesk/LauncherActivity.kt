@@ -177,7 +177,8 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
                 return true
             }
             override fun onScaleEnd(detector: ScaleGestureDetector) {
-                isScaling = false
+                // Task: Delay reset of isScaling to avoid a 'jump' when releasing fingers
+                glSurfaceView.postDelayed({ isScaling = false }, 100)
             }
         })
 
@@ -185,27 +186,40 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
             if (radialMenu.visibility == View.VISIBLE) {
                 return@setOnTouchListener radialMenu.dispatchTouchEvent(event)
             }
+            
             scaleGestureDetector.onTouchEvent(event)
             gestureDetector.onTouchEvent(event)
             
             val pointerCount = event.pointerCount
-            if (pointerCount == 2) {
-                val midX = (event.getX(0) + event.getX(1)) / 2f
-                val midY = (event.getY(0) + event.getY(1)) / 2f
-                if (event.actionMasked == MotionEvent.ACTION_MOVE && !isScaling) {
-                    val dx = midX - lastMidX
-                    val dy = midY - lastMidY
-                    glSurfaceView.queueEvent { renderer.handlePan(-dx * 0.5f, dy * 0.5f) }
+            
+            when (event.actionMasked) {
+                MotionEvent.ACTION_POINTER_DOWN -> {
+                    if (pointerCount == 2) {
+                        lastMidX = (event.getX(0) + event.getX(1)) / 2f
+                        lastMidY = (event.getY(0) + event.getY(1)) / 2f
+                    }
                 }
-                lastMidX = midX
-                lastMidY = midY
-            } else if (pointerCount == 1) {
-                when (event.actionMasked) {
-                    MotionEvent.ACTION_DOWN -> glSurfaceView.queueEvent { renderer.handleTouchDown(event.x, event.y) }
-                    MotionEvent.ACTION_MOVE -> glSurfaceView.queueEvent { renderer.handleTouchMove(event.x, event.y, pointerCount) }
-                    MotionEvent.ACTION_UP -> glSurfaceView.queueEvent { renderer.handleTouchUp() }
+                MotionEvent.ACTION_MOVE -> {
+                    if (pointerCount == 2 && !isScaling) {
+                        val midX = (event.getX(0) + event.getX(1)) / 2f
+                        val midY = (event.getY(0) + event.getY(1)) / 2f
+                        val dx = midX - lastMidX
+                        val dy = midY - lastMidY
+                        glSurfaceView.queueEvent { renderer.handlePan(dx, dy) }
+                        lastMidX = midX
+                        lastMidY = midY
+                    } else if (pointerCount == 1) {
+                        glSurfaceView.queueEvent { renderer.handleTouchMove(event.x, event.y, pointerCount) }
+                    }
+                }
+                MotionEvent.ACTION_DOWN -> {
+                    glSurfaceView.queueEvent { renderer.handleTouchDown(event.x, event.y) }
+                }
+                MotionEvent.ACTION_UP -> {
+                    glSurfaceView.queueEvent { renderer.handleTouchUp() }
                 }
             }
+
             true
         }
     }
