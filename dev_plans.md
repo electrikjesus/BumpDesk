@@ -75,11 +75,13 @@
 - [x] Fix pinch to zoom on all views
 - [x] Update settings activity with missing features/options
 - [x] Fix themes still requiring a full app reload to switch
-- [ ] **In Progress**: Find a fix or work around for any features that would prevent the app being submitted to Play Store
-    - [x] Implement permission checks and prompts for "Usage Access" (needed for Recents fallback).
-    - [x] Review `QUERY_ALL_PACKAGES` and add necessary documentation/declaration info.
-    - [x] Ensure all hidden API calls (AOSP specific) have stable fallbacks for Play Store devices.
-    - [ ] Update `dev_plans.md` rules and structure.
+- [x] Find a fix or work around for any features that would prevent the app being submitted to Play Store
+- [x] Implement Permission Onboarding Screen (Play Store Compliance)
+- [ ] **In Progress**: Improve Lasso Selection Visuals (Smooth 3D line strip)
+    - [ ] Create `LassoRenderer` to handle 3D line strip generation.
+    - [ ] Update `InteractionManager` to provide interpolated points for smoother lines.
+    - [ ] Add "Glowing" effect to the lasso path using additive blending.
+- [ ] **Task**: Sound Effects Integration (Physics-based impacts)
 
 ## Planned Features from BumpTop Study
 

@@ -39,6 +39,13 @@
             </intent-filter>
         </activity>
 
+        <!-- Onboarding screen for Play Store compliance -->
+        <activity
+            android:name=".OnboardingActivity"
+            android:exported="false"
+            android:label="Welcome to BumpDesk"
+            android:theme="@style/Theme.BumpDesk" />
+
         <!-- Recents surface entry point -->
         <activity
             android:name=".RecentsActivity"

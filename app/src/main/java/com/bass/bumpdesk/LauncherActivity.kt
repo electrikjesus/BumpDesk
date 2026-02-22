@@ -68,6 +68,12 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
         val prefs = getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
         prefs.registerOnSharedPreferenceChangeListener(this)
 
+        if (!prefs.getBoolean("onboarding_complete", false)) {
+            startActivity(Intent(this, OnboardingActivity::class.java))
+            finish()
+            return
+        }
+
         requestWindowFeature(Window.FEATURE_NO_TITLE)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         setupSystemUi()
