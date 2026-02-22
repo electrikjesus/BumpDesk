@@ -22,21 +22,27 @@ class PileRenderer(
         piles.forEach { pile ->
             val isExpanded = pile.isExpanded
             val isCarousel = pile.layoutMode == Pile.LayoutMode.CAROUSEL && !isExpanded
-            val widthLimit = 6f * pile.scale
+            
+            // Task: Increased width limit for carousel visibility.
+            // Items are spaced at 3.5f * scale. 
+            // 8f * scale allows approx 2 items on each side of the center.
+            val widthLimit = 10f * pile.scale
 
             pile.items.forEachIndexed { index, item ->
+                // Task: Removed duplicate positioning logic. 
+                // Positioning is now handled exclusively by PhysicsEngine.
+                
                 if (isCarousel) {
-                    // Task: Position items in carousel relative to pile position and currentIndex
-                    val offset = (index - pile.currentIndex).toFloat()
-                    val targetX = pile.position[0] + offset * 2.0f * pile.scale
+                    // Basic culling for carousel mode to save draw calls.
+                    // We check distance along the major axis of the carousel.
+                    val dist = when (pile.surface) {
+                        BumpItem.Surface.BACK_WALL -> Math.abs(item.position[0] - pile.position[0])
+                        BumpItem.Surface.LEFT_WALL -> Math.abs(item.position[2] - pile.position[2])
+                        BumpItem.Surface.RIGHT_WALL -> Math.abs(item.position[2] - pile.position[2])
+                        else -> Math.abs(item.position[0] - pile.position[0])
+                    }
                     
-                    // Smoothly animate towards target position
-                    item.position[0] += (targetX - item.position[0]) * 0.1f
-                    item.position[1] = pile.position[1]
-                    item.position[2] = pile.position[2]
-                    
-                    // Basic culling for carousel mode
-                    if (Math.abs(item.position[0] - pile.position[0]) > widthLimit) {
+                    if (dist > widthLimit) {
                         return@forEachIndexed
                     }
                 }

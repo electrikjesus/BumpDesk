@@ -71,10 +71,9 @@
 - [x] Setup .gitignore so we can push this to a github repo
 - [x] Add a detailed project readme
 - [x] Fix interacting with widgets and let them update live on the desktop if shown. 
-- [ ] **In Progress**: Fix Recents Widget only showing the arrows (nothing else is showing. Maybe it is widget spacing in z plane issue again?)
-- [ ] Fix pinch to zoom on all views
+- [x] Fix Recents Widget only showing the arrows (nothing else is showing. Maybe it is widget spacing in z plane issue again?)
+- [ ] **In Progress**: Fix pinch to zoom on all views
 - [ ] Update settings activity with missing features/options
-- [ ] fix themes still requiring a full app reload to switch
 - [ ] find a fix or work around for any features that would prevent the app being submitted to Play Store
 
 ## Planned Features from BumpTop Study
