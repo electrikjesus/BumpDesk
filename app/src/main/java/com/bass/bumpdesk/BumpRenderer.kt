@@ -28,7 +28,9 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
     private lateinit var shader: DefaultShader
     private lateinit var roomRenderer: RoomRenderer
     private lateinit var overlayRenderer: OverlayRenderer
-    private lateinit var lasso: Lasso
+    
+    // Updated Lasso Renderer
+    private lateinit var lassoRenderer: LassoRenderer
 
     private lateinit var itemRenderer: ItemRenderer
     private lateinit var widgetRenderer: WidgetRenderer
@@ -93,13 +95,9 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
 
     fun updateSettings() {
         val prefs = context.getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
-        
-        // Physics
         physicsEngine.friction = prefs.getInt("physics_friction", 94) / 100f
         physicsEngine.restitution = prefs.getInt("physics_bounciness", 25) / 100f
         physicsEngine.gravity = prefs.getInt("physics_gravity", 10) / 1000f
-        
-        // Layout
         physicsEngine.defaultScale = (prefs.getInt("layout_item_scale", 50) / 100f) + 0.2f
         physicsEngine.gridSpacingBase = (prefs.getInt("layout_grid_spacing", 60) / 100f) * 2.0f
     }
@@ -218,7 +216,6 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 p.nameTextureId = -1
             }
             sceneState.widgetItems.forEach { it.textureId = -1 }
-            // Task: Reload theme textures including UI assets to avoid black surfaces
             loadThemeTextures() 
         }
     }
@@ -232,7 +229,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         shader = DefaultShader()
         roomRenderer = RoomRenderer(shader)
         overlayRenderer = OverlayRenderer(shader)
-        lasso = Lasso()
+        lassoRenderer = LassoRenderer(LassoShader())
 
         itemRenderer = ItemRenderer(context, shader, textureManager, sceneState)
         widgetRenderer = WidgetRenderer(context, shader, textureManager)
@@ -245,8 +242,6 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
     private fun loadThemeTextures() {
         floorTextureId = ThemeManager.getFloorTexture(context, textureManager)
         wallTextureIds = ThemeManager.getWallTextures(context, textureManager)
-        
-        // Task: Ensure uiAssets is updated when loading theme textures
         uiAssets = UIRenderer.UIAssets(
             closeBtn = textureManager.loadTextureFromBitmap(TextRenderer.createTextBitmap("X", 64, 64)),
             arrowLeft = textureManager.loadTextureFromBitmap(TextRenderer.createTextBitmap(" < ", 64, 64)),
@@ -272,7 +267,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         pileRenderer.drawPiles(vPMatrix, sceneState.piles, lightPos, searchQuery, camera.currentViewMode, onUpdateTexture)
         uiRenderer.drawOverlays(vPMatrix, sceneState, camera, uiAssets, lightPos)
         
-        if (interactionManager.lassoPoints.isNotEmpty()) lasso.draw(vPMatrix, interactionManager.lassoPoints)
+        if (interactionManager.lassoPoints.isNotEmpty()) lassoRenderer.draw(vPMatrix, interactionManager.lassoPoints)
     }
 
     fun handleTouchDown(x: Float, y: Float) = interactionManager.handleTouchDown(x, y, sceneState)
