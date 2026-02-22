@@ -77,11 +77,20 @@
 - [x] Fix themes still requiring a full app reload to switch
 - [x] Find a fix or work around for any features that would prevent the app being submitted to Play Store
 - [x] Implement Permission Onboarding Screen (Play Store Compliance)
-- [ ] **In Progress**: Improve Lasso Selection Visuals (Smooth 3D line strip)
-    - [ ] Create `LassoRenderer` to handle 3D line strip generation.
-    - [ ] Update `InteractionManager` to provide interpolated points for smoother lines.
-    - [ ] Add "Glowing" effect to the lasso path using additive blending.
-- [ ] **Task**: Sound Effects Integration (Physics-based impacts)
+- [x] Improve Lasso Selection Visuals (Smooth 3D line strip)
+- [ ] **In Progress**: Sound Effects Integration (Physics-based impacts)
+    - [ ] Add sound effects for: item selection, pile expansion, and widget focusing.
+    - [ ] Implement "Physics-based" sounds (volume based on impact velocity).
+- [ ] **Task**: Widget Resizing Logic
+    - [ ] Implement 3D handles for resizing widgets on the desktop.
+    - [ ] Save resized widget dimensions to database.
+- [ ] **Task**: Haptic Feedback Integration
+    - [ ] Use `Vibrator` or `VibratorManager` to provide haptic feedback on bumps and selection.
+- [ ] **Task**: Auto-Categorization
+    - [ ] Logic to automatically group new apps into category-based piles (e.g., "Games", "Tools").
+- [ ] **Task**: Performance Optimization
+    - [ ] Implement Instanced Rendering for common 3D objects (icons).
+    - [ ] Texture atlas for small UI elements.
 
 ## Planned Features from BumpTop Study
 

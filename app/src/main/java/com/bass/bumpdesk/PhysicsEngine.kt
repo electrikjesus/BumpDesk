@@ -20,7 +20,7 @@ class PhysicsEngine {
         items: MutableList<BumpItem>,
         piles: MutableList<Pile>,
         selectedItem: BumpItem?,
-        onBump: () -> Unit
+        onBump: (Float) -> Unit
     ) {
         piles.forEach { pile ->
             constrainPile(pile)
@@ -58,7 +58,6 @@ class PhysicsEngine {
 
             if (!item.isPinned) {
                 if (item.surface != BumpItem.Surface.FLOOR) {
-                    // Applied configurable gravity towards floor if on wall and not pinned
                     item.velocity[1] -= gravity
                 }
 
@@ -116,17 +115,33 @@ class PhysicsEngine {
         }
     }
 
-    private fun applyConstraints(item: BumpItem, onBump: () -> Unit) {
+    private fun applyConstraints(item: BumpItem, onBump: (Float) -> Unit) {
         when (item.surface) {
             BumpItem.Surface.FLOOR -> {
                 val limit = INFINITE_SIZE - item.scale - 0.05f
                 item.position[1] = item.position[1].coerceAtLeast(0.05f)
-                var hit = false
-                if (item.position[0] > limit) { item.position[0] = limit; item.velocity[0] = -abs(item.velocity[0]) * wallBounce; hit = true }
-                if (item.position[0] < -limit) { item.position[0] = -limit; item.velocity[0] = abs(item.velocity[0]) * wallBounce; hit = true }
-                if (item.position[2] > limit) { item.position[2] = limit; item.velocity[2] = -abs(item.velocity[2]) * wallBounce; hit = true }
-                if (item.position[2] < -limit) { item.position[2] = -limit; item.velocity[2] = abs(item.velocity[2]) * wallBounce; hit = true }
-                if (!item.isPinned && hit && abs(item.velocity[0]) + abs(item.velocity[2]) > 0.05f) onBump()
+                var magnitude = 0f
+                if (item.position[0] > limit) {
+                    item.position[0] = limit
+                    magnitude = abs(item.velocity[0])
+                    item.velocity[0] = -magnitude * wallBounce
+                }
+                if (item.position[0] < -limit) {
+                    item.position[0] = -limit
+                    magnitude = abs(item.velocity[0])
+                    item.velocity[0] = magnitude * wallBounce
+                }
+                if (item.position[2] > limit) {
+                    item.position[2] = limit
+                    magnitude = abs(item.velocity[2])
+                    item.velocity[2] = -magnitude * wallBounce
+                }
+                if (item.position[2] < -limit) {
+                    item.position[2] = -limit
+                    magnitude = abs(item.velocity[2])
+                    item.velocity[2] = magnitude * wallBounce
+                }
+                if (!item.isPinned && magnitude > 0.05f) onBump(magnitude)
             }
             BumpItem.Surface.BACK_WALL -> {
                 item.position[2] = -9.95f
@@ -206,7 +221,7 @@ class PhysicsEngine {
         }
     }
 
-    private fun resolveCollision(item: BumpItem, other: BumpItem, selectedItem: BumpItem?, onBump: () -> Unit) {
+    private fun resolveCollision(item: BumpItem, other: BumpItem, selectedItem: BumpItem?, onBump: (Float) -> Unit) {
         val itemCanMove = !item.isPinned && item != selectedItem
         val otherCanMove = !other.isPinned && other != selectedItem
         if (!itemCanMove && !otherCanMove) return
@@ -247,7 +262,7 @@ class PhysicsEngine {
                 val impulse = j / (1 / itemMass + 1 / otherMass)
                 if (itemCanMove) { item.velocity[0] += (impulse / itemMass) * nx; item.velocity[1] += (impulse / itemMass) * ny; item.velocity[2] += (impulse / itemMass) * nz }
                 if (otherCanMove) { other.velocity[0] -= (impulse / otherMass) * nx; other.velocity[1] -= (impulse / otherMass) * ny; other.velocity[2] -= (impulse / otherMass) * nz }
-                if (abs(j) > 0.1f) onBump()
+                if (abs(j) > 0.1f) onBump(abs(j))
             }
         }
     }

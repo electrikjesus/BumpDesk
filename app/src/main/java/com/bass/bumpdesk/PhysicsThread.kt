@@ -6,7 +6,7 @@ import android.os.HandlerThread
 class PhysicsThread(
     private val sceneState: SceneState,
     private val physicsEngine: PhysicsEngine,
-    private val onBump: () -> Unit
+    private val onBump: (Float) -> Unit
 ) : HandlerThread("PhysicsThread") {
 
     private var handler: Handler? = null

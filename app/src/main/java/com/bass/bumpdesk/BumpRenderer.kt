@@ -28,8 +28,6 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
     private lateinit var shader: DefaultShader
     private lateinit var roomRenderer: RoomRenderer
     private lateinit var overlayRenderer: OverlayRenderer
-    
-    // Updated Lasso Renderer
     private lateinit var lassoRenderer: LassoRenderer
 
     private lateinit var itemRenderer: ItemRenderer
@@ -48,6 +46,9 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
     private val lightPos = floatArrayOf(0f, 10f, 0f)
     private var soundPool: SoundPool? = null
     private var bumpSoundId: Int = -1
+    private var selectionSoundId: Int = -1
+    private var expandSoundId: Int = -1
+    private var focusSoundId: Int = -1
 
     private val repository by lazy { DeskRepository(context) }
     private val repositoryScope = CoroutineScope(Dispatchers.IO)
@@ -64,20 +65,36 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
             .build()
         soundPool = SoundPool.Builder()
-            .setMaxStreams(5)
+            .setMaxStreams(10)
             .setAudioAttributes(audioAttributes)
             .build()
         
-        bumpSoundId = context.resources.getIdentifier("bump", "raw", context.packageName).let {
-            if (it != 0) soundPool?.load(context, it, 1) ?: -1 else -1
-        }
+        loadSounds()
         updateSettings()
         startPhysics()
     }
 
+    private fun loadSounds() {
+        bumpSoundId = context.resources.getIdentifier("bump", "raw", context.packageName).let {
+            if (it != 0) soundPool?.load(context, it, 1) ?: -1 else -1
+        }
+        selectionSoundId = context.resources.getIdentifier("select", "raw", context.packageName).let {
+            if (it != 0) soundPool?.load(context, it, 1) ?: -1 else -1
+        }
+        expandSoundId = context.resources.getIdentifier("expand", "raw", context.packageName).let {
+            if (it != 0) soundPool?.load(context, it, 1) ?: -1 else -1
+        }
+        focusSoundId = context.resources.getIdentifier("focus", "raw", context.packageName).let {
+            if (it != 0) soundPool?.load(context, it, 1) ?: -1 else -1
+        }
+    }
+
     private fun startPhysics() {
-        physicsThread = PhysicsThread(sceneState, physicsEngine) {
-            if (bumpSoundId != -1) soundPool?.play(bumpSoundId, 0.1f, 0.1f, 1, 0, 1.0f)
+        physicsThread = PhysicsThread(sceneState, physicsEngine) { magnitude ->
+            if (bumpSoundId != -1) {
+                val vol = (magnitude * 2.0f).coerceIn(0.05f, 1.0f)
+                soundPool?.play(bumpSoundId, vol, vol, 1, 0, 1.0f)
+            }
         }
         physicsThread?.start()
     }
@@ -263,14 +280,20 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         val onUpdateTexture: (Runnable) -> Unit = { event -> glSurfaceView?.queueEvent(event) }
 
         itemRenderer.drawItems(vPMatrix, sceneState.bumpItems, lightPos, searchQuery, onUpdateTexture)
-        widgetRenderer.drawWidgets(vPMatrix, sceneState.widgetItems, sceneState.widgetViews, frameCount, onUpdateTexture)
+        widgetRenderer.drawWidgets(vPMatrix, sceneState.widgetItems, sceneState.widgetViews, frameCount, sceneState.selectedWidget, onUpdateTexture)
         pileRenderer.drawPiles(vPMatrix, sceneState.piles, lightPos, searchQuery, camera.currentViewMode, onUpdateTexture)
         uiRenderer.drawOverlays(vPMatrix, sceneState, camera, uiAssets, lightPos)
         
         if (interactionManager.lassoPoints.isNotEmpty()) lassoRenderer.draw(vPMatrix, interactionManager.lassoPoints)
     }
 
-    fun handleTouchDown(x: Float, y: Float) = interactionManager.handleTouchDown(x, y, sceneState)
+    fun handleTouchDown(x: Float, y: Float) {
+        val hit = interactionManager.handleTouchDown(x, y, sceneState)
+        if (hit != null && selectionSoundId != -1) {
+            soundPool?.play(selectionSoundId, 0.2f, 0.2f, 1, 0, 1.0f)
+        }
+    }
+    
     fun handleTouchMove(x: Float, y: Float, pointerCount: Int) = interactionManager.handleTouchMove(x, y, sceneState, pointerCount)
     fun handleTouchUp() = interactionManager.handleTouchUp(sceneState) { captured -> (context as? LauncherActivity)?.showLassoMenu(interactionManager.lastTouchX, interactionManager.lastTouchY, captured) }
 
@@ -319,7 +342,11 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         val widgetHit = interactionManager.findIntersectingWidget(rS, rE, sceneState.widgetItems)
         if (widgetHit != null) { 
             interactWithWidget(widgetHit.first, rS, rE)
-            if (camera.currentViewMode != CameraManager.ViewMode.WIDGET_FOCUS) { camera.focusOnWidget(widgetHit.first); (context as? LauncherActivity)?.showResetButton(true) }
+            if (camera.currentViewMode != CameraManager.ViewMode.WIDGET_FOCUS) { 
+                if (focusSoundId != -1) soundPool?.play(focusSoundId, 0.4f, 0.4f, 1, 0, 1.0f)
+                camera.focusOnWidget(widgetHit.first)
+                (context as? LauncherActivity)?.showResetButton(true) 
+            }
             return 
         }
         val item = interactionManager.findIntersectingItem(rS, rE, sceneState.bumpItems, sceneState.piles)
@@ -339,6 +366,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
             }
             if (item.type == BumpItem.Type.APP && item.appInfo?.packageName == context.packageName) { context.startActivity(Intent(context, SettingsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return }
             if (pile != null && !pile.isExpanded) {
+                if (expandSoundId != -1) soundPool?.play(expandSoundId, 0.3f, 0.3f, 1, 0, 1.0f)
                 if (pile.isSystem && pile == sceneState.recentsPile) camera.focusOnWall(CameraManager.ViewMode.BACK_WALL, floatArrayOf(0f, 4f, 2f), floatArrayOf(0f, 4f, -10f))
                 else { sceneState.piles.forEach { it.isExpanded = false }; pile.isExpanded = true; camera.focusOnFolder(pile.position) }
                 (context as? LauncherActivity)?.showResetButton(true); return
@@ -346,6 +374,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
             if (item.type == BumpItem.Type.APP_DRAWER) {
                 val apps = sceneState.allAppsList
                 if (apps.isNotEmpty()) {
+                    if (expandSoundId != -1) soundPool?.play(expandSoundId, 0.3f, 0.3f, 1, 0, 1.0f)
                     val p = item.position.clone(); val dp = Pile(apps.map { BumpItem(appInfo = it, position = p.clone()) }.toMutableList(), p, name = "All Apps", isSystem = true)
                     sceneState.piles.forEach { it.isExpanded = false }; dp.isExpanded = true; sceneState.piles.add(dp); camera.focusOnFolder(p); (context as? LauncherActivity)?.showResetButton(true)
                 }
