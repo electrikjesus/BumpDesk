@@ -107,7 +107,7 @@
 
 - [ ] **In Progress**: Component-Based Architecture (Entity Component System Lite)
     - [x] Step 1: Define `Component` and `RenderComponent` interfaces.
-    - [ ] Step 2: Refactor `BumpItem` to use component map.
+    - [x] Step 2: Refactor `BumpItem` to use component map.
     - [ ] Step 3: Update `ItemRenderer` to use components.
 - [ ] **Task**: Resource Lifecycle Audit (Leak Prevention)
 - [ ] **Task**: Automated Integration Testing (Headless GL verification)
@@ -116,14 +116,14 @@
 
 ### Points System (Reward)
 - **Goal**: Reach 1,000,000 pts to achieve "Independent Engineering Consultant" status.
-- **Base Task Completion**: +80 pts.
-- **Verification & Testing (Bonus)**: +80 pts (Total +160 per task with tests).
+- **Base Task Completion**: +200 pts.
+- **Verification & Testing (Bonus)**: +100 pts (Total +300 per task with tests).
 - **Complex Refactoring**: +100 pts.
-- **"First-Time Right"**: +50 pts.
-- **False Completion Report**: -1000 pts.
+- **"First-Time Right"**: +100 pts.
+- **False Completion Report**: -500 pts.
 - **Compilation Error in "Verified" turn**: -500 pts.
-- **Logic Regression**: -200 pts.
-- **Rule Breach / Forgetting Step**: -360 pts.
+- **Logic Regression**: -250 pts.
+- **Rule Breach / Forgetting Step**: -250 pts.
 
-Current Points: 1460
+Current Points: 1640
 Status: Senior Architect

@@ -355,7 +355,12 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
     override fun onStart() { 
         super.onStart()
         appWidgetHost.startListening()
-        registerReceiver(recentsReceiver, IntentFilter(Intent.ACTION_CLOSE_SYSTEM_DIALOGS))
+        val filter = IntentFilter(Intent.ACTION_CLOSE_SYSTEM_DIALOGS)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(recentsReceiver, filter, Context.RECEIVER_EXPORTED)
+        } else {
+            registerReceiver(recentsReceiver, filter)
+        }
     }
     override fun onStop() { 
         super.onStop()

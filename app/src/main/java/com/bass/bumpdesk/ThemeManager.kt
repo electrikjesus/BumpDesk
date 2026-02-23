@@ -29,7 +29,7 @@ object ThemeManager {
     private fun loadThemeConfig(context: Context) {
         try {
             val jsonString = context.assets.open("BumpTop/$currentThemeName/theme.json").bufferedReader().use { it.readText() }
-            val cleanJson = jsonString.replace(Regex("//.*"), "")
+            val cleanJson = jsonString.replace(Regex("(?<!:)//.*"), "")
             themeConfig = JSONObject(cleanJson)
         } catch (e: Exception) {
             Log.e("ThemeManager", "Error loading theme.json for $currentThemeName", e)
