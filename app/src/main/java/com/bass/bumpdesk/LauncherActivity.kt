@@ -359,6 +359,10 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
         glSurfaceView.postDelayed({ updateRecents() }, 1000)
     }
 
+    fun removeTask(taskId: Int) {
+        actionHandler.removeTask(taskId)
+    }
+
     fun openWidgetPicker() {
         val id = appWidgetHost.allocateAppWidgetId()
         startActivityForResult(Intent(AppWidgetManager.ACTION_APPWIDGET_PICK).putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id), REQUEST_PICK_APPWIDGET)

@@ -94,16 +94,43 @@ class AppManager(private val context: Context) {
             @Suppress("DEPRECATION")
             val tasks = am.getRecentTasks(limit, ActivityManager.RECENT_IGNORE_UNAVAILABLE)
             tasks.forEach { task ->
-                val resolveInfo = packageManager.resolveActivity(task.baseIntent, 0)
-                if (resolveInfo != null && resolveInfo.activityInfo.packageName != context.packageName) {
+                val baseIntent = task.baseIntent
+                val component = baseIntent.component
+                
+                val pkgName = component?.packageName ?: baseIntent.`package` ?: ""
+                if (pkgName.isEmpty() || pkgName == context.packageName) return@forEach
+
+                Log.d("AppManager", "Recent Task: id=${task.persistentId}, pkg=$pkgName, intent=$baseIntent")
+
+                try {
+                    val label: String
+                    val icon: android.graphics.drawable.Drawable
+                    val className: String?
+
+                    val resolveInfo = packageManager.resolveActivity(baseIntent, 0)
+                    if (resolveInfo != null) {
+                        label = resolveInfo.loadLabel(packageManager).toString()
+                        icon = resolveInfo.loadIcon(packageManager)
+                        className = component?.className ?: resolveInfo.activityInfo.name
+                    } else {
+                        val ai = packageManager.getApplicationInfo(pkgName, 0)
+                        label = packageManager.getApplicationLabel(ai).toString()
+                        icon = packageManager.getApplicationIcon(ai)
+                        className = component?.className
+                    }
+
                     val appInfo = AppInfo(
-                        label = resolveInfo.loadLabel(packageManager).toString(),
-                        packageName = resolveInfo.activityInfo.packageName,
-                        icon = resolveInfo.loadIcon(packageManager),
-                        className = resolveInfo.activityInfo.name
+                        packageName = pkgName,
+                        label = label,
+                        icon = icon,
+                        className = className,
+                        taskId = task.persistentId,
+                        intent = baseIntent
                     )
                     appInfo.snapshot = getTaskSnapshot(task.persistentId)
                     recentApps.add(appInfo)
+                } catch (e: Exception) {
+                    Log.e("AppManager", "Error processing recent task: $pkgName", e)
                 }
             }
         } catch (e: Exception) {
@@ -111,6 +138,7 @@ class AppManager(private val context: Context) {
         }
 
         if (recentApps.isEmpty() && hasUsageStatsPermission()) {
+            Log.d("AppManager", "Recent tasks list empty, falling back to usage stats")
             recentApps.addAll(getRecentAppsViaUsageStats(limit))
         }
 
@@ -134,13 +162,25 @@ class AppManager(private val context: Context) {
             val sortedStats = stats.sortedByDescending { it.lastTimeUsed }
             for (usageStat in sortedStats) {
                 if (recentApps.size >= limit) break
-                if (usageStat.packageName == context.packageName) continue
+                val pkgName = usageStat.packageName
+                if (pkgName == context.packageName) continue
                 
                 try {
-                    val appInfo = packageManager.getApplicationInfo(usageStat.packageName, 0)
-                    val label = packageManager.getApplicationLabel(appInfo).toString()
-                    val icon = packageManager.getApplicationIcon(appInfo)
-                    recentApps.add(AppInfo(label, usageStat.packageName, icon))
+                    val appInfoObj = packageManager.getApplicationInfo(pkgName, 0)
+                    val label = packageManager.getApplicationLabel(appInfoObj).toString()
+                    val icon = packageManager.getApplicationIcon(appInfoObj)
+                    
+                    // For usage stats, try to find the launch intent to get a class name
+                    val launchIntent = packageManager.getLaunchIntentForPackage(pkgName)
+                    val className = launchIntent?.component?.className
+                    
+                    recentApps.add(AppInfo(
+                        packageName = pkgName,
+                        label = label,
+                        icon = icon,
+                        className = className,
+                        intent = launchIntent
+                    ))
                 } catch (e: Exception) { }
             }
         }
@@ -150,6 +190,7 @@ class AppManager(private val context: Context) {
     private fun getTaskSnapshot(taskId: Int): Bitmap? {
         try {
             val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+            // Check if we have the hidden API or internal one. This is common in AOSP modding.
             val getTaskSnapshotMethod = am.javaClass.getMethod("getTaskSnapshot", Int::class.javaPrimitiveType, Boolean::class.javaPrimitiveType)
             val taskSnapshot = getTaskSnapshotMethod.invoke(am, taskId, false)
             
@@ -163,7 +204,9 @@ class AppManager(private val context: Context) {
                     return buffer
                 }
             }
-        } catch (e: Exception) { }
+        } catch (e: Exception) { 
+            // Log.v("AppManager", "Could not get snapshot for task $taskId: ${e.message}")
+        }
         return null
     }
 }

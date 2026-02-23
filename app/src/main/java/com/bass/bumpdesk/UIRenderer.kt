@@ -18,7 +18,8 @@ class UIRenderer(
         textures: UIAssets,
         lightPos: FloatArray,
         searchQuery: String,
-        textureManager: TextureManager
+        textureManager: TextureManager,
+        roomSize: Float
     ) {
         // Draw Search Overlay if active
         if (searchQuery.isNotEmpty()) {
@@ -27,8 +28,8 @@ class UIRenderer(
 
         val activePile = sceneState.piles.find { it.isExpanded }
         if (camera.currentViewMode == CameraManager.ViewMode.FOLDER_EXPANDED && activePile != null) {
-            overlayRenderer.drawFolderUI(vPMatrix, activePile, textures.closeBtn, activePile.nameTextureId, lightPos)
-            overlayRenderer.drawPaginationUI(vPMatrix, activePile, textures.arrowLeft, textures.arrowRight, lightPos)
+            overlayRenderer.drawFolderUI(vPMatrix, activePile, textures.closeBtn, activePile.nameTextureId, lightPos, roomSize)
+            overlayRenderer.drawPaginationUI(vPMatrix, activePile, textures.arrowLeft, textures.arrowRight, lightPos, roomSize)
         }
         
         sceneState.recentsPile?.let { 

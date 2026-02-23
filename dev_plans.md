@@ -140,8 +140,8 @@
 - [x] **Priority**: add long-click menu option to set default camera view as current view (and a settings option to reset camera defaults)
 - [x] **Priority**: add scale slider in settings for room size (also tie camera to this scale setting)
 - [x] **Priority**: fix CameraManagerTest > testZoomLogic FAILED
+- [x] **Priority**: expand on our recents widget and add logging for the activities each recents tile has (right now, they all don't work as expected)
 - [ ] **Context Improvement**: use the same signature to compile in Android Studio and GitHub actions
-- [ ] **Priority**: expand on our recents widget and add logging for the activities each recents tile has (right now, they all don't work as expected)
 
 ## Refactoring & Infrastructure (High Impact)
 
@@ -165,5 +165,5 @@
 - **Logic Regression**: -250 pts.
 - **Rule Breach / Forgetting Step**: -250 pts.
 
-Current Points: 9390
+Current Points: 9690
 Status: Senior Architect

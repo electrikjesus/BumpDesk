@@ -10,8 +10,8 @@ class OverlayRenderer(private val shader: DefaultShader) {
 
     data class FolderUIData(val halfDimX: Float, val halfDimZ: Float, val pos: FloatArray)
 
-    fun drawFolderUI(vPMatrix: FloatArray, pile: Pile, closeBtnTextureId: Int, nameTextureId: Int, lightPos: FloatArray) {
-        val data = getConstrainedFolderUI(pile)
+    fun drawFolderUI(vPMatrix: FloatArray, pile: Pile, closeBtnTextureId: Int, nameTextureId: Int, lightPos: FloatArray, roomSize: Float) {
+        val data = getConstrainedFolderUI(pile, roomSize)
         val uiX = data.pos[0]; val uiZ = data.pos[2]
 
         // Background - lowered to 2.80f to ensure clear separation from icons
@@ -35,8 +35,8 @@ class OverlayRenderer(private val shader: DefaultShader) {
         folderBgPlane.draw(vPMatrix, modelMatrix, floatArrayOf(0.8f, 0.2f, 0.2f, 1.0f), closeBtnTextureId, lightPos, 1.0f, false)
     }
 
-    fun drawPaginationUI(vPMatrix: FloatArray, pile: Pile, arrowLeftId: Int, arrowRightId: Int, lightPos: FloatArray) {
-        val data = getConstrainedFolderUI(pile)
+    fun drawPaginationUI(vPMatrix: FloatArray, pile: Pile, arrowLeftId: Int, arrowRightId: Int, lightPos: FloatArray, roomSize: Float) {
+        val data = getConstrainedFolderUI(pile, roomSize)
         val uiX = data.pos[0]; val uiZ = data.pos[2]
         val totalPages = ceil(pile.items.size.toFloat() / 16f).toInt().coerceAtLeast(1)
         val currentPage = pile.scrollIndex
@@ -91,15 +91,15 @@ class OverlayRenderer(private val shader: DefaultShader) {
         folderBgPlane.draw(vPMatrix, modelMatrix, floatArrayOf(1f, 1f, 1f, 1f), textureId, lightPos, 1.0f, false)
     }
 
-    fun getConstrainedFolderUI(pile: Pile): FolderUIData {
+    fun getConstrainedFolderUI(pile: Pile, roomSize: Float): FolderUIData {
         // Fixed 4x4 Grid dimensions
         val spacing = 2.0f
         val sideDim = 4 * spacing
         val halfDimX = (sideDim / 2f + 0.8f) * pile.scale
         val halfDimZ = (sideDim / 2f + 1.2f) * pile.scale // Extra room for pagination at bottom
         
-        val uiX = pile.position[0].coerceIn(-50f + halfDimX, 50f - halfDimX)
-        val uiZ = pile.position[2].coerceIn(-50f + halfDimZ, 50f - halfDimZ)
+        val uiX = pile.position[0].coerceIn(-roomSize + halfDimX, roomSize - halfDimX)
+        val uiZ = pile.position[2].coerceIn(-roomSize + halfDimZ, roomSize - halfDimZ)
         return FolderUIData(halfDimX, halfDimZ, floatArrayOf(uiX, 2.80f, uiZ))
     }
 }

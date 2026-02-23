@@ -333,6 +333,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
             val item = existing?.copy() ?: BumpItem(type = BumpItem.Type.RECENT_APP, appInfo = appInfo)
             
             item.apply {
+                this.appInfo = appInfo
                 appearance.type = BumpItem.Type.RECENT_APP
                 transform.position = sceneState.recentsPile!!.position.copy()
                 transform.scale = 1.2f
@@ -349,7 +350,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         
         Log.d("RecentsWidget", "Updated recents: ${newItems.size} items")
         newItems.forEach { item ->
-            Log.d("RecentsWidget", " Tile: ${item.appData?.appInfo?.packageName}, Activity: ${item.appData?.appInfo?.className}")
+            Log.d("RecentsWidget", " Tile: ${item.appData?.appInfo?.packageName}, Activity: ${item.appData?.appInfo?.className}, TaskId: ${item.appData?.appInfo?.taskId}")
         }
 
         glSurfaceView?.requestRender()
@@ -465,7 +466,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         itemRenderer.drawItems(vPMatrix, sceneState.bumpItems, lightPos, searchQuery, onUpdateTexture)
         widgetRenderer.drawWidgets(vPMatrix, sceneState.widgetItems, sceneState.widgetViews, frameCount, sceneState.selectedWidget, onUpdateTexture)
         pileRenderer.drawPiles(vPMatrix, sceneState.piles, lightPos, searchQuery, camera.currentViewMode, onUpdateTexture)
-        uiRenderer.drawOverlays(vPMatrix, sceneState, camera, uiAssets, lightPos, searchQuery, textureManager)
+        uiRenderer.drawOverlays(vPMatrix, sceneState, camera, uiAssets, lightPos, searchQuery, textureManager, ROOM_SIZE)
         
         if (interactionManager.lassoPoints.isNotEmpty()) lassoRenderer.draw(vPMatrix, interactionManager.lassoPoints)
     }
@@ -533,7 +534,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         val rS = FloatArray(4); val rE = FloatArray(4); interactionManager.calculateRay(x, y, rS, rE)
         val expandedPile = sceneState.piles.find { it.isExpanded }
         if (expandedPile != null) {
-            // Task: Support hit detection on Wall-mounted folders (Recents)
+            // Support hit detection on Wall-mounted folders (Recents)
             val isWall = expandedPile.surface != BumpItem.Surface.FLOOR
             val t = if (isWall) {
                 (expandedPile.position.z - rS[2]) / (rE[2] - rS[2])
@@ -546,7 +547,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 val hitY = rS[1] + t * (rE[1] - rS[1])
                 val hitZ = rS[2] + t * (rE[2] - rS[2])
                 
-                val uiData = overlayRenderer.getConstrainedFolderUI(expandedPile)
+                val uiData = overlayRenderer.getConstrainedFolderUI(expandedPile, ROOM_SIZE)
                 val halfDimX = uiData.halfDimX
                 val halfDimZ = uiData.halfDimZ
                 val pos = uiData.pos
@@ -611,7 +612,11 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
             val pile = sceneState.getPileOf(item)
             if (pile != null && pile == sceneState.recentsPile && camera.currentViewMode == CameraManager.ViewMode.BACK_WALL) {
                 val t = (pile.position.z - rS[2]) / (rE[2] - rS[2]); val u = (rS[0] + t * (rE[0] - rS[0]) - (item.transform.position.x - item.transform.scale)) / (2f * item.transform.scale); val v = 1f - (rS[1] + t * (rE[1] - rS[1]) - (item.transform.position.y - item.transform.scale * 1.6f)) / (2f * item.transform.scale * 1.6f)
-                if (u > 0.85f && v < 0.15f) { sceneState.recentsPile?.items?.remove(item); return }
+                if (u > 0.85f && v < 0.15f) {
+                    (context as? LauncherActivity)?.removeTask(item.appData?.appInfo?.taskId ?: -1)
+                    sceneState.recentsPile?.items?.remove(item)
+                    return
+                }
                 if (v > 0.76f && v < 0.89f) {
                     val pkg = item.appData?.appInfo?.packageName ?: ""
                     if (u < 0.25f) context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", pkg, null)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
@@ -680,7 +685,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         if (tf > 0 && abs(rS[0] + tf * (rE[0] - rS[0])) <= ROOM_SIZE && abs(rS[2] + tf * (rE[2] - rS[2])) <= ROOM_SIZE) { 
             camera.focusOnFloor()
             (context as? LauncherActivity)?.showResetButton(true)
-            playSound(focusSoundId, 0.4f); hapticManager.selection(); return 
+            playSound(focusSoundId, 0.4f); hapticManager.selection() ; return
         }
         handleSingleTap(x, y)
     }
