@@ -87,8 +87,8 @@
 - [x] Sound Effects Integration (Physics-based impacts and interactions)
 - [x] Widget Resizing Logic (3D handles and persistence)
 - [ ] **In Progress**: Fix widget interaction and recents widget interaction (we can't click on things within the widgets)
-    - [ ] Step 1: Track active widget interaction in `InteractionManager`
-    - [ ] Step 2: Implement continuous event dispatching for widgets
+    - [x] Step 1: Track active widget interaction in `InteractionManager`
+    - [x] Step 2: Implement continuous event dispatching for widgets
     - [ ] Step 3: Verify scrolling and clicking in widgets
 - [ ] **Task**: Fix missing "All Apps" icon on the desktop (we still need a way to access all the possible app icons)
 - [ ] **Task**: Update how Recent Widget and other Widgets updates recents list in the background and pushes changes to the visual Recents widget
@@ -129,7 +129,7 @@
 
 - [ ] **Task**: Performance Optimization (Instanced Rendering) - Group item draws to reduce overhead.
 - [ ] **Task**: Texture & Memory Audit - Fix leaks, ensure `glDeleteTextures` usage, and implement caching.
-- [ ] **Task**: Concurrency Management - Replace `CopyOnWriteArrayList` in `SceneState` with synchronized `ArrayList` to reduce GC pressure.
+- [ ] **Task**: Concurrency Management - Replace `Copy on WriteArrayList` in `SceneState` with synchronized `ArrayList` to reduce GC pressure.
 - [ ] **Task**: Physics Engine Scalability - Implement spatial partitioning (grid/quadtree) for O(n log n) collision detection.
 
 ## AI Workflow & Reward System
@@ -147,5 +147,5 @@
 - **Introducing a Bug/Regression**: -40 pts.
 - **Timeout/Loss of Context**: -10 pts (My "penalty" for being inefficient).
 
-Current Points: 0
+Current Points: 20
 Status: Junior Developer

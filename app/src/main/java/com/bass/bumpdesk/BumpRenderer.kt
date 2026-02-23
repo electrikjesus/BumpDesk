@@ -15,6 +15,7 @@ import android.media.SoundPool
 import android.net.Uri
 import android.content.Intent
 import android.provider.Settings
+import kotlin.math.abs
 
 class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
 
@@ -54,7 +55,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
     private var lassoSoundId: Int = -1
 
     private val repository by lazy { DeskRepository(context) }
-    private val repositoryScope = CoroutineScope(Dispatchers.IO)
+    private val repositoryScope by lazy { CoroutineScope(Dispatchers.IO) }
     
     private var frameCount = 0
     var glSurfaceView: GLSurfaceView? = null
@@ -365,19 +366,24 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         if (expandedPile != null) {
             val tFloor = (2.98f - rS[1]) / (rE[1] - rS[1])
             if (tFloor > 0) {
-                val iX = rS[0] + tFloor * (rE[0] - rS[0]); val iZ = rS[2] + tFloor * (rE[2] - rS[2]); val (halfDim, totalHalfDimZ, pos) = overlayRenderer.getConstrainedFolderUI(expandedPile)
-                val cbX = pos[0] + halfDim - 0.2f * expandedPile.scale; val cbZ = pos[1] - totalHalfDimZ + 0.2f * expandedPile.scale
-                if (Math.abs(iX - cbX) < 0.4f && Math.abs(iZ - cbZ) < 0.4f) { dismissExpandedPile(); return }
+                val iX = rS[0] + tFloor * (rE[0] - rS[0]); val iZ = rS[2] + tFloor * (rE[2] - rS[2])
+                val uiData = overlayRenderer.getConstrainedFolderUI(expandedPile)
+                val halfDim = uiData.halfDim
+                val totalHalfDimZ = uiData.totalHalfDimZ
+                val pos = uiData.pos
+
+                val cbX = pos[0] + halfDim - 0.2f * expandedPile.scale; val cbZ = pos[2] - totalHalfDimZ + 0.2f * expandedPile.scale
+                if (abs(iX - cbX) < 0.4f && abs(iZ - cbZ) < 0.4f) { dismissExpandedPile(); return }
                 
                 if (expandedPile == sceneState.recentsPile && camera.currentViewMode == CameraManager.ViewMode.BACK_WALL) {
                     val width = 6f * expandedPile.scale
-                    if (Math.abs(iX - (expandedPile.position[0] - width + 0.5f)) < 0.5f) { 
+                    if (abs(iX - (expandedPile.position[0] - width + 0.5f)) < 0.5f) { 
                         expandedPile.currentIndex = (expandedPile.currentIndex - 1).coerceAtLeast(0)
                         playSound(leafSoundId, 0.2f)
                         hapticManager.tick()
                         return 
                     }
-                    if (Math.abs(iX - (expandedPile.position[0] + width - 0.5f)) < 0.5f) { 
+                    if (abs(iX - (expandedPile.position[0] + width - 0.5f)) < 0.5f) { 
                         expandedPile.currentIndex = (expandedPile.currentIndex + 1).coerceAtMost(expandedPile.items.size - 1)
                         playSound(leafSoundId, 0.2f)
                         hapticManager.tick()
@@ -386,14 +392,14 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 }
 
                 if (expandedPile.layoutMode == Pile.LayoutMode.GRID) {
-                    val suX = pos[0] - halfDim + 0.4f * expandedPile.scale; val suZ = pos[1] - totalHalfDimZ + 0.2f * expandedPile.scale
-                    if (Math.abs(iX - suX) < 0.4f && Math.abs(iZ - suZ) < 0.4f) { 
+                    val suX = pos[0] - halfDim + 0.4f * expandedPile.scale; val suZ = pos[2] - totalHalfDimZ + 0.2f * expandedPile.scale
+                    if (abs(iX - suX) < 0.4f && abs(iZ - suZ) < 0.4f) { 
                         expandedPile.scrollIndex = (expandedPile.scrollIndex - 1).coerceAtLeast(0)
                         playSound(leafSoundId, 0.2f)
                         hapticManager.tick()
                         return 
                     }
-                    if (Math.abs(iX - (pos[0] - halfDim + 1.0f * expandedPile.scale)) < 0.4f && Math.abs(iZ - suZ) < 0.4f) { 
+                    if (abs(iX - (pos[0] - halfDim + 1.0f * expandedPile.scale)) < 0.4f && abs(iZ - suZ) < 0.4f) { 
                         expandedPile.scrollIndex++
                         playSound(leafSoundId, 0.2f)
                         hapticManager.tick()
@@ -404,7 +410,6 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         }
         val widgetHit = interactionManager.findIntersectingWidget(rS, rE, sceneState.widgetItems)
         if (widgetHit != null) { 
-            interactWithWidget(widgetHit.first, rS, rE)
             if (camera.currentViewMode != CameraManager.ViewMode.WIDGET_FOCUS) { 
                 playSound(focusSoundId, 0.4f)
                 hapticManager.selection()
@@ -450,26 +455,13 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         } else if (camera.currentViewMode != CameraManager.ViewMode.DEFAULT) dismissExpandedPile()
     }
 
-    private fun interactWithWidget(widget: WidgetItem, rS: FloatArray, rE: FloatArray) {
-        val view = sceneState.widgetViews[widget.appWidgetId] ?: return
-        val t = when (widget.surface) { BumpItem.Surface.BACK_WALL -> (widget.position[2] - rS[2]) / (rE[2] - rS[2]); BumpItem.Surface.LEFT_WALL -> (widget.position[0] - rS[0]) / (rE[0] - rS[0]); BumpItem.Surface.RIGHT_WALL -> (widget.position[0] - rS[0]) / (rE[0] - rS[0]); else -> (widget.position[1] - rS[1]) / (rE[1] - rS[1]) }
-        val iX = rS[0] + t * (rE[0] - rS[0]); val iY = rS[1] + t * (rE[1] - rS[1]); val iZ = rS[2] + t * (rE[2] - rS[2])
-        val (u, v) = when (widget.surface) { 
-            BumpItem.Surface.BACK_WALL -> (iX - (widget.position[0] - widget.size[0])) / (2f * widget.size[0]) to 1f - (iY - (widget.position[1] - widget.size[1])) / (2f * widget.size[1])
-            BumpItem.Surface.LEFT_WALL -> (iZ - (widget.position[2] - widget.size[0])) / (2f * widget.size[0]) to 1f - (iY - (widget.position[1] - widget.size[1])) / (2f * widget.size[1])
-            BumpItem.Surface.RIGHT_WALL -> 1f - (iZ - (widget.position[2] - widget.size[0])) / (2f * widget.size[0]) to 1f - (iY - (widget.position[1] - widget.size[1])) / (2f * widget.size[1])
-            BumpItem.Surface.FLOOR -> (iX - (widget.position[0] - widget.size[0])) / (2f * widget.size[0]) to (iZ - (widget.position[2] - widget.size[1])) / (2f * widget.size[1])
-        }
-        view.post { val dt = android.os.SystemClock.uptimeMillis(); view.dispatchTouchEvent(android.view.MotionEvent.obtain(dt, dt, android.view.MotionEvent.ACTION_DOWN, u * view.width, v * view.height, 0)); view.dispatchTouchEvent(android.view.MotionEvent.obtain(dt, dt + 10, android.view.MotionEvent.ACTION_UP, u * view.width, v * view.height, 0)) }
-    }
-
     fun handleDoubleTap(x: Float, y: Float) {
         val rS = FloatArray(4); val rE = FloatArray(4); interactionManager.calculateRay(x, y, rS, rE)
         val walls = listOf(Triple(BumpItem.Surface.BACK_WALL, floatArrayOf(0f, 4f, 2f), floatArrayOf(0f, 4f, -10f)), Triple(BumpItem.Surface.LEFT_WALL, floatArrayOf(2f, 4f, 0f), floatArrayOf(-10f, 4f, 0f)), Triple(BumpItem.Surface.RIGHT_WALL, floatArrayOf(-2f, 4f, 0f), floatArrayOf(10f, 4f, 0f)))
         var best: Triple<BumpItem.Surface, FloatArray, FloatArray>? = null; var minT = Float.MAX_VALUE
-        walls.forEach { (s, cp, la) -> val t = when (s) { BumpItem.Surface.BACK_WALL -> (-9.95f - rS[2]) / (rE[2] - rS[2]); BumpItem.Surface.LEFT_WALL -> (-9.95f - rS[0]) / (rE[0] - rS[0]); BumpItem.Surface.RIGHT_WALL -> (9.95f - rS[0]) / (rE[0] - rS[0]); else -> -1f }; if (t > 0 && t < minT) { if (Math.abs(rS[0] + t * (rE[0] - rS[0])) <= 10.1f && Math.abs(rS[2] + t * (rE[2] - rS[2])) <= 10.1f && (rS[1] + t * (rE[1] - rS[1])) in 0f..12f) { minT = t; best = Triple(s, cp, la) } } }
+        walls.forEach { (s, cp, la) -> val t = when (s) { BumpItem.Surface.BACK_WALL -> (-9.95f - rS[2]) / (rE[2] - rS[2]); BumpItem.Surface.LEFT_WALL -> (-9.95f - rS[0]) / (rE[0] - rS[0]); BumpItem.Surface.RIGHT_WALL -> (9.95f - rS[0]) / (rE[0] - rS[0]); else -> -1f }; if (t > 0 && t < minT) { if (abs(rS[0] + t * (rE[0] - rS[0])) <= 10.1f && abs(rS[2] + t * (rE[2] - rS[2])) <= 10.1f && (rS[1] + t * (rE[1] - rS[1])) in 0f..12f) { minT = t; best = Triple(s, cp, la) } } }
         if (best != null) { camera.focusOnWall(when(best!!.first) { BumpItem.Surface.BACK_WALL -> CameraManager.ViewMode.BACK_WALL; BumpItem.Surface.LEFT_WALL -> CameraManager.ViewMode.LEFT_WALL; else -> CameraManager.ViewMode.RIGHT_WALL }, best!!.second, best!!.third); (context as? LauncherActivity)?.showResetButton(true); return }
-        val tf = -rS[1] / (rE[1] - rS[1]); if (tf > 0 && Math.abs(rS[0] + tf * (rE[0] - rS[0])) <= 10f && Math.abs(rS[2] + tf * (rE[2] - rS[2])) <= 10f) { camera.focusOnFloor(); (context as? LauncherActivity)?.showResetButton(true) ; playSound(focusSoundId, 0.4f); hapticManager.selection(); return }
+        val tf = -rS[1] / (rE[1] - rS[1]); if (tf > 0 && abs(rS[0] + tf * (rE[0] - rS[0])) <= 10f && abs(rS[2] + tf * (rE[2] - rS[2])) <= 10f) { camera.focusOnFloor(); (context as? LauncherActivity)?.showResetButton(true) ; playSound(focusSoundId, 0.4f); hapticManager.selection(); return }
         handleSingleTap(x, y)
     }
 

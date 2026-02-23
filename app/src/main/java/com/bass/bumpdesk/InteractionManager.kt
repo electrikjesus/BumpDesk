@@ -41,6 +41,7 @@ class InteractionManager(
     // For widget interaction
     private var activeInteractingWidget: WidgetItem? = null
     private var activeWidgetView: AppWidgetHostView? = null
+    private var widgetDownTime: Long = 0
 
     fun handleTouchDown(x: Float, y: Float, sceneState: SceneState): Any? {
         lastTouchX = x
@@ -69,6 +70,7 @@ class InteractionManager(
                 // In focus mode, we allow direct interaction
                 activeInteractingWidget = widget
                 activeWidgetView = sceneState.widgetViews[widget.appWidgetId]
+                widgetDownTime = SystemClock.uptimeMillis()
                 dispatchWidgetTouchEvent(MotionEvent.ACTION_DOWN, x, y)
                 return widget
             }
@@ -315,8 +317,8 @@ class InteractionManager(
         val (u, v) = getWidgetUV(widget, rS, rE, t)
         
         view.post {
-            val dt = SystemClock.uptimeMillis()
-            val event = MotionEvent.obtain(dt, dt, action, u * view.width, v * view.height, 0)
+            val eventTime = SystemClock.uptimeMillis()
+            val event = MotionEvent.obtain(widgetDownTime, eventTime, action, u * view.width, v * view.height, 0)
             view.dispatchTouchEvent(event)
             event.recycle()
         }
