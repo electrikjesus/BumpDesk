@@ -115,6 +115,10 @@
 - [x] **Priority**: Fix theme and infinite desktop application delay
     - [x] Ensure theme changes apply immediately without needing toggles
     - [x] Ensure infinite desktop mode changes apply immediately
+- [x] **Priority**: Implement 4x4 paging grid for expanded folders
+    - [x] Maintain default icon scale in folder views
+    - [x] Scaling folder view up to fit 4x4 icons
+    - [x] Implement paging with dots and arrows navigation
 
 ## Refactoring & Infrastructure (High Impact)
 
@@ -138,5 +142,5 @@
 - **Logic Regression**: -250 pts.
 - **Rule Breach / Forgetting Step**: -250 pts.
 
-Current Points: 4190
+Current Points: 4690
 Status: Senior Architect

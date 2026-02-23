@@ -28,9 +28,7 @@ class UIRenderer(
         val activePile = sceneState.piles.find { it.isExpanded }
         if (camera.currentViewMode == CameraManager.ViewMode.FOLDER_EXPANDED && activePile != null) {
             overlayRenderer.drawFolderUI(vPMatrix, activePile, textures.closeBtn, activePile.nameTextureId, lightPos)
-            if (activePile.layoutMode == Pile.LayoutMode.GRID) {
-                overlayRenderer.drawGridScrollButtons(vPMatrix, activePile, textures.scrollUp, textures.scrollDown, lightPos)
-            }
+            overlayRenderer.drawPaginationUI(vPMatrix, activePile, textures.arrowLeft, textures.arrowRight, lightPos)
         }
         
         sceneState.recentsPile?.let { 

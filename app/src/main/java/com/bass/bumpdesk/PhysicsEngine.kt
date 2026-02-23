@@ -15,6 +15,7 @@ class PhysicsEngine {
     val ROOM_SIZE = 10.0f
     val INFINITE_SIZE = 50.0f
     val UI_MARGIN = 0.2f
+    val ITEMS_PER_PAGE = 16
 
     var isInfiniteMode = false
 
@@ -30,20 +31,22 @@ class PhysicsEngine {
             pile.items.forEachIndexed { index, item ->
                 if (item == selectedItem) return@forEachIndexed
                 
+                val isVisibleInPage = !pile.isExpanded || (index >= pile.scrollIndex * ITEMS_PER_PAGE && index < (pile.scrollIndex + 1) * ITEMS_PER_PAGE)
+                
                 val targetScale = when {
-                    pile.isExpanded -> defaultScale * 0.6f
+                    pile.isExpanded -> if (isVisibleInPage) defaultScale else 0.01f
                     pile.layoutMode == Pile.LayoutMode.CAROUSEL -> 1.5f * pile.scale
                     pile.layoutMode == Pile.LayoutMode.GRID -> 0.8f * pile.scale
                     else -> defaultScale
                 }
                 
-                item.scale += (targetScale - item.scale) * 0.1f
+                item.transform.scale += (targetScale - item.transform.scale) * 0.1f
                 
                 val targetPos = calculateTargetPositionInPile(pile, index)
-                item.position = item.position + (targetPos - item.position) * 0.15f
+                item.transform.position = item.transform.position + (targetPos - item.transform.position) * 0.15f
                 
-                item.surface = pile.surface
-                item.velocity = Vector3()
+                item.transform.surface = pile.surface
+                item.transform.velocity = Vector3()
             }
         }
 
@@ -54,20 +57,20 @@ class PhysicsEngine {
                 return@forEach
             }
 
-            if (!item.isPinned) {
-                if (item.surface != BumpItem.Surface.FLOOR) {
-                    item.velocity = item.velocity.copy(y = item.velocity.y - gravity)
+            if (!item.transform.isPinned) {
+                if (item.transform.surface != BumpItem.Surface.FLOOR) {
+                    item.transform.velocity = item.transform.velocity.copy(y = item.transform.velocity.y - gravity)
                 }
 
-                item.position = item.position + item.velocity
-                item.velocity = item.velocity * friction
+                item.transform.position = item.transform.position + item.transform.velocity
+                item.transform.velocity = item.transform.velocity * friction
             }
 
             applyConstraints(item, onBump)
 
             val otherItems = activeItems + listOfNotNull(selectedItem)
             otherItems.forEach { other ->
-                if (item != other && item.surface == other.surface) {
+                if (item != other && item.transform.surface == other.transform.surface) {
                     resolveCollision(item, other, selectedItem, onBump)
                 }
             }
@@ -76,8 +79,9 @@ class PhysicsEngine {
 
     private fun constrainPile(pile: Pile) {
         val count = pile.items.size
-        val side = ceil(sqrt(count.toDouble())).toInt().coerceAtLeast(1)
-        val spacing = if (pile.layoutMode == Pile.LayoutMode.GRID) 2.0f * pile.scale else gridSpacingBase * pile.scale
+        // 4x4 grid when expanded
+        val side = if (pile.isExpanded) 4 else ceil(sqrt(count.toDouble())).toInt().coerceAtLeast(1)
+        val spacing = if (pile.layoutMode == Pile.LayoutMode.GRID || pile.isExpanded) 2.0f * pile.scale else gridSpacingBase * pile.scale
         val halfDim = (side * spacing) / 2f
         
         when (pile.surface) {
@@ -118,12 +122,13 @@ class PhysicsEngine {
     }
 
     private fun applyConstraints(item: BumpItem, onBump: (Float) -> Unit) {
-        val limit = if (isInfiniteMode && item.surface == BumpItem.Surface.FLOOR) INFINITE_SIZE - item.scale - 0.05f else ROOM_SIZE - item.scale - 0.05f
+        val scale = item.transform.scale
+        val limit = if (isInfiniteMode && item.transform.surface == BumpItem.Surface.FLOOR) INFINITE_SIZE - scale - 0.05f else ROOM_SIZE - scale - 0.05f
         
-        when (item.surface) {
+        when (item.transform.surface) {
             BumpItem.Surface.FLOOR -> {
-                var newVel = item.velocity
-                var newPos = item.position.copy(y = item.position.y.coerceAtLeast(0.05f))
+                var newVel = item.transform.velocity
+                var newPos = item.transform.position.copy(y = item.transform.position.y.coerceAtLeast(0.05f))
                 var magnitude = 0f
                 
                 if (newPos.x > limit) { newPos = newPos.copy(x = limit); magnitude = abs(newVel.x); newVel = newVel.copy(x = -magnitude * wallBounce) }
@@ -131,44 +136,44 @@ class PhysicsEngine {
                 if (newPos.z > limit) { newPos = newPos.copy(z = limit); magnitude = abs(newVel.z); newVel = newVel.copy(z = -magnitude * wallBounce) }
                 if (newPos.z < -limit) { newPos = newPos.copy(z = -limit); magnitude = abs(newVel.z); newVel = newVel.copy(z = magnitude * wallBounce) }
                 
-                item.position = newPos
-                item.velocity = newVel
-                if (!item.isPinned && magnitude > 0.05f) onBump(magnitude)
+                item.transform.position = newPos
+                item.transform.velocity = newVel
+                if (!item.transform.isPinned && magnitude > 0.05f) onBump(magnitude)
             }
             BumpItem.Surface.BACK_WALL -> {
-                item.position = item.position.copy(
+                item.transform.position = item.transform.position.copy(
                     z = -9.95f,
-                    x = item.position.x.coerceIn(-9.5f, 9.5f),
-                    y = item.position.y.coerceIn(0.05f, 11.5f)
+                    x = item.transform.position.x.coerceIn(-9.5f, 9.5f),
+                    y = item.transform.position.y.coerceIn(0.05f, 11.5f)
                 )
-                if (!item.isPinned && item.position.y <= 0.05f) {
-                    item.surface = BumpItem.Surface.FLOOR
-                    item.position = item.position.copy(y = 0.05f)
-                    item.velocity = item.velocity.copy(y = 0f)
+                if (!item.transform.isPinned && item.transform.position.y <= 0.05f) {
+                    item.transform.surface = BumpItem.Surface.FLOOR
+                    item.transform.position = item.transform.position.copy(y = 0.05f)
+                    item.transform.velocity = item.transform.velocity.copy(y = 0f)
                 }
             }
             BumpItem.Surface.LEFT_WALL -> {
-                item.position = item.position.copy(
+                item.transform.position = item.transform.position.copy(
                     x = -9.95f,
-                    z = item.position.z.coerceIn(-9.5f, 9.5f),
-                    y = item.position.y.coerceIn(0.05f, 11.5f)
+                    z = item.transform.position.z.coerceIn(-9.5f, 9.5f),
+                    y = item.transform.position.y.coerceIn(0.05f, 11.5f)
                 )
-                if (!item.isPinned && item.position.y <= 0.05f) {
-                    item.surface = BumpItem.Surface.FLOOR
-                    item.position = item.position.copy(y = 0.05f)
-                    item.velocity = item.velocity.copy(y = 0f)
+                if (!item.transform.isPinned && item.transform.position.y <= 0.05f) {
+                    item.transform.surface = BumpItem.Surface.FLOOR
+                    item.transform.position = item.transform.position.copy(y = 0.05f)
+                    item.transform.velocity = item.transform.velocity.copy(y = 0f)
                 }
             }
             BumpItem.Surface.RIGHT_WALL -> {
-                item.position = item.position.copy(
+                item.transform.position = item.transform.position.copy(
                     x = 9.95f,
-                    z = item.position.z.coerceIn(-9.5f, 9.5f),
-                    y = item.position.y.coerceIn(0.05f, 11.5f)
+                    z = item.transform.position.z.coerceIn(-9.5f, 9.5f),
+                    y = item.transform.position.y.coerceIn(0.05f, 11.5f)
                 )
-                if (!item.isPinned && item.position.y <= 0.05f) {
-                    item.surface = BumpItem.Surface.FLOOR
-                    item.position = item.position.copy(y = 0.05f)
-                    item.velocity = item.velocity.copy(y = 0f)
+                if (!item.transform.isPinned && item.transform.position.y <= 0.05f) {
+                    item.transform.surface = BumpItem.Surface.FLOOR
+                    item.transform.position = item.transform.position.copy(y = 0.05f)
+                    item.transform.velocity = item.transform.velocity.copy(y = 0f)
                 }
             }
         }
@@ -176,24 +181,36 @@ class PhysicsEngine {
 
     private fun calculateTargetPositionInPile(pile: Pile, index: Int): Vector3 {
         val count = pile.items.size
-        val side = ceil(sqrt(count.toDouble())).toInt().coerceAtLeast(1)
-        val spacing = if (pile.layoutMode == Pile.LayoutMode.GRID) 2.0f * pile.scale else gridSpacingBase * pile.scale
-        val halfDim = (side * spacing) / 2f
-        val totalHalfDimZ = (side * spacing) / 2f + 0.6f * pile.scale
-
+        
         if (pile.isExpanded) {
+            val pageIndex = pile.scrollIndex
+            val itemInPageIndex = index % ITEMS_PER_PAGE
+            val isCurrentPage = index / ITEMS_PER_PAGE == pageIndex
+            
+            // Fixed 4x4 Grid
+            val side = 4
+            val spacing = 2.0f * pile.scale
+            val halfDim = (side * spacing) / 2f
+            val totalHalfDimZ = (side * spacing) / 2f + 0.6f * pile.scale
+
             val limit = if (isInfiniteMode) INFINITE_SIZE else ROOM_SIZE
             val limitX = limit - halfDim - UI_MARGIN
             val limitZ = limit - totalHalfDimZ - UI_MARGIN
             val uiX = pile.position.x.coerceIn(-limitX, limitX)
             val uiZ = pile.position.z.coerceIn(-limitZ, limitZ)
 
+            val row = itemInPageIndex / side
+            val col = itemInPageIndex % side
+            
+            val yPos = if (isCurrentPage) 3.05f else -10f // Hide items not on current page
+            
             return Vector3(
-                uiX + (index % side - (side - 1) / 2f) * spacing,
-                3.05f,
-                uiZ + (index / side - (side - 1) / 2f) * spacing + 0.5f * pile.scale
+                uiX + (col - (side - 1) / 2f) * spacing,
+                yPos,
+                uiZ + (row - (side - 1) / 2f) * spacing + 0.5f * pile.scale
             )
         } else if (pile.isFannedOut) {
+            val spacing = if (pile.layoutMode == Pile.LayoutMode.GRID) 2.0f * pile.scale else gridSpacingBase * pile.scale
             val offset = (index - (count - 1) / 2f) * spacing
             return when (pile.surface) {
                 BumpItem.Surface.FLOOR -> pile.position.copy(x = pile.position.x + offset, y = 0.05f)
@@ -210,6 +227,7 @@ class PhysicsEngine {
                 else -> pile.position.copy(x = pile.position.x + offset)
             }
         } else if (pile.layoutMode == Pile.LayoutMode.GRID) {
+            val side = ceil(sqrt(count.toDouble())).toInt().coerceAtLeast(1)
             val gridSpacing = 2.0f * pile.scale
             return when (pile.surface) {
                 BumpItem.Surface.FLOOR -> pile.position.copy(x = pile.position.x + (index % side - (side - 1) / 2f) * gridSpacing, y = 0.05f, z = pile.position.z + (index / side - (side - 1) / 2f) * gridSpacing)
@@ -223,17 +241,19 @@ class PhysicsEngine {
     }
 
     private fun resolveCollision(item: BumpItem, other: BumpItem, selectedItem: BumpItem?, onBump: (Float) -> Unit) {
-        val itemCanMove = !item.isPinned && item != selectedItem
-        val otherCanMove = !other.isPinned && other != selectedItem
+        val itemCanMove = !item.transform.isPinned && item != selectedItem
+        val otherCanMove = !other.transform.isPinned && other != selectedItem
         if (!itemCanMove && !otherCanMove) return
 
-        val itemMass = item.scale * item.scale
-        val otherMass = other.scale * other.scale
+        val itemScale = item.transform.scale
+        val otherScale = other.transform.scale
+        val itemMass = itemScale * itemScale
+        val otherMass = otherScale * otherScale
         val totalMass = itemMass + otherMass
 
-        val delta = item.position - other.position
+        val delta = item.transform.position - other.transform.position
         val distSq = delta.lengthSq()
-        val minDist = item.scale + other.scale
+        val minDist = itemScale + otherScale
         
         if (distSq < minDist * minDist && distSq > 0.0001f) {
             val dist = sqrt(distSq.toDouble()).toFloat()
@@ -241,23 +261,23 @@ class PhysicsEngine {
             val normal = delta / dist
 
             if (itemCanMove && !otherCanMove) {
-                item.position = item.position + normal * overlap
+                item.transform.position = item.transform.position + normal * overlap
             } else if (!itemCanMove && otherCanMove) {
-                other.position = other.position - normal * overlap
+                other.transform.position = other.transform.position - normal * overlap
             } else {
                 val itemRatio = otherMass / totalMass; val otherRatio = itemMass / totalMass
-                item.position = item.position + normal * (overlap * itemRatio)
-                other.position = other.position - normal * (overlap * otherRatio)
+                item.transform.position = item.transform.position + normal * (overlap * itemRatio)
+                other.transform.position = other.transform.position - normal * (overlap * otherRatio)
             }
 
-            val relVel = item.velocity - other.velocity
+            val relVel = item.transform.velocity - other.transform.velocity
             val velAlongNormal = relVel.dot(normal)
 
             if (velAlongNormal < 0) {
                 val j = -(1 + restitution) * velAlongNormal
                 val impulse = j / (1 / itemMass + 1 / otherMass)
-                if (itemCanMove) item.velocity = item.velocity + normal * (impulse / itemMass)
-                if (otherCanMove) other.velocity = other.velocity - normal * (impulse / otherMass)
+                if (itemCanMove) item.transform.velocity = item.transform.velocity + normal * (impulse / itemMass)
+                if (otherCanMove) other.transform.velocity = other.transform.velocity - normal * (impulse / otherMass)
                 if (abs(j) > 0.1f) onBump(abs(j))
             }
         }

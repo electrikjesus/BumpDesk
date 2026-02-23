@@ -16,6 +16,7 @@ import android.net.Uri
 import android.content.Intent
 import android.provider.Settings
 import kotlin.math.abs
+import kotlin.math.ceil
 
 class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
 
@@ -460,12 +461,11 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         val rS = FloatArray(4); val rE = FloatArray(4); interactionManager.calculateRay(x, y, rS, rE)
         val expandedPile = sceneState.piles.find { it.isExpanded }
         if (expandedPile != null) {
-            // Task: Support hit detection on Wall-mounted folders (Recents)
             val isWall = expandedPile.surface != BumpItem.Surface.FLOOR
             val t = if (isWall) {
                 (expandedPile.position.z - rS[2]) / (rE[2] - rS[2])
             } else {
-                (2.90f - rS[1]) / (rE[1] - rS[1]) // Matches OverlayRenderer floor plane height
+                (2.90f - rS[1]) / (rE[1] - rS[1])
             }
 
             if (t > 0) {
@@ -474,38 +474,48 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 val hitZ = rS[2] + t * (rE[2] - rS[2])
                 
                 val uiData = overlayRenderer.getConstrainedFolderUI(expandedPile)
-                val halfDim = uiData.halfDim
-                val totalHalfDimZ = uiData.totalHalfDimZ
+                val halfDimX = uiData.halfDimX
+                val halfDimZ = uiData.halfDimZ
                 val pos = uiData.pos
 
                 if (isWall) {
                     val width = 6f * expandedPile.scale
                     val height = 4f * expandedPile.scale
-                    // Arrow Left
                     if (abs(hitX - (expandedPile.position.x - width + 0.5f)) < 0.5f && abs(hitY - expandedPile.position.y) < 0.5f) {
                         expandedPile.currentIndex = (expandedPile.currentIndex - 1).coerceAtLeast(0)
                         playSound(leafSoundId, 0.2f); hapticManager.tick(); return
                     }
-                    // Arrow Right
                     if (abs(hitX - (expandedPile.position.x + width - 0.5f)) < 0.5f && abs(hitY - expandedPile.position.y) < 0.5f) {
                         expandedPile.currentIndex = (expandedPile.currentIndex + 1).coerceAtMost(expandedPile.items.size - 1)
                         playSound(leafSoundId, 0.2f); hapticManager.tick(); return
                     }
-                    // Close check for Recents (usually top corner or clicking outside)
                     if (abs(hitX - expandedPile.position.x) > width || abs(hitY - expandedPile.position.y) > height) { dismissExpandedPile(); return }
                 } else {
-                    val cbX = pos[0] + halfDim - 0.2f * expandedPile.scale; val cbZ = pos[2] - totalHalfDimZ + 0.2f * expandedPile.scale
+                    // Close button check
+                    val cbX = pos[0] + halfDimX - 0.2f * expandedPile.scale; val cbZ = pos[2] - halfDimZ + 0.2f * expandedPile.scale
                     if (abs(hitX - cbX) < 0.4f && abs(hitZ - cbZ) < 0.4f) { dismissExpandedPile(); return }
 
-                    if (expandedPile.layoutMode == Pile.LayoutMode.GRID) {
-                        val suX = pos[0] - halfDim + 0.4f * expandedPile.scale; val suZ = pos[2] - totalHalfDimZ + 0.2f * expandedPile.scale
-                        if (abs(hitX - suX) < 0.4f && abs(hitZ - suZ) < 0.4f) { 
-                            expandedPile.scrollIndex = (expandedPile.scrollIndex - 1).coerceAtLeast(0)
-                            playSound(leafSoundId, 0.2f); hapticManager.tick(); return 
-                        }
-                        if (abs(hitX - (pos[0] - halfDim + 1.0f * expandedPile.scale)) < 0.4f && abs(hitZ - suZ) < 0.4f) { 
-                            expandedPile.scrollIndex++
-                            playSound(leafSoundId, 0.2f); hapticManager.tick(); return 
+                    // Pagination check
+                    val totalPages = ceil(expandedPile.items.size.toFloat() / 16f).toInt().coerceAtLeast(1)
+                    val pY = 2.91f; val pZ = pos[2] + halfDimZ - 0.4f * expandedPile.scale
+                    
+                    // Left Arrow
+                    if (expandedPile.scrollIndex > 0 && abs(hitX - (pos[0] - 1.5f * expandedPile.scale)) < 0.4f && abs(hitZ - pZ) < 0.4f) {
+                        expandedPile.scrollIndex--
+                        playSound(leafSoundId, 0.2f); hapticManager.tick(); return
+                    }
+                    // Right Arrow
+                    if (expandedPile.scrollIndex < totalPages - 1 && abs(hitX - (pos[0] + 1.5f * expandedPile.scale)) < 0.4f && abs(hitZ - pZ) < 0.4f) {
+                        expandedPile.scrollIndex++
+                        playSound(leafSoundId, 0.2f); hapticManager.tick(); return
+                    }
+                    // Dots
+                    val dotSpacing = 0.3f * expandedPile.scale
+                    val startX = pos[0] - ((totalPages - 1) * dotSpacing) / 2f
+                    for (i in 0 until totalPages) {
+                        if (abs(hitX - (startX + i * dotSpacing)) < 0.15f && abs(hitZ - pZ) < 0.15f) {
+                            expandedPile.scrollIndex = i
+                            playSound(leafSoundId, 0.2f); hapticManager.tick(); return
                         }
                     }
                 }
