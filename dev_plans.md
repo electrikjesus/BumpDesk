@@ -9,14 +9,15 @@
 - **Build-After-Edit**: Execute `gradle build` or a specific task-related build/test after *every* edit.
 - **Verification**: Only mark a task as complete [x] after the build succeeds AND the verification test passes.
 - **Autonomous Progress**: Work independently until a blocker or feedback is required.
-- **Accountability Checklist**: Every summary MUST include:
-    1. [ ] **Code Compiled?** (Actual `gradle build` result)
-    2. [ ] **Logic Verified?** (Unit tests result)
-    3. [ ] **Self-Audit Done?** (No redundant methods or leftover debug code)
+- **Accountability Checklist**: Every task completion report MUST include:
+    1. [ ] **Code Compiled?** (Actual successful `gradle build` output)
+    2. [ ] **Logic Verified?** (Unit tests passed)
+    3. [ ] **Self-Audit Done?** (Checked for redundant methods, leftover debug code, or type mismatches)
     4. [ ] **Plan Updated?** (`dev_plans.md` reflects latest state)
 
 # BumpDesk changes
 
+- [ ] **Priority**: Fix GitHub Actions and CI stability (Resolve compilation errors in BumpRenderer and WidgetRenderer)
 - [x] **Context Improvement**: Modularize Rendering Logic
 - [x] **Context Improvement**: Extract Business Logic from LauncherActivity
 - [x] **Context Improvement**: Improve SceneState and Persistence
