@@ -18,8 +18,13 @@ class DeskRepository(context: Context) {
         
         // Save BumpItems (Apps, Notes, Frames, etc.)
         sceneState.bumpItems.forEach { item ->
+            val stableId = when (item.type) {
+                BumpItem.Type.APP_DRAWER -> "app_drawer_icon"
+                else -> item.appInfo?.packageName ?: UUID.randomUUID().toString()
+            }
+            
             items.add(DeskItem(
-                id = item.appInfo?.packageName ?: UUID.randomUUID().toString(),
+                id = stableId,
                 type = item.type.name,
                 packageName = item.appInfo?.packageName,
                 appWidgetId = null,

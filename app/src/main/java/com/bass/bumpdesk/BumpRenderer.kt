@@ -134,9 +134,8 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         }
     }
 
-    fun loadSavedState(allApps: List<AppInfo>) {
+    fun loadSavedState(allApps: List<AppInfo>, onComplete: () -> Unit = {}) {
         repositoryScope.launch {
-            // Fix Type Mismatch: Use destructuring to handle Pair from repository.loadState
             val result = repository.loadState(allApps)
             val bumpItems = result.first
             val widgetItems = result.second
@@ -145,17 +144,30 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
             sceneState.bumpItems.addAll(bumpItems)
             sceneState.widgetItems.clear()
             sceneState.widgetItems.addAll(widgetItems)
+            
+            onComplete()
         }
     }
 
     fun setAllAppsList(apps: List<AppInfo>) {
         sceneState.allAppsList.clear()
         sceneState.allAppsList.addAll(apps)
-        if (sceneState.appDrawerItem == null) {
-            sceneState.appDrawerItem = BumpItem(type = BumpItem.Type.APP_DRAWER, position = floatArrayOf(6f, 0.05f, 6f), scale = 0.8f)
-            sceneState.bumpItems.add(sceneState.appDrawerItem!!)
+        
+        loadSavedState(apps) {
+            val prefs = context.getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
+            val showAppDrawer = prefs.getBoolean("show_app_drawer_icon", true)
+            
+            val hasAppDrawer = sceneState.bumpItems.any { it.type == BumpItem.Type.APP_DRAWER } ||
+                               sceneState.piles.any { p -> p.items.any { it.type == BumpItem.Type.APP_DRAWER } }
+            
+            if (showAppDrawer && !hasAppDrawer) {
+                sceneState.appDrawerItem = BumpItem(type = BumpItem.Type.APP_DRAWER, position = floatArrayOf(6f, 0.05f, 6f), scale = 0.8f)
+                sceneState.bumpItems.add(sceneState.appDrawerItem!!)
+            } else if (!showAppDrawer && hasAppDrawer) {
+                sceneState.bumpItems.removeAll { it.type == BumpItem.Type.APP_DRAWER }
+                sceneState.piles.forEach { it.items.removeAll { item -> item.type == BumpItem.Type.APP_DRAWER } }
+            }
         }
-        loadSavedState(apps)
     }
 
     fun addAppToDesk(app: AppInfo) {
@@ -440,9 +452,14 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
 
     private fun interactWithWidget(widget: WidgetItem, rS: FloatArray, rE: FloatArray) {
         val view = sceneState.widgetViews[widget.appWidgetId] ?: return
-        val t = when (widget.surface) { BumpItem.Surface.BACK_WALL -> (widget.position[2] - rS[2]) / (rE[2] - rS[2]); BumpItem.Surface.LEFT_WALL -> (widget.position[0] - rS[0]) / (rE[0] - rS[0]); BumpItem.Surface.RIGHT_WALL -> (widget.position[0] - rS[0]) / (rE[0] - rS[0]); else -> return }
+        val t = when (widget.surface) { BumpItem.Surface.BACK_WALL -> (widget.position[2] - rS[2]) / (rE[2] - rS[2]); BumpItem.Surface.LEFT_WALL -> (widget.position[0] - rS[0]) / (rE[0] - rS[0]); BumpItem.Surface.RIGHT_WALL -> (widget.position[0] - rS[0]) / (rE[0] - rS[0]); else -> (widget.position[1] - rS[1]) / (rE[1] - rS[1]) }
         val iX = rS[0] + t * (rE[0] - rS[0]); val iY = rS[1] + t * (rE[1] - rS[1]); val iZ = rS[2] + t * (rE[2] - rS[2])
-        val (u, v) = when (widget.surface) { BumpItem.Surface.BACK_WALL -> (iX - (widget.position[0] - widget.size[0])) / (2f * widget.size[0]) to 1f - (iY - (widget.position[1] - widget.size[1])) / (2f * widget.size[1]); BumpItem.Surface.LEFT_WALL -> (iZ - (widget.position[2] - widget.size[0])) / (2f * widget.size[0]) to 1f - (iY - (widget.position[1] - widget.size[1])) / (2f * widget.size[1]); BumpItem.Surface.RIGHT_WALL -> 1f - (iZ - (widget.position[2] - widget.size[0])) / (2f * widget.size[0]) to 1f - (iY - (widget.position[1] - widget.size[1])) / (2f * widget.size[1]); else -> return }
+        val (u, v) = when (widget.surface) { 
+            BumpItem.Surface.BACK_WALL -> (iX - (widget.position[0] - widget.size[0])) / (2f * widget.size[0]) to 1f - (iY - (widget.position[1] - widget.size[1])) / (2f * widget.size[1])
+            BumpItem.Surface.LEFT_WALL -> (iZ - (widget.position[2] - widget.size[0])) / (2f * widget.size[0]) to 1f - (iY - (widget.position[1] - widget.size[1])) / (2f * widget.size[1])
+            BumpItem.Surface.RIGHT_WALL -> 1f - (iZ - (widget.position[2] - widget.size[0])) / (2f * widget.size[0]) to 1f - (iY - (widget.position[1] - widget.size[1])) / (2f * widget.size[1])
+            BumpItem.Surface.FLOOR -> (iX - (widget.position[0] - widget.size[0])) / (2f * widget.size[0]) to (iZ - (widget.position[2] - widget.size[1])) / (2f * widget.size[1])
+        }
         view.post { val dt = android.os.SystemClock.uptimeMillis(); view.dispatchTouchEvent(android.view.MotionEvent.obtain(dt, dt, android.view.MotionEvent.ACTION_DOWN, u * view.width, v * view.height, 0)); view.dispatchTouchEvent(android.view.MotionEvent.obtain(dt, dt + 10, android.view.MotionEvent.ACTION_UP, u * view.width, v * view.height, 0)) }
     }
 

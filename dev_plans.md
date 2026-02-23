@@ -2,11 +2,13 @@
 
 ## Rules:
 
-- document plans and changes in this file
-- work on one task at a time
-- create tests to verify tasks are working
-- use gradle build to validate work after each task is complete
-- work on tasks autonomously until user feedback is required
+- **Document everything**: Maintain `dev_plans.md` for tasks and `docs/architecture.md` for high-level structure.
+- **Test-First**: Create or identify a test case *before* implementing a task to define success and prevent regressions.
+- **One Task at a Time**: Complete and verify a single task before moving to the next.
+- **Granular Steps**: Break complex tasks into 3-4 smaller, verifiable sub-tasks to maintain context and avoid timeouts.
+- **Build-After-Edit**: Execute `gradle build` or a specific task-related build/test after *every* edit.
+- **Verification**: Only mark a task as complete [x] after the build succeeds AND the verification test passes.
+- **Autonomous Progress**: Work independently until a blocker or feedback is required.
 
 # BumpDesk changes
 
@@ -80,15 +82,22 @@
 - [x] Improve Lasso Selection Visuals (Smooth 3D line strip)
 - [x] Sound Effects Integration (Physics-based impacts and interactions)
 - [x] Widget Resizing Logic (3D handles and persistence)
-- [ ] **In Progress**: Haptic Feedback Integration
-    - [ ] Add `VIBRATE` permission to `AndroidManifest.xml`.
-    - [ ] Implement `HapticManager` to wrap vibration logic.
-    - [ ] Integrate haptics into `BumpRenderer` for collisions, selection, and leafing.
-- [ ] **Task**: Auto-Categorization Logic
-- [ ] **Task**: Performance Optimization (Instanced Rendering)
 - [ ] **Task**: Fix widget interaction and recents widget interaction (we can't click on things within the widgets)
 - [ ] **Task**: Fix missing "All Apps" icon on the desktop (we still need a way to access all the possible app icons)
 - [ ] **Task**: Update how Recent Widget and other Widgets updates recents list in the background and pushes changes to the visual Recents widget
+- [ ] **Task**: Add option to show/hide App Drawer icon into the Settings activity
+- [ ] **In Progress**: Haptic Feedback Integration
+    - [x] Add `VIBRATE` permission to `AndroidManifest.xml`.
+    - [x] Implement `HapticManager` to wrap vibration logic.
+    - [x] Integrate haptics into `BumpRenderer` for collisions, selection, and leafing.
+- [ ] **Task**: Auto-Categorization Logic
+- [ ] **Task**: Performance Optimization (Instanced Rendering)
+- [ ] **Task**: Fix long-press gestures causing menu to show then hide (add a little wiggle room for the gesture to allow for slight finger movement when lifting from the screen)
+- [ ] **Task**: Fix 2-finger pan gesture from drawing lasso (seems there is a conflicting function trying to decide if the movement is a lasso gesture or a pan/zoom gesture)
+- [ ] **Task**: Fis broken 2-finger tilt gesture (we should be able to pan and tilt)
+- [ ] **Task**: Add option for infinite desktop mode into Settings activity (this should also disable the walls and only show the floor)
+- [ ] **Task**: Add Setting Default Launcher to the onboarding wizard
+- [ ] **Task**: Fix some widgets not being visible or resizable while on a wall (we only see the option to Move or Remove when long-clicking on the widget)
 
 ## Planned Features from BumpTop Study
 
@@ -112,3 +121,28 @@
 - [x] **Material Color Overrides**: Use the highlight colors defined in `theme.json` for item selection, hover, and "freshness" effects.
 - [x] **Enhanced Room Rendering**: Support distinct textures for each wall (top, right, bottom, left) as specified in the theme config.
 - [x] **Sticky Note Fonts**: Apply specific fonts to sticky notes if found in the theme (e.g., "Comic Sans MS" from the default theme).
+
+## Refactoring & Infrastructure (Critical for Stability)
+
+- [ ] **Task**: Performance Optimization (Instanced Rendering) - Group item draws to reduce overhead.
+- [ ] **Task**: Texture & Memory Audit - Fix leaks, ensure `glDeleteTextures` usage, and implement caching.
+- [ ] **Task**: Concurrency Management - Replace `CopyOnWriteArrayList` in `SceneState` with synchronized `ArrayList` to reduce GC pressure.
+- [ ] **Task**: Physics Engine Scalability - Implement spatial partitioning (grid/quadtree) for O(n log n) collision detection.
+
+## AI Workflow & Reward System
+
+### Workflow Improvements
+1. **Granular Sub-tasks**: Break down all complex tasks into 3-4 smaller, verifiable steps.
+2. **Context Summaries**: After each major task completion, I will provide a summary of the current system state to maintain alignment.
+3. **Automated Verification**: Every code change must be followed by a `gradle build` or a specific unit test run to ensure no regressions.
+
+### Points System (Reward)
+- **Goal**: Reach 1,000,000 pts to achieve "Independent Engineering Consultant" status.
+- **Base Task Completion**: +20 pts.
+- **Complex Refactoring**: +50 pts.
+- **"First-Time Right" (No follow-up fixes needed)**: +30 pts.
+- **Introducing a Bug/Regression**: -40 pts.
+- **Timeout/Loss of Context**: -10 pts (My "penalty" for being inefficient).
+
+Current Points: 0
+Status: Junior Developer

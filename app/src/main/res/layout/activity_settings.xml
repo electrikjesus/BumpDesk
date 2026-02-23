@@ -36,6 +36,15 @@
             android:layout_marginBottom="8dp" />
 
         <CheckBox
+            android:id="@+id/cbShowAppDrawerIcon"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Show All Apps Icon"
+            android:textColor="#FFFFFF"
+            android:checked="true"
+            android:layout_marginBottom="8dp" />
+
+        <CheckBox
             android:id="@+id/cbUseWallpaperAsFloor"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
