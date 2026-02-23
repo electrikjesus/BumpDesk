@@ -46,6 +46,8 @@ class InteractionManager(
     private var lassoStartPoint: Vector3? = null
 
     var isInfiniteMode = false
+    var roomSize = 30f
+    var roomHeight = 30f
 
     fun handleTouchDown(x: Float, y: Float, sceneState: SceneState): Any? {
         lastTouchX = x
@@ -342,9 +344,9 @@ class InteractionManager(
 
     private fun getWidgetT(widget: WidgetItem, rS: FloatArray, rE: FloatArray): Float {
         return when (widget.surface) {
-            BumpItem.Surface.BACK_WALL -> (-9.9f - rS[2]) / (rE[2] - rS[2])
-            BumpItem.Surface.LEFT_WALL -> (-9.9f - rS[0]) / (rE[0] - rS[0])
-            BumpItem.Surface.RIGHT_WALL -> (9.9f - rS[0]) / (rE[0] - rS[0])
+            BumpItem.Surface.BACK_WALL -> (-roomSize + 0.1f - rS[2]) / (rE[2] - rS[2])
+            BumpItem.Surface.LEFT_WALL -> (-roomSize + 0.1f - rS[0]) / (rE[0] - rS[0])
+            BumpItem.Surface.RIGHT_WALL -> (roomSize - 0.1f - rS[0]) / (rE[0] - rS[0])
             BumpItem.Surface.FLOOR -> (0.1f - rS[1]) / (rE[1] - rS[1])
         }
     }
@@ -455,9 +457,9 @@ class InteractionManager(
         surfaces.forEach { surface ->
             val t = when (surface) {
                 BumpItem.Surface.FLOOR -> (floorY - rS[1]) / (rE[1] - rS[1])
-                BumpItem.Surface.BACK_WALL -> (-9.95f - rS[2]) / (rE[2] - rS[2])
-                BumpItem.Surface.LEFT_WALL -> (-9.95f - rS[0]) / (rE[0] - rS[0])
-                BumpItem.Surface.RIGHT_WALL -> (9.95f - rS[0]) / (rE[0] - rS[0])
+                BumpItem.Surface.BACK_WALL -> (-roomSize + 0.05f - rS[2]) / (rE[2] - rS[2])
+                BumpItem.Surface.LEFT_WALL -> (-roomSize + 0.05f - rS[0]) / (rE[0] - rS[0])
+                BumpItem.Surface.RIGHT_WALL -> (roomSize - 0.05f - rS[0]) / (rE[0] - rS[0])
             }
             if (t > 0 && t < minT) {
                 val hitX = rS[0] + t * (rE[0] - rS[0])
@@ -467,8 +469,8 @@ class InteractionManager(
                 if (isInfiniteMode && surface == BumpItem.Surface.FLOOR) {
                     minT = t; bestSurface = surface; bestPos = floatArrayOf(hitX, hitY, hitZ)
                 } else if (!isInfiniteMode) {
-                    val margin = 50.1f // Infinite desk margin
-                    if (abs(hitX) <= margin && abs(hitZ) <= margin && hitY >= 0f && hitY <= 12f) {
+                    val margin = roomSize + 0.1f
+                    if (abs(hitX) <= margin && abs(hitZ) <= margin && hitY >= 0f && hitY <= roomHeight) {
                         minT = t; bestSurface = surface; bestPos = floatArrayOf(hitX, hitY, hitZ)
                     }
                 }
@@ -484,9 +486,9 @@ class InteractionManager(
             widget.position = Vector3.fromArray(pos)
             
             when (surface) {
-                BumpItem.Surface.BACK_WALL -> widget.position = widget.position.copy(z = -9.9f)
-                BumpItem.Surface.LEFT_WALL -> widget.position = widget.position.copy(x = -9.9f)
-                BumpItem.Surface.RIGHT_WALL -> widget.position = widget.position.copy(x = 9.9f)
+                BumpItem.Surface.BACK_WALL -> widget.position = widget.position.copy(z = -roomSize + 0.1f)
+                BumpItem.Surface.LEFT_WALL -> widget.position = widget.position.copy(x = -roomSize + 0.1f)
+                BumpItem.Surface.RIGHT_WALL -> widget.position = widget.position.copy(x = roomSize - 0.1f)
                 BumpItem.Surface.FLOOR -> widget.position = widget.position.copy(y = 0.1f)
             }
         }

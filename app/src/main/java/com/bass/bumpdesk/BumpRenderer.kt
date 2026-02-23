@@ -157,6 +157,16 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         interactionManager.isInfiniteMode = physicsEngine.isInfiniteMode
         camera.isInfiniteMode = physicsEngine.isInfiniteMode
         
+        // Load custom default camera view if it exists
+        if (prefs.contains("cam_def_pos_x")) {
+            camera.customDefaultPos[0] = prefs.getFloat("cam_def_pos_x", camera.ABSOLUTE_DEFAULT_POS[0])
+            camera.customDefaultPos[1] = prefs.getFloat("cam_def_pos_y", camera.ABSOLUTE_DEFAULT_POS[1])
+            camera.customDefaultPos[2] = prefs.getFloat("cam_def_pos_z", camera.ABSOLUTE_DEFAULT_POS[2])
+            camera.customDefaultLookAt[0] = prefs.getFloat("cam_def_lat_x", camera.ABSOLUTE_DEFAULT_LOOKAT[0])
+            camera.customDefaultLookAt[1] = prefs.getFloat("cam_def_lat_y", camera.ABSOLUTE_DEFAULT_LOOKAT[1])
+            camera.customDefaultLookAt[2] = prefs.getFloat("cam_def_lat_z", camera.ABSOLUTE_DEFAULT_LOOKAT[2])
+        }
+
         // Force immediate reload of theme textures to ensure floor updates when infinite mode changes
         if (oldInfinite != physicsEngine.isInfiniteMode) {
             reloadTheme()
@@ -168,6 +178,30 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
     private fun saveState() {
         repositoryScope.launch {
             repository.saveState(sceneState)
+        }
+    }
+
+    fun saveCustomCameraDefault() {
+        camera.saveAsDefault()
+        val prefs = context.getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
+        prefs.edit().apply {
+            putFloat("cam_def_pos_x", camera.customDefaultPos[0])
+            putFloat("cam_def_pos_y", camera.customDefaultPos[1])
+            putFloat("cam_def_pos_z", camera.customDefaultPos[2])
+            putFloat("cam_def_lat_x", camera.customDefaultLookAt[0])
+            putFloat("cam_def_lat_y", camera.customDefaultLookAt[1])
+            putFloat("cam_def_lat_z", camera.customDefaultLookAt[2])
+            apply()
+        }
+    }
+
+    fun resetCameraDefaults() {
+        camera.resetToAbsoluteDefaults()
+        val prefs = context.getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
+        prefs.edit().apply {
+            remove("cam_def_pos_x"); remove("cam_def_pos_y"); remove("cam_def_pos_z")
+            remove("cam_def_lat_x"); remove("cam_def_lat_y"); remove("cam_def_lat_z")
+            apply()
         }
     }
 

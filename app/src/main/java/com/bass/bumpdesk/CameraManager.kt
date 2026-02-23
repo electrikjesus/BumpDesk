@@ -4,10 +4,13 @@ import android.opengl.Matrix
 import kotlin.math.*
 
 class CameraManager {
-    // Adjusted default view for 30f room size
-    val DEFAULT_CAMERA_POS = floatArrayOf(0f, 12f, 25f)
-    val DEFAULT_CAMERA_LOOKAT = floatArrayOf(0f, 0f, 5f)
+    val ABSOLUTE_DEFAULT_POS = floatArrayOf(0f, 12f, 25f)
+    val ABSOLUTE_DEFAULT_LOOKAT = floatArrayOf(0f, 0f, 5f)
     
+    // Configurable defaults
+    var customDefaultPos = ABSOLUTE_DEFAULT_POS.clone()
+    var customDefaultLookAt = ABSOLUTE_DEFAULT_LOOKAT.clone()
+
     // Boundaries matching new RoomRenderer geometry (30f size)
     var MAX_Z = 29.0f
     var MAX_Y = 29.0f
@@ -15,16 +18,16 @@ class CameraManager {
     var MIN_X = -29.0f
     var MAX_X = 29.0f
 
-    var targetPos = DEFAULT_CAMERA_POS.clone()
-    var currentPos = DEFAULT_CAMERA_POS.clone()
-    var targetLookAt = DEFAULT_CAMERA_LOOKAT.clone()
-    var currentLookAt = DEFAULT_CAMERA_LOOKAT.clone()
+    var targetPos = customDefaultPos.clone()
+    var currentPos = customDefaultPos.clone()
+    var targetLookAt = customDefaultLookAt.clone()
+    var currentLookAt = customDefaultLookAt.clone()
     var zoomLevel = 1.0f
     var fieldOfView = 60f
     var isInfiniteMode = false
 
-    private var savedPos = DEFAULT_CAMERA_POS.clone()
-    private var savedLookAt = DEFAULT_CAMERA_LOOKAT.clone()
+    private var savedPos = customDefaultPos.clone()
+    private var savedLookAt = customDefaultLookAt.clone()
     private var savedViewMode = ViewMode.DEFAULT
 
     enum class ViewMode { DEFAULT, FLOOR, BACK_WALL, LEFT_WALL, RIGHT_WALL, FOLDER_EXPANDED, WIDGET_FOCUS }
@@ -80,11 +83,22 @@ class CameraManager {
     }
 
     fun reset() {
-        targetPos = DEFAULT_CAMERA_POS.clone()
-        targetLookAt = DEFAULT_CAMERA_LOOKAT.clone()
+        targetPos = customDefaultPos.clone()
+        targetLookAt = customDefaultLookAt.clone()
         zoomLevel = 1.0f
         fieldOfView = 60f
         currentViewMode = ViewMode.DEFAULT
+    }
+
+    fun saveAsDefault() {
+        customDefaultPos = targetPos.clone()
+        customDefaultLookAt = targetLookAt.clone()
+    }
+
+    fun resetToAbsoluteDefaults() {
+        customDefaultPos = ABSOLUTE_DEFAULT_POS.clone()
+        customDefaultLookAt = ABSOLUTE_DEFAULT_LOOKAT.clone()
+        reset()
     }
 
     fun restorePreviousView() {

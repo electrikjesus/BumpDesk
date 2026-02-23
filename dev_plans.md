@@ -55,7 +55,7 @@
 - [x] Fix Pile fan-out drag lock
 - [x] Fix lasso on centered floor
 - [x] Fix Freeform intent flags
-- [x] Fix widget orientation on side walls
+- [x_] Fix widget orientation on side walls
 - [x] Fix widget texturing (white box fix)
 - [x] Recents Widget: Fix blank surfaces
 - [x] Fix All Apps stack drag lock
@@ -139,8 +139,12 @@
     - [x] Fix camera clipping through walls when zooming out (apply FOV shift to all modes)
     - [x] Adjust default view to be more zoomed out and panned back, centered correctly
     - [x] Increase wall height to match scale of wall textures
+- [ ] **Priority**: dynamic room dimensions for dragging interaction
+    - [ ] Update `InteractionManager` to use dynamic room size for wall detection
+- [ ] **Priority**: add long-click menu option to set default camera view as current view (and a settings option to reset camera defaults)
+- [ ] **Priority**: expand on our recents widget and add activity specific launching and logging
+- [ ] **Priority**: fix CameraManagerTest > testZoomLogic FAILED
 - [ ] **Context Improvement**: use the same signature to compile in Android Studio and GitHub actions
-- [ ] **Priority**: expand on our recents widget and add logging for the activities each recents tile has (right now, they all don't work as expected)
 
 ## Refactoring & Infrastructure (High Impact)
 

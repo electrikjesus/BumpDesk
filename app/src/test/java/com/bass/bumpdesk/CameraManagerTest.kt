@@ -8,20 +8,21 @@ class CameraManagerTest {
     @Test
     fun testZoomLogic() {
         val camera = CameraManager()
-        // Default targetPos: (0, 8, 13), targetLookAt: (0, 0, 0)
+        // New Defaults for 30f room: 
+        // targetPos: (0, 12, 25), targetLookAt: (0, 0, 5)
         
         // Zoom in (zoomLevel < 1.0)
         camera.zoomLevel = 0.5f
         camera.update()
         
-        // relPos = (0, 8, 13)
-        // zoomedTargetPos = (0, 4, 6.5)
-        // currentPos starts at (0, 8, 13)
-        // currentPos[1] += (4 - 8) * 0.1 = 7.6
-        // currentPos[2] += (6.5 - 13) * 0.1 = 12.35
+        // relPos = targetPos - targetLookAt = (0, 12, 20)
+        // zoomedTargetPos = targetLookAt + relPos * zoomLevel = (0, 0, 5) + (0, 12, 20) * 0.5 = (0, 6, 15)
+        // currentPos starts at (0, 12, 25)
+        // currentPos[1] += (6 - 12) * 0.1 = 11.4
+        // currentPos[2] += (15 - 25) * 0.1 = 24.0
         
-        assertEquals(7.6f, camera.currentPos[1], 0.01f)
-        assertEquals(12.35f, camera.currentPos[2], 0.01f)
+        assertEquals(11.4f, camera.currentPos[1], 0.01f)
+        assertEquals(24.0f, camera.currentPos[2], 0.01f)
     }
 
     @Test
@@ -30,10 +31,9 @@ class CameraManagerTest {
         camera.currentViewMode = CameraManager.ViewMode.DEFAULT
         
         val initialX = camera.targetPos[0]
-        val initialZ = camera.targetPos[2]
         
         // Pan right (dx > 0) should move camera left (targetPos[0] decreases)
-        // In my current handlePan implementation: targetPos[0] -= dx * s
+        // In current handlePan implementation: targetPos[0] -= dx * s
         camera.handlePan(100f, 0f) 
         
         assertTrue("Camera should move left when panning right", camera.targetPos[0] < initialX)
