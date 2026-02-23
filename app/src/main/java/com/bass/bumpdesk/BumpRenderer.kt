@@ -41,7 +41,9 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
     private val projectionMatrix = FloatArray(16)
     private val viewMatrix = FloatArray(16)
 
+    @Volatile
     private var floorTextureId = -1
+    @Volatile
     private var wallTextureIds = IntArray(4) { -1 }
     private var uiAssets = UIRenderer.UIAssets(-1, -1, -1, -1, -1)
 
@@ -129,20 +131,28 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         physicsEngine.gridSpacingBase = (prefs.getInt("layout_grid_spacing", 60) / 100f) * 2.0f
         
         val showAppDrawer = prefs.getBoolean("show_app_drawer_icon", true)
-        val hasAppDrawer = sceneState.bumpItems.any { it.type == BumpItem.Type.APP_DRAWER } ||
-                           sceneState.piles.any { p -> p.items.any { it.type == BumpItem.Type.APP_DRAWER } }
+        val hasAppDrawer = sceneState.bumpItems.any { it.appearance.type == BumpItem.Type.APP_DRAWER } ||
+                           sceneState.piles.any { p -> p.items.any { it.appearance.type == BumpItem.Type.APP_DRAWER } }
         
         if (showAppDrawer && !hasAppDrawer) {
             sceneState.appDrawerItem = BumpItem(type = BumpItem.Type.APP_DRAWER, position = Vector3(6f, 0.05f, 6f), scale = 0.8f)
             sceneState.bumpItems.add(sceneState.appDrawerItem!!)
         } else if (!showAppDrawer && hasAppDrawer) {
-            sceneState.bumpItems.removeAll { it.type == BumpItem.Type.APP_DRAWER }
-            sceneState.piles.forEach { it.items.removeAll { item -> item.type == BumpItem.Type.APP_DRAWER } }
+            sceneState.bumpItems.removeAll { it.appearance.type == BumpItem.Type.APP_DRAWER }
+            sceneState.piles.forEach { it.items.removeAll { item -> item.appearance.type == BumpItem.Type.APP_DRAWER } }
             sceneState.appDrawerItem = null
         }
         
+        val oldInfinite = physicsEngine.isInfiniteMode
         physicsEngine.isInfiniteMode = prefs.getBoolean("infinite_desktop_mode", false)
         interactionManager.isInfiniteMode = physicsEngine.isInfiniteMode
+        
+        // Force immediate reload of theme textures to ensure floor updates when infinite mode changes
+        if (oldInfinite != physicsEngine.isInfiniteMode) {
+            reloadTheme()
+        }
+        
+        glSurfaceView?.requestRender()
     }
 
     private fun saveState() {
@@ -156,13 +166,23 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
             val result = repository.loadState(allApps)
             val bumpItems = result.first
             val widgetItems = result.second
+            val piles = result.third
             
-            sceneState.bumpItems.clear()
-            sceneState.bumpItems.addAll(bumpItems)
-            sceneState.widgetItems.clear()
-            sceneState.widgetItems.addAll(widgetItems)
+            sceneState.withWriteLock {
+                sceneState.bumpItems.clear()
+                sceneState.bumpItems.addAll(bumpItems)
+                sceneState.widgetItems.clear()
+                sceneState.widgetItems.addAll(widgetItems)
+                sceneState.piles.clear()
+                sceneState.piles.addAll(piles)
+                
+                // Restore special pointers
+                sceneState.recentsPile = sceneState.piles.find { it.isSystem && it.name == "Recents" }
+                sceneState.appDrawerItem = sceneState.bumpItems.find { it.appearance.type == BumpItem.Type.APP_DRAWER }
+            }
             
             onComplete()
+            glSurfaceView?.requestRender()
         }
     }
 
@@ -180,6 +200,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
             val x = (Math.random().toFloat() * 4f) - 2f
             val z = (Math.random().toFloat() * 4f) - 2f
             sceneState.bumpItems.add(BumpItem(appInfo = app, position = Vector3(x, 0.05f, z)))
+            saveState()
         }
     }
 
@@ -188,6 +209,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         val hit = interactionManager.findWallOrFloorHit(rS, rE, 0.05f)
         val pos = if (hit != null) Vector3.fromArray(hit.second) else Vector3(0f, 0.05f, 0f)
         sceneState.bumpItems.add(BumpItem(type = BumpItem.Type.STICKY_NOTE, text = text, position = pos, surface = hit?.first ?: BumpItem.Surface.FLOOR, color = floatArrayOf(1f, 1f, 0.6f, 1f)))
+        saveState()
     }
 
     fun addPhotoFrame(uri: String, x: Float, y: Float) {
@@ -195,6 +217,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         val hit = interactionManager.findWallOrFloorHit(rS, rE, 0.05f)
         val pos = if (hit != null) Vector3.fromArray(hit.second) else Vector3(0f, 0.05f, 0f)
         sceneState.bumpItems.add(BumpItem(type = BumpItem.Type.PHOTO_FRAME, text = uri, position = pos, surface = hit?.first ?: BumpItem.Surface.FLOOR, scale = 1.5f))
+        saveState()
     }
 
     fun addWebWidget(url: String, x: Float, y: Float) {
@@ -202,9 +225,10 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         val hit = interactionManager.findWallOrFloorHit(rS, rE, 0.05f)
         val pos = if (hit != null) Vector3.fromArray(hit.second) else Vector3(0f, 0.05f, 0f)
         sceneState.bumpItems.add(BumpItem(type = BumpItem.Type.WEB_WIDGET, text = url, position = pos, surface = hit?.first ?: BumpItem.Surface.FLOOR, scale = 2.0f))
+        saveState()
     }
 
-    fun performSearch(query: String) { searchQuery = query.lowercase() }
+    fun performSearch(query: String) { searchQuery = query.lowercase(); glSurfaceView?.requestRender() }
 
     fun addWidgetAt(appWidgetId: Int, hostView: android.appwidget.AppWidgetHostView, x: Float, y: Float) {
         sceneState.widgetViews[appWidgetId] = hostView
@@ -220,14 +244,16 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
             }
         }
         sceneState.widgetItems.add(WidgetItem(appWidgetId = appWidgetId, position = Vector3.fromArray(rawPos), surface = hit?.first ?: BumpItem.Surface.BACK_WALL))
+        saveState()
     }
 
     fun removeWidget(widget: WidgetItem) {
         sceneState.widgetItems.remove(widget)
         sceneState.widgetViews.remove(widget.appWidgetId)
+        saveState()
     }
 
-    fun togglePin(item: BumpItem) { item.transform.isPinned = !item.transform.isPinned }
+    fun togglePin(item: BumpItem) { item.transform.isPinned = !item.transform.isPinned; saveState() }
 
     fun updateRecents(recents: List<AppInfo>) {
         if (sceneState.recentsPile == null) {
@@ -244,10 +270,10 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
             val item = existing?.copy() ?: BumpItem(type = BumpItem.Type.RECENT_APP, appInfo = appInfo)
             
             item.apply {
-                type = BumpItem.Type.RECENT_APP
-                position = sceneState.recentsPile!!.position.copy()
-                scale = 1.2f
-                surface = BumpItem.Surface.BACK_WALL
+                appearance.type = BumpItem.Type.RECENT_APP
+                transform.position = sceneState.recentsPile!!.position.copy()
+                transform.scale = 1.2f
+                transform.surface = BumpItem.Surface.BACK_WALL
                 if (existing?.appData?.appInfo?.snapshot != appInfo.snapshot) {
                     appearance.textureId = -1
                 }
@@ -257,6 +283,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         
         sceneState.recentsPile!!.items.clear()
         sceneState.recentsPile!!.items.addAll(newItems)
+        glSurfaceView?.requestRender()
     }
 
     fun categorizeAllApps() {
@@ -288,18 +315,33 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         
         playSound(expandSoundId, 0.5f)
         hapticManager.selection()
+        saveState()
     }
 
     fun reloadTheme() {
-        glSurfaceView?.queueEvent { 
+        saveState()
+        val reloadTask = Runnable {
             textureManager.clearCache()
-            sceneState.bumpItems.forEach { it.appearance.textureId = -1 }
-            sceneState.piles.forEach { p -> 
-                p.items.forEach { it.appearance.textureId = -1 }
-                p.nameTextureId = -1
+            // Reset class texture state to force immediate refresh from ThemeManager
+            floorTextureId = -1
+            wallTextureIds = IntArray(4) { -1 }
+            
+            sceneState.withReadLock {
+                sceneState.bumpItems.forEach { it.appearance.textureId = -1 }
+                sceneState.piles.forEach { p -> 
+                    p.items.forEach { it.appearance.textureId = -1 }
+                    p.nameTextureId = -1
+                }
+                sceneState.widgetItems.forEach { it.textureId = -1 }
             }
-            sceneState.widgetItems.forEach { it.textureId = -1 }
             loadThemeTextures() 
+            glSurfaceView?.requestRender()
+        }
+
+        if (Thread.currentThread().name.contains("GLThread")) {
+            reloadTask.run()
+        } else {
+            glSurfaceView?.queueEvent(reloadTask)
         }
     }
 
@@ -379,6 +421,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
             }
             (context as? LauncherActivity)?.showLassoMenu(interactionManager.lastTouchX, interactionManager.lastTouchY, captured) 
         }
+        saveState()
     }
 
     fun gridSelectedItems(items: List<BumpItem>, mode: GridLayout) {
@@ -410,6 +453,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 }
             }
         }
+        saveState()
     }
 
     fun handleSingleTap(x: Float, y: Float) {

@@ -134,7 +134,8 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
     }
 
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
-        if (key == "selected_theme" || key == "use_wallpaper_as_floor" || key == "show_recent_apps" || key?.startsWith("physics_") == true || key?.startsWith("layout_") == true) {
+        if (key == "selected_theme" || key == "use_wallpaper_as_floor" || key == "show_recent_apps" || 
+            key == "infinite_desktop_mode" || key?.startsWith("physics_") == true || key?.startsWith("layout_") == true) {
             ThemeManager.init(this, forceReload = true)
             renderer.reloadTheme()
             renderer.updateSettings()

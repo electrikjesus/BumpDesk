@@ -112,6 +112,9 @@
     - [x] Fix state saving: apps not saved to places on theme/layout change
     - [x] Fix pile/fan persistence: ensure custom piles and fanned stacks are saved
     - [x] Improve interaction accuracy in folder views: scale hit registration with scaled-down icons
+- [x] **Priority**: Fix theme and infinite desktop application delay
+    - [x] Ensure theme changes apply immediately without needing toggles
+    - [x] Ensure infinite desktop mode changes apply immediately
 
 ## Refactoring & Infrastructure (High Impact)
 
@@ -135,5 +138,5 @@
 - **Logic Regression**: -250 pts.
 - **Rule Breach / Forgetting Step**: -250 pts.
 
-Current Points: 3690
+Current Points: 4190
 Status: Senior Architect
