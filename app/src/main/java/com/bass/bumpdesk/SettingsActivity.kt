@@ -35,6 +35,13 @@ class SettingsActivity : AppCompatActivity() {
             }
         }
 
+        findViewById<CheckBox>(R.id.cbInfiniteDesktop).apply {
+            isChecked = prefs.getBoolean("infinite_desktop_mode", false)
+            setOnCheckedChangeListener { _, isChecked -> 
+                prefs.edit().putBoolean("infinite_desktop_mode", isChecked).apply() 
+            }
+        }
+
         findViewById<CheckBox>(R.id.cbUseWallpaperAsFloor).apply {
             isChecked = prefs.getBoolean("use_wallpaper_as_floor", false)
             setOnCheckedChangeListener { _, isChecked -> prefs.edit().putBoolean("use_wallpaper_as_floor", isChecked).apply() }
@@ -77,6 +84,7 @@ class SettingsActivity : AppCompatActivity() {
                 putInt("layout_grid_spacing", 60)
                 putBoolean("show_recent_apps", true)
                 putBoolean("show_app_drawer_icon", true)
+                putBoolean("infinite_desktop_mode", false)
                 putBoolean("use_wallpaper_as_floor", false)
                 apply()
             }

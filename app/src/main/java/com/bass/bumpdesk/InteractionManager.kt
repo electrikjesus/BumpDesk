@@ -3,6 +3,7 @@ package com.bass.bumpdesk
 import android.content.Context
 import android.view.MotionEvent
 import android.appwidget.AppWidgetHostView
+import android.os.SystemClock
 import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.sqrt
@@ -44,6 +45,8 @@ class InteractionManager(
     // For lasso suppression
     private var isLassoPending = false
     private var lassoStartPoint: FloatArray? = null
+
+    var isInfiniteMode = false
 
     fun handleTouchDown(x: Float, y: Float, sceneState: SceneState): Any? {
         lastTouchX = x
@@ -440,15 +443,19 @@ class InteractionManager(
         val iZ = rS[2] + t * (rE[2] - rS[2])
         
         return when (widget.surface) {
-            BumpItem.Surface.BACK_WALL -> if (abs(iX - widget.position[0]) < widget.size[0] && abs(iY - widget.position[1]) < widget.size[1]) t else -1f
-            BumpItem.Surface.LEFT_WALL -> if (abs(iZ - widget.position[2]) < widget.size[0] && abs(iY - widget.position[1]) < widget.size[1]) t else -1f
-            BumpItem.Surface.RIGHT_WALL -> if (abs(iZ - widget.position[2]) < widget.size[0] && abs(iY - widget.position[1]) < widget.size[1]) t else -1f
+            BumpItem.Surface.BACK_WALL -> if (!isInfiniteMode && abs(iX - widget.position[0]) < widget.size[0] && abs(iY - widget.position[1]) < widget.size[1]) t else -1f
+            BumpItem.Surface.LEFT_WALL -> if (!isInfiniteMode && abs(iZ - widget.position[2]) < widget.size[0] && abs(iY - widget.position[1]) < widget.size[1]) t else -1f
+            BumpItem.Surface.RIGHT_WALL -> if (!isInfiniteMode && abs(iZ - widget.position[2]) < widget.size[0] && abs(iY - widget.position[1]) < widget.size[1]) t else -1f
             BumpItem.Surface.FLOOR -> if (abs(iX - widget.position[0]) < widget.size[0] && abs(iZ - widget.position[2]) < widget.size[1]) t else -1f
         }
     }
 
     fun findWallOrFloorHit(rS: FloatArray, rE: FloatArray, floorY: Float): Pair<BumpItem.Surface, FloatArray>? {
-        val surfaces = listOf(BumpItem.Surface.FLOOR, BumpItem.Surface.BACK_WALL, BumpItem.Surface.LEFT_WALL, BumpItem.Surface.RIGHT_WALL)
+        val surfaces = mutableListOf(BumpItem.Surface.FLOOR)
+        if (!isInfiniteMode) {
+            surfaces.addAll(listOf(BumpItem.Surface.BACK_WALL, BumpItem.Surface.LEFT_WALL, BumpItem.Surface.RIGHT_WALL))
+        }
+        
         var bestSurface: BumpItem.Surface? = null
         var minT = Float.MAX_VALUE
         var bestPos = FloatArray(3)
@@ -464,9 +471,14 @@ class InteractionManager(
                 val hitX = rS[0] + t * (rE[0] - rS[0])
                 val hitY = rS[1] + t * (rE[1] - rS[1])
                 val hitZ = rS[2] + t * (rE[2] - rS[2])
-                val margin = 50.1f // Infinite desk margin
-                if (abs(hitX) <= margin && abs(hitZ) <= margin && hitY >= 0f && hitY <= 12f) {
+                
+                if (isInfiniteMode && surface == BumpItem.Surface.FLOOR) {
                     minT = t; bestSurface = surface; bestPos = floatArrayOf(hitX, hitY, hitZ)
+                } else if (!isInfiniteMode) {
+                    val margin = 50.1f // Infinite desk margin
+                    if (abs(hitX) <= margin && abs(hitZ) <= margin && hitY >= 0f && hitY <= 12f) {
+                        minT = t; bestSurface = surface; bestPos = floatArrayOf(hitX, hitY, hitZ)
+                    }
                 }
             }
         }

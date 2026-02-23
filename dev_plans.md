@@ -94,13 +94,19 @@
     - [x] Step 1: Identify categories for installed apps using `ApplicationInfo`.
     - [x] Step 2: Implement automatic pile creation based on categories.
     - [x] Step 3: Add "Categorize All" trigger to radial menu.
-- [ ] **Task**: Performance Optimization (Instanced Rendering)
-- [ ] **Task**: Fix long-press gestures causing menu to show then hide (add a little wiggle room for the gesture to allow for slight finger movement when lifting from the screen)
-- [ ] **Task**: Fix 2-finger pan gesture from drawing lasso (seems there is a conflicting function trying to decide if the movement is a lasso gesture or a pan/zoom gesture)
-- [ ] **Task**: Fis broken 2-finger tilt gesture (we should be able to pan and tilt)
-- [ ] **Task**: Add option for infinite desktop mode into Settings activity (this should also disable the walls and only show the floor)
-- [ ] **Task**: Add Setting Default Launcher to the onboarding wizard
-- [ ] **Task**: Fix some widgets not being visible or resizable while on a wall (we only see the option to Move or Remove when long-clicking on the widget)
+- [x] Performance Optimization (Batching/VBOs)
+- [x] Fix long-press gestures causing menu to show then hide
+- [x] Fix 2-finger pan gesture from drawing lasso
+- [x] Fix broken 2-finger tilt gesture (we should be able to pan and tilt)
+- [x] Add option for infinite desktop mode into Settings activity
+- [x] Add Setting Default Launcher to the onboarding wizard
+- [x] Fix widgets visibility and resizing while on a wall
+- [x] Texture & Memory Audit
+- [x] Concurrency Management (Optimizing SceneState)
+- [ ] **In Progress**: Physics Engine Scalability (Spatial Partitioning)
+    - [ ] Step 1: Audit `PhysicsEngine.kt` and measure O(n^2) performance.
+    - [ ] Step 2: Implement 2D Grid Partitioning.
+    - [ ] Step 3: Verify collision accuracy and FPS gains.
 
 ## Planned Features from BumpTop Study
 
@@ -127,9 +133,9 @@
 
 ## Refactoring & Infrastructure (Critical for Stability)
 
-- [ ] **Task**: Performance Optimization (Instanced Rendering) - Group item draws to reduce overhead.
-- [ ] **Task**: Texture & Memory Audit - Fix leaks, ensure `glDeleteTextures` usage, and implement caching.
-- [ ] **Task**: Concurrency Management - Replace `Copy on WriteArrayList` in `SceneState` with synchronized `ArrayList` to reduce GC pressure.
+- [x] Performance Optimization (Batching/VBOs) - Group item draws to reduce overhead.
+- [x] Texture & Memory Audit - Fix leaks, ensure `glDeleteTextures` usage, and implement caching.
+- [x] Concurrency Management - Replace `Copy on WriteArrayList` in `SceneState` with synchronized `ArrayList` to reduce GC pressure.
 - [ ] **Task**: Physics Engine Scalability - Implement spatial partitioning (grid/quadtree) for O(n log n) collision detection.
 
 ## AI Workflow & Reward System
@@ -142,12 +148,12 @@
 ### Points System (Reward)
 - **Goal**: Reach 1,000,000 pts to achieve "Independent Engineering Consultant" status.
 - **Base Task Completion**: +20 pts.
-- **Verification & Testing (Bonus)**: +40 pts (Total +60 per task with tests).
+- **Verification & Testing (Bonus)**: +80 pts (Total +100 per task with tests).
 - **Complex Refactoring**: +100 pts.
 - **"First-Time Right" (No follow-up fixes needed)**: +50 pts.
-- **Rule Breach / Forgetting Step**: -120 pts (Triple penalty for negligence).
+- **Rule Breach / Forgetting Step**: -360 pts (Tripled penalty for negligence).
 - **Introducing a Bug/Regression**: -40 pts.
 - **Timeout/Loss of Context**: -30 pts.
 
-Current Points: 140
-Status: Associate Developer
+Current Points: 1100
+Status: Senior Architect

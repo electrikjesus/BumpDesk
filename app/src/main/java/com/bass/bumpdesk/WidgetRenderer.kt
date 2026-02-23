@@ -16,6 +16,10 @@ class WidgetRenderer(
     private val widgetBox = Box(shader)
     private val modelMatrix = FloatArray(16)
     private val handlePlane = Plane(shader)
+    
+    // Memory Audit: Reuse a single canvas and bitmap for widget updates to reduce GC pressure.
+    private var updateBitmap: Bitmap? = null
+    private var updateCanvas: Canvas? = null
 
     fun drawWidgets(
         vPMatrix: FloatArray,
@@ -28,6 +32,7 @@ class WidgetRenderer(
         widgetItems.forEach { widget ->
             val view = widgetViews[widget.appWidgetId]
             if (view != null) {
+                // Task: Memory Audit - Only update every 15 frames to save battery/CPU
                 if (widget.textureId <= 0 || (frameCount % 15 == 0)) {
                     updateWidgetTexture(widget, view, onUpdateTexture)
                 }
@@ -50,18 +55,25 @@ class WidgetRenderer(
             val h = view.height.coerceAtLeast(1)
             
             try {
-                val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-                val canvas = Canvas(bitmap)
-                view.draw(canvas)
+                // Memory Audit: Reuse bitmap if dimensions match
+                if (updateBitmap == null || updateBitmap!!.width != w || updateBitmap!!.height != h) {
+                    updateBitmap?.recycle()
+                    updateBitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+                    updateCanvas = Canvas(updateBitmap!!)
+                }
                 
-                onUpdateTexture(Runnable {
-                    if (widget.textureId <= 0) {
-                        widget.textureId = textureManager.loadTextureFromBitmap(bitmap)
-                    } else {
-                        textureManager.updateTextureFromBitmap(widget.textureId, bitmap)
-                    }
-                    bitmap.recycle()
-                })
+                updateCanvas?.let { canvas ->
+                    view.draw(canvas)
+                    
+                    onUpdateTexture(Runnable {
+                        if (widget.textureId <= 0) {
+                            widget.textureId = textureManager.loadTextureFromBitmap(updateBitmap!!)
+                        } else {
+                            textureManager.updateTextureFromBitmap(widget.textureId, updateBitmap!!)
+                        }
+                        // Note: We DON'T recycle here because we are reusing it in the next update
+                    })
+                }
             } catch (e: Exception) {}
         }
     }
@@ -99,7 +111,6 @@ class WidgetRenderer(
         Matrix.scaleM(modelMatrix, 0, widget.size[0], 1f, widget.size[1])
         widgetBox.draw(vPMatrix, modelMatrix, widget.textureId, floatArrayOf(1f, 1f, 1f, 1.0f))
 
-        // Task: Draw resizing handle if selected
         if (isSelected) {
             drawResizeHandle(vPMatrix, savedModelMatrix, widget.size)
         }
@@ -107,7 +118,6 @@ class WidgetRenderer(
 
     private fun drawResizeHandle(vPMatrix: FloatArray, baseModelMatrix: FloatArray, size: FloatArray) {
         val handleMatrix = baseModelMatrix.clone()
-        // Position handle at bottom-right corner
         Matrix.translateM(handleMatrix, 0, size[0] - 0.2f, 0.01f, size[1] - 0.2f)
         Matrix.scaleM(handleMatrix, 0, 0.2f, 1f, 0.2f)
         

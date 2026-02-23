@@ -74,6 +74,16 @@
         android:layout_weight="1" />
 
     <Button
+        android:id="@+id/btnSetDefaultLauncher"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Set as Default Launcher"
+        android:backgroundTint="#444444"
+        android:textColor="#FFFFFF"
+        android:padding="12dp"
+        android:layout_marginBottom="8dp" />
+
+    <Button
         android:id="@+id/btnGetStarted"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

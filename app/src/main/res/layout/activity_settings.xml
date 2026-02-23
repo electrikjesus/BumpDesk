@@ -45,6 +45,14 @@
             android:layout_marginBottom="8dp" />
 
         <CheckBox
+            android:id="@+id/cbInfiniteDesktop"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Infinite Desktop Mode (No Walls)"
+            android:textColor="#FFFFFF"
+            android:layout_marginBottom="8dp" />
+
+        <CheckBox
             android:id="@+id/cbUseWallpaperAsFloor"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

@@ -6,23 +6,34 @@ import android.graphics.BitmapFactory
 import android.opengl.GLES20
 import android.opengl.GLUtils
 import android.util.Log
+import android.util.LruCache
 
 class TextureManager(private val context: Context) {
-    private val textureCache = mutableMapOf<String, Int>()
+    // Max 100 textures in memory at once. Adjust based on profiling.
+    private val textureCache = object : LruCache<String, Int>(100) {
+        override fun entryRemoved(evicted: Boolean, key: String?, oldValue: Int?, newValue: Int?) {
+            if (evicted && oldValue != null && oldValue > 0) {
+                val textures = intArrayOf(oldValue)
+                GLES20.glDeleteTextures(1, textures, 0)
+                allTextures.remove(oldValue)
+            }
+        }
+    }
     private val allTextures = mutableSetOf<Int>()
 
     fun getCachedTexture(key: String): Int {
-        return textureCache[key] ?: -1
+        return textureCache.get(key) ?: -1
     }
 
     fun cacheTexture(key: String, textureId: Int) {
         if (textureId > 0) {
-            textureCache[key] = textureId
+            textureCache.put(key, textureId)
+            allTextures.add(textureId)
         }
     }
 
     fun loadTextureFromAsset(fileName: String): Int {
-        textureCache[fileName]?.let { return it }
+        textureCache.get(fileName)?.let { return it }
 
         return try {
             val inputStream = context.assets.open(fileName)
@@ -30,7 +41,7 @@ class TextureManager(private val context: Context) {
             val textureId = loadTextureFromBitmap(bitmap)
             bitmap.recycle()
             if (textureId != -1) {
-                textureCache[fileName] = textureId
+                textureCache.put(fileName, textureId)
             }
             textureId
         } catch (e: Exception) {
@@ -65,11 +76,11 @@ class TextureManager(private val context: Context) {
     }
 
     fun clearCache() {
+        textureCache.evictAll()
         val textures = allTextures.toIntArray()
         if (textures.isNotEmpty()) {
             GLES20.glDeleteTextures(textures.size, textures, 0)
         }
-        textureCache.clear()
         allTextures.clear()
     }
 }

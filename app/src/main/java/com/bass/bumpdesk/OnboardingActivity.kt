@@ -13,6 +13,20 @@ class OnboardingActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_onboarding)
 
+        findViewById<Button>(R.id.btnSetDefaultLauncher).setOnClickListener {
+            try {
+                startActivity(Intent(Settings.ACTION_HOME_SETTINGS))
+            } catch (e: Exception) {
+                // Fallback for older Android versions or custom ROMs
+                try {
+                    startActivity(Intent(Settings.ACTION_SETTINGS))
+                    Toast.makeText(this, "Go to 'Apps' -> 'Default Apps' to set BumpDesk as Home", Toast.LENGTH_LONG).show()
+                } catch (e2: Exception) {
+                    Toast.makeText(this, "Could not open settings", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
         findViewById<Button>(R.id.btnGetStarted).setOnClickListener {
             val appManager = AppManager(this)
             
