@@ -130,6 +130,13 @@
     - [x] Implement rear wall camera boundary in non-infinite mode
     - [x] Implement dynamic focal length adjustment when boundaries are reached
     - [x] Fix floor texture size to match room bounds in non-infinite mode
+- [x] **Priority**: Fix room geometry and camera constraints
+    - [x] Add a front wall (behind camera) to the desktop scene cube
+    - [x] Increase the size of walls/ceiling/floor to allow more room for zooming
+    - [x] Fix camera going through the ceiling in folder view (clamp to ceiling height)
+    - [x] Tie all folder and icon sizes to the global scale option in Settings
+- [ ] **Context Improvement**: use the same signature to compile in Android Studio and GitHub actions
+- [ ] **Priority**: expand on our recents widget and add logging for the activities each recents tile has
 
 ## Refactoring & Infrastructure (High Impact)
 
@@ -153,5 +160,5 @@
 - **Logic Regression**: -250 pts.
 - **Rule Breach / Forgetting Step**: -250 pts.
 
-Current Points: 6190
+Current Points: 7190
 Status: Senior Architect

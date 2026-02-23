@@ -6,8 +6,13 @@ import kotlin.math.*
 class CameraManager {
     val DEFAULT_CAMERA_POS = floatArrayOf(0f, 8f, 13f)
     val DEFAULT_CAMERA_LOOKAT = floatArrayOf(0f, 0f, 0f)
-    val MAX_Z = 13.0f
-    val MAX_Y = 15.0f
+    
+    // Increased boundaries to match new RoomRenderer geometry (20f size)
+    var MAX_Z = 19.0f
+    var MAX_Y = 19.0f
+    var MIN_Z = -19.0f
+    var MIN_X = -19.0f
+    var MAX_X = 19.0f
 
     var targetPos = DEFAULT_CAMERA_POS.clone()
     var currentPos = DEFAULT_CAMERA_POS.clone()
@@ -27,15 +32,18 @@ class CameraManager {
     fun update() {
         // Apply constraints in non-infinite mode
         if (!isInfiniteMode && currentViewMode == ViewMode.DEFAULT) {
-            val overflowZ = targetPos[2] - MAX_Z
+            val overflowZ = abs(targetPos[2]) - MAX_Z
             val overflowY = targetPos[1] - MAX_Y
+            val overflowX = abs(targetPos[0]) - MAX_X
             
-            if (overflowZ > 0 || overflowY > 0) {
-                // Adjust FOV to fit more scene instead of moving camera back
-                val overflow = max(overflowZ, overflowY)
-                fieldOfView = (60f + overflow * 2f).coerceIn(60f, 100f)
-                targetPos[2] = targetPos[2].coerceAtMost(MAX_Z)
-                targetPos[1] = targetPos[1].coerceAtMost(MAX_Y)
+            if (overflowZ > 0 || overflowY > 0 || overflowX > 0) {
+                // Adjust FOV to fit more scene instead of moving camera back/out
+                val overflow = max(max(overflowZ, overflowY), overflowX)
+                fieldOfView = (60f + overflow * 2f).coerceIn(60f, 110f)
+                
+                targetPos[2] = targetPos[2].coerceIn(-MAX_Z, MAX_Z)
+                targetPos[1] = targetPos[1].coerceIn(1f, MAX_Y)
+                targetPos[0] = targetPos[0].coerceIn(-MAX_X, MAX_X)
             } else {
                 fieldOfView = 60f
             }
@@ -134,8 +142,8 @@ class CameraManager {
         if (currentViewMode != ViewMode.DEFAULT && currentViewMode != ViewMode.FLOOR) return
         
         val tiltSpeed = 0.05f
-        targetPos[1] = (targetPos[1] + dy * tiltSpeed).coerceIn(2f, 25f)
-        targetPos[2] = (targetPos[2] - dy * tiltSpeed).coerceIn(2f, 25f)
+        targetPos[1] = (targetPos[1] + dy * tiltSpeed).coerceIn(2f, MAX_Y)
+        targetPos[2] = (targetPos[2] - dy * tiltSpeed).coerceIn(-MAX_Z, MAX_Z)
     }
 
     fun focusOnWall(wall: CameraManager.ViewMode, pos: FloatArray, lookAt: FloatArray) {
@@ -158,7 +166,8 @@ class CameraManager {
 
     fun focusOnFolder(folderPos: FloatArray) {
         saveCurrentView()
-        targetPos = floatArrayOf(folderPos[0], 18f, folderPos[2] + 6f)
+        // Clamp folder camera position to ceiling height
+        targetPos = floatArrayOf(folderPos[0], MAX_Y - 1f, folderPos[2] + 6f)
         targetLookAt = floatArrayOf(folderPos[0], 2.90f, folderPos[2])
         currentViewMode = ViewMode.FOLDER_EXPANDED
         zoomLevel = 1.0f

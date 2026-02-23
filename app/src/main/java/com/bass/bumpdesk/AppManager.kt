@@ -33,7 +33,8 @@ class AppManager(private val context: Context) {
             val appInfo = AppInfo(
                 label = resolveInfo.loadLabel(packageManager).toString(),
                 packageName = packageName,
-                icon = resolveInfo.loadIcon(packageManager)
+                icon = resolveInfo.loadIcon(packageManager),
+                className = resolveInfo.activityInfo.name
             )
             appInfo.category = getAppCategory(packageName)
             appInfo
@@ -98,7 +99,8 @@ class AppManager(private val context: Context) {
                     val appInfo = AppInfo(
                         label = resolveInfo.loadLabel(packageManager).toString(),
                         packageName = resolveInfo.activityInfo.packageName,
-                        icon = resolveInfo.loadIcon(packageManager)
+                        icon = resolveInfo.loadIcon(packageManager),
+                        className = resolveInfo.activityInfo.name
                     )
                     appInfo.snapshot = getTaskSnapshot(task.persistentId)
                     recentApps.add(appInfo)

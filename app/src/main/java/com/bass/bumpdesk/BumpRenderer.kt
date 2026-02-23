@@ -15,6 +15,7 @@ import android.media.SoundPool
 import android.net.Uri
 import android.content.Intent
 import android.provider.Settings
+import android.util.Log
 import kotlin.math.abs
 import kotlin.math.ceil
 
@@ -130,8 +131,13 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         physicsEngine.friction = prefs.getInt("physics_friction", 94) / 100f
         physicsEngine.restitution = prefs.getInt("physics_bounciness", 25) / 100f
         physicsEngine.gravity = prefs.getInt("physics_gravity", 10) / 1000f
-        physicsEngine.defaultScale = (prefs.getInt("layout_item_scale", 50) / 100f) + 0.2f
+        
+        val scalePref = prefs.getInt("layout_item_scale", 50) / 100f
+        physicsEngine.defaultScale = scalePref + 0.2f
         physicsEngine.gridSpacingBase = (prefs.getInt("layout_grid_spacing", 60) / 100f) * 2.0f
+        
+        // Update all existing piles to reflect the new global scale
+        sceneState.piles.forEach { it.scale = scalePref + 0.5f }
         
         val showAppDrawer = prefs.getBoolean("show_app_drawer_icon", true)
         val hasAppDrawer = sceneState.bumpItems.any { it.appearance.type == BumpItem.Type.APP_DRAWER } ||
@@ -149,6 +155,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         val oldInfinite = physicsEngine.isInfiniteMode
         physicsEngine.isInfiniteMode = prefs.getBoolean("infinite_desktop_mode", false)
         interactionManager.isInfiniteMode = physicsEngine.isInfiniteMode
+        camera.isInfiniteMode = physicsEngine.isInfiniteMode
         
         // Force immediate reload of theme textures to ensure floor updates when infinite mode changes
         if (oldInfinite != physicsEngine.isInfiniteMode) {
@@ -286,6 +293,12 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         
         sceneState.recentsPile!!.items.clear()
         sceneState.recentsPile!!.items.addAll(newItems)
+        
+        Log.d("RecentsWidget", "Updated recents: ${newItems.size} items")
+        newItems.forEach { item ->
+            Log.d("RecentsWidget", " Tile: ${item.appData?.appInfo?.packageName}, Activity: ${item.appData?.appInfo?.className}")
+        }
+
         glSurfaceView?.requestRender()
     }
 
