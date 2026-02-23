@@ -86,8 +86,8 @@ class InteractionManager(
         sceneState.selectedWidget = widgetHit?.first
 
         sceneState.selectedItem?.let {
-            dragStartPos = it.position.copy()
-            dragStartSurface = it.surface
+            dragStartPos = it.transform.position.copy()
+            dragStartSurface = it.transform.surface
             
             val pile = sceneState.getPileOf(it)
             if (pile != null && !pile.isExpanded) {
@@ -190,15 +190,15 @@ class InteractionManager(
             val item = sceneState.selectedItem!!
             val pile = sceneState.getPileOf(item)
             
-            val floorY = if (pile?.isExpanded == true) 3.0f else 0.05f
+            val floorY = if (pile?.isExpanded == true) 2.90f else 0.05f
             val hit = findWallOrFloorHit(rS, rE, floorY)
             hit?.let { (surface, pos) ->
                 val raiseOffset = 0.2f
                 
                 val targetPos = Vector3.fromArray(pos)
-                item.velocity = (targetPos - item.position) * 0.5f
+                item.transform.velocity = (targetPos - item.transform.position) * 0.5f
 
-                item.surface = surface
+                item.transform.surface = surface
                 var finalPos = targetPos
                 if (surface == BumpItem.Surface.FLOOR) {
                     finalPos = finalPos.copy(y = finalPos.y + raiseOffset)
@@ -210,15 +210,15 @@ class InteractionManager(
                         else -> {}
                     }
                 }
-                item.position = finalPos
+                item.transform.position = finalPos
                 
                 pile?.let { 
                     if (!it.isExpanded) {
                         it.position = targetPos
                         it.surface = surface
                         it.items.forEach { pileItem ->
-                            pileItem.surface = surface
-                            pileItem.position = targetPos
+                            pileItem.transform.surface = surface
+                            pileItem.transform.position = targetPos
                         }
                     }
                 }
@@ -254,14 +254,14 @@ class InteractionManager(
             val item = sceneState.selectedItem!!
             val pile = sceneState.getPileOf(item)
             
-            if (item.surface != BumpItem.Surface.FLOOR) {
-                item.isPinned = true
+            if (item.transform.surface != BumpItem.Surface.FLOOR) {
+                item.transform.isPinned = true
             }
 
             dragStartPos?.let { startPos ->
                 dragStartSurface?.let { startSurface ->
                     if (isDragging && !isLeafing) {
-                        undoManager.execute(MoveCommand(item, startPos, startSurface, item.position.copy(), item.surface))
+                        undoManager.execute(MoveCommand(item, startPos, startSurface, item.transform.position.copy(), item.transform.surface))
                     }
                 }
             }
@@ -269,30 +269,30 @@ class InteractionManager(
             dragStartSurface = null
 
             if (pile != null && pile.isExpanded) {
-                val dx = item.position.x - pile.position.x
-                val dz = item.position.z - pile.position.z
+                val dx = item.transform.position.x - pile.position.x
+                val dz = item.transform.position.z - pile.position.z
                 val side = ceil(sqrt(pile.items.size.toDouble())).toInt().coerceAtLeast(1)
                 val spacing = 1.2f
                 val halfDim = ((side * spacing) / 2f + 0.5f) * pile.scale
                 
                 if (abs(dx) > halfDim || abs(dz) > halfDim) {
-                    val appInfo = item.appInfo
+                    val appInfo = item.appData?.appInfo
                     if (appInfo != null) {
                         if (!sceneState.isAlreadyOnDesktop(appInfo)) {
                             pile.items.remove(item)
                             sceneState.bumpItems.add(item)
-                            if (item.surface == BumpItem.Surface.FLOOR) item.position = item.position.copy(y = 0.05f)
+                            if (item.transform.surface == BumpItem.Surface.FLOOR) item.transform.position = item.transform.position.copy(y = 0.05f)
                         }
                     } else {
                         pile.items.remove(item)
                         sceneState.bumpItems.add(item)
-                        if (item.surface == BumpItem.Surface.FLOOR) item.position = item.position.copy(y = 0.05f)
+                        if (item.transform.surface == BumpItem.Surface.FLOOR) item.transform.position = item.transform.position.copy(y = 0.05f)
                     }
                 }
             } else if (pile == null && isDragging) {
                 val nearbyPile = sceneState.piles.find { p ->
                     if (p.isSystem) return@find false
-                    val dist = item.position.distance(p.position)
+                    val dist = item.transform.position.distance(p.position)
                     dist < 1.5f
                 }
                 if (nearbyPile != null) {
@@ -300,7 +300,7 @@ class InteractionManager(
                 }
             }
         } else if (isDragging && (camera.currentViewMode == CameraManager.ViewMode.DEFAULT || camera.currentViewMode == CameraManager.ViewMode.FLOOR) && lassoPoints.isNotEmpty()) {
-            val capturedItems = sceneState.bumpItems.filter { isPointInPolygon(it.position.x, it.position.z, lassoPoints) }
+            val capturedItems = sceneState.bumpItems.filter { isPointInPolygon(it.transform.position.x, it.transform.position.z, lassoPoints) }
             if (capturedItems.size > 1) {
                 onCaptured(capturedItems)
             }
@@ -399,12 +399,18 @@ class InteractionManager(
         val rDX = rE[0] - rS[0]; val rDY = rE[1] - rS[1]; val rDZ = rE[2] - rS[2]
         val rL = sqrt((rDX*rDX + rDY*rDY + rDZ*rDZ).toDouble()).toFloat()
         
-        val dX = item.position.x - rS[0]; val dY = item.position.y - rS[1]; val dZ = item.position.z - rS[2]
+        val pos = item.transform.position
+        val scale = item.transform.scale
+        
+        val dX = pos.x - rS[0]; val dY = pos.y - rS[1]; val dZ = pos.z - rS[2]
         val dot = (dX*(rDX/rL) + dY*(rDY/rL) + dZ*(rDZ/rL))
         
         val pX = rS[0] + dot*(rDX/rL); val pY = rS[1] + dot*(rDY/rL); val pZ = rS[2] + dot*(rDZ/rL)
-        val distSq = (pX-item.position.x)*(pX-item.position.x) + (pY-item.position.y)*(pY-item.position.y) + (pZ-item.position.z)*(pZ-item.position.z)
-        return if (distSq < 1.5f) dot else -1f
+        val distSq = (pX-pos.x)*(pX-pos.x) + (pY-pos.y)*(pY-pos.y) + (pZ-pos.z)*(pZ-pos.z)
+        
+        // Threshold is now proportional to the item's current scale (with some padding)
+        val threshold = (scale * 1.8f) * (scale * 1.8f)
+        return if (distSq < threshold) dot else -1f
     }
 
     fun findIntersectingWidget(rS: FloatArray, rE: FloatArray, widgetItems: List<WidgetItem>): Pair<WidgetItem, Float>? {

@@ -5,11 +5,20 @@ import androidx.room.*
 @Dao
 interface DeskItemDao {
     @Query("SELECT * FROM desk_items")
-    suspend fun getAll(): List<DeskItem>
+    suspend fun getAllItems(): List<DeskItem>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAll(items: List<DeskItem>)
+    suspend fun insertAllItems(items: List<DeskItem>)
 
     @Query("DELETE FROM desk_items")
-    suspend fun deleteAll()
+    suspend fun deleteAllItems()
+
+    @Query("SELECT * FROM desk_piles")
+    suspend fun getAllPiles(): List<DeskPile>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAllPiles(piles: List<DeskPile>)
+
+    @Query("DELETE FROM desk_piles")
+    suspend fun deleteAllPiles()
 }

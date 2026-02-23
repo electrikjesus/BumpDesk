@@ -5,7 +5,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [DeskItem::class], version = 1)
+@Database(entities = [DeskItem::class, DeskPile::class], version = 2)
 abstract class DeskDatabase : RoomDatabase() {
     abstract fun deskItemDao(): DeskItemDao
 
@@ -19,7 +19,9 @@ abstract class DeskDatabase : RoomDatabase() {
                     context.applicationContext,
                     DeskDatabase::class.java,
                     "desk_database"
-                ).build()
+                )
+                .fallbackToDestructiveMigration() // Simple for now, can be replaced with migrations later
+                .build()
                 INSTANCE = instance
                 instance
             }

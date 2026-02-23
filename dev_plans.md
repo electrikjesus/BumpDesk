@@ -108,6 +108,10 @@
     - [x] Recents Widget arrows are showing as a white square
     - [x] app icons are making folder background/plane seem invisible. Make sure there is no intersecting happening to cause this
     - [x] Some interaction issues with Recents Widget: cant click on controls on pinned tiles. Also arrows on main Recents Widget can't be clicked.
+- [x] **Priority**: Fix Persistence and Interaction Accuracy
+    - [x] Fix state saving: apps not saved to places on theme/layout change
+    - [x] Fix pile/fan persistence: ensure custom piles and fanned stacks are saved
+    - [x] Improve interaction accuracy in folder views: scale hit registration with scaled-down icons
 
 ## Refactoring & Infrastructure (High Impact)
 
@@ -131,5 +135,5 @@
 - **Logic Regression**: -250 pts.
 - **Rule Breach / Forgetting Step**: -250 pts.
 
-Current Points: 3190
+Current Points: 3690
 Status: Senior Architect
