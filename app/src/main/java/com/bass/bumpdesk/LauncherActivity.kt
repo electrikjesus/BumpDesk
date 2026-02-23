@@ -219,10 +219,14 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
             }
             
             val pointerCount = event.pointerCount
-            // BUTTON_MIDDLE = 2
-            val isMiddleButton = (event.buttonState and 2) != 0
+            // Android Mouse Button Mapping:
+            // BUTTON_PRIMARY = 1 (Left)
+            // BUTTON_SECONDARY = 2 (Right)
+            // BUTTON_TERTIARY = 4 (Middle / Scroll Wheel)
+            val isRightButton = (event.buttonState and 2) != 0
+            val isMiddleButton = (event.buttonState and 4) != 0
             
-            if (!isMiddleButton && !isMiddleDragging) {
+            if (!isMiddleButton && !isMiddleDragging && !isRightButton) {
                 scaleGestureDetector.onTouchEvent(event)
                 gestureDetector.onTouchEvent(event)
             }
@@ -267,7 +271,7 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
                         lastMidX = currentX
                         lastMidY = currentY
                         if (isMiddleDragging) return@setOnTouchListener true
-                    } else if (pointerCount == 1 && !isScaling) {
+                    } else if (pointerCount == 1 && !isScaling && !isRightButton) {
                         val dist = hypot(event.x - initialTouchX, event.y - initialTouchY)
                         if (dist > TOUCH_SLOP) {
                             glSurfaceView.queueEvent { renderer.handleTouchMove(event.x, event.y, pointerCount) }
@@ -282,12 +286,18 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
                         lastMidX = event.x
                         lastMidY = event.y
                         return@setOnTouchListener true
+                    } else if (isRightButton) {
+                        // Right click maps to immediate long press
+                        glSurfaceView.queueEvent { renderer.handleLongPress(event.x, event.y) }
+                        return@setOnTouchListener true
                     }
                     glSurfaceView.queueEvent { renderer.handleTouchDown(event.x, event.y) }
                 }
                 MotionEvent.ACTION_UP -> {
                     if (isMiddleDragging) {
                         isMiddleDragging = false
+                        return@setOnTouchListener true
+                    } else if (isRightButton) {
                         return@setOnTouchListener true
                     }
                     glSurfaceView.queueEvent { renderer.handleTouchUp() }

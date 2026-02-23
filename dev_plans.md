@@ -103,7 +103,11 @@
 - [x] Advanced Lasso Menu
 - [x] Search/Find Implementation
 - [x] Type-Safe Physics (Vector3 Refactor)
-- [ ] Allow mouse middle click to be used for 2-finger pan/tilt gestures
+- [x] Allow mouse middle click to be used for 2-finger pan/tilt gestures
+- [x] **Priority**: Fix rendering issues
+    - [x] Recents Widget arrows are showing as a white square
+    - [x] app icons are making folder background/plane seem invisible. Make sure there is no intersecting happening to cause this
+    - [x] Some interaction issues with Recents Widget: cant click on controls on pinned tiles. Also arrows on main Recents Widget can't be clicked.
 
 ## Refactoring & Infrastructure (High Impact)
 
@@ -127,5 +131,5 @@
 - **Logic Regression**: -250 pts.
 - **Rule Breach / Forgetting Step**: -250 pts.
 
-Current Points: 2540
+Current Points: 3190
 Status: Senior Architect

@@ -227,7 +227,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         sceneState.widgetViews.remove(widget.appWidgetId)
     }
 
-    fun togglePin(item: BumpItem) { item.isPinned = !item.isPinned }
+    fun togglePin(item: BumpItem) { item.transform.isPinned = !item.transform.isPinned }
 
     fun updateRecents(recents: List<AppInfo>) {
         if (sceneState.recentsPile == null) {
@@ -237,9 +237,9 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         
         val oldItems = sceneState.recentsPile!!.items.toList()
         val newItems = recents.map { appInfo ->
-            val existing = oldItems.find { it.appInfo?.packageName == appInfo.packageName } ?:
-                           sceneState.bumpItems.find { it.appInfo?.packageName == appInfo.packageName } ?:
-                           sceneState.piles.flatMap { it.items }.find { it.appInfo?.packageName == appInfo.packageName }
+            val existing = oldItems.find { it.appData?.appInfo?.packageName == appInfo.packageName } ?:
+                           sceneState.bumpItems.find { it.appData?.appInfo?.packageName == appInfo.packageName } ?:
+                           sceneState.piles.flatMap { it.items }.find { it.appData?.appInfo?.packageName == appInfo.packageName }
             
             val item = existing?.copy() ?: BumpItem(type = BumpItem.Type.RECENT_APP, appInfo = appInfo)
             
@@ -248,8 +248,8 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 position = sceneState.recentsPile!!.position.copy()
                 scale = 1.2f
                 surface = BumpItem.Surface.BACK_WALL
-                if (existing?.appInfo?.snapshot != appInfo.snapshot) {
-                    textureId = -1
+                if (existing?.appData?.appInfo?.snapshot != appInfo.snapshot) {
+                    appearance.textureId = -1
                 }
             }
             item
@@ -260,10 +260,10 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
     }
 
     fun categorizeAllApps() {
-        val apps = sceneState.bumpItems.filter { it.type == BumpItem.Type.APP && it.appInfo != null }
+        val apps = sceneState.bumpItems.filter { it.appearance.type == BumpItem.Type.APP && it.appData?.appInfo != null }
         if (apps.isEmpty()) return
         
-        val groups = apps.groupBy { it.appInfo?.category ?: AppInfo.Category.OTHER }
+        val groups = apps.groupBy { it.appData?.appInfo?.category ?: AppInfo.Category.OTHER }
         
         sceneState.bumpItems.removeAll(apps)
         
@@ -293,9 +293,9 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
     fun reloadTheme() {
         glSurfaceView?.queueEvent { 
             textureManager.clearCache()
-            sceneState.bumpItems.forEach { it.textureId = -1 }
+            sceneState.bumpItems.forEach { it.appearance.textureId = -1 }
             sceneState.piles.forEach { p -> 
-                p.items.forEach { it.textureId = -1 }
+                p.items.forEach { it.appearance.textureId = -1 }
                 p.nameTextureId = -1
             }
             sceneState.widgetItems.forEach { it.textureId = -1 }
@@ -325,6 +325,8 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
     private fun loadThemeTextures() {
         floorTextureId = ThemeManager.getFloorTexture(context, textureManager)
         wallTextureIds = ThemeManager.getWallTextures(context, textureManager)
+        
+        // Ensure textures are non-zero/valid to fix white square issues
         uiAssets = UIRenderer.UIAssets(
             closeBtn = textureManager.loadTextureFromBitmap(TextRenderer.createTextBitmap("X", 64, 64)),
             arrowLeft = textureManager.loadTextureFromBitmap(TextRenderer.createTextBitmap(" < ", 64, 64)),
@@ -381,30 +383,30 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
 
     fun gridSelectedItems(items: List<BumpItem>, mode: GridLayout) {
         if (items.isEmpty()) return
-        val spacing = physicsEngine.gridSpacingBase; val startX = items.map { it.position.x }.average().toFloat(); val startZ = items.map { it.position.z }.average().toFloat()
+        val spacing = physicsEngine.gridSpacingBase; val startX = items.map { it.transform.position.x }.average().toFloat(); val startZ = items.map { it.transform.position.z }.average().toFloat()
         when (mode) {
             GridLayout.GRID -> {
                 val side = Math.ceil(Math.sqrt(items.size.toDouble())).toInt(); val offset = (side * spacing) / 2f
                 items.forEachIndexed { i, item -> 
-                    item.position = Vector3((startX - offset) + (i % side) * spacing, 0.05f, (startZ - offset) + (i / side) * spacing)
-                    item.surface = BumpItem.Surface.FLOOR
-                    item.velocity = Vector3()
+                    item.transform.position = Vector3((startX - offset) + (i % side) * spacing, 0.05f, (startZ - offset) + (i / side) * spacing)
+                    item.transform.surface = BumpItem.Surface.FLOOR
+                    item.transform.velocity = Vector3()
                 }
             }
             GridLayout.ROW -> {
                 val offset = (items.size * spacing) / 2f
                 items.forEachIndexed { i, item -> 
-                    item.position = Vector3((startX - offset) + i * spacing, 0.05f, startZ)
-                    item.surface = BumpItem.Surface.FLOOR
-                    item.velocity = Vector3()
+                    item.transform.position = Vector3((startX - offset) + i * spacing, 0.05f, startZ)
+                    item.transform.surface = BumpItem.Surface.FLOOR
+                    item.transform.velocity = Vector3()
                 }
             }
             GridLayout.COLUMN -> {
                 val offset = (items.size * spacing) / 2f
                 items.forEachIndexed { i, item -> 
-                    item.position = Vector3(startX, 0.05f, (startZ - offset) + i * spacing)
-                    item.surface = BumpItem.Surface.FLOOR
-                    item.velocity = Vector3()
+                    item.transform.position = Vector3(startX, 0.05f, (startZ - offset) + i * spacing)
+                    item.transform.surface = BumpItem.Surface.FLOOR
+                    item.transform.velocity = Vector3()
                 }
             }
         }
@@ -414,46 +416,53 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         val rS = FloatArray(4); val rE = FloatArray(4); interactionManager.calculateRay(x, y, rS, rE)
         val expandedPile = sceneState.piles.find { it.isExpanded }
         if (expandedPile != null) {
-            val tFloor = (2.98f - rS[1]) / (rE[1] - rS[1])
-            if (tFloor > 0) {
-                val iX = rS[0] + tFloor * (rE[0] - rS[0]); val iZ = rS[2] + tFloor * (rE[2] - rS[2])
+            // Task: Support hit detection on Wall-mounted folders (Recents)
+            val isWall = expandedPile.surface != BumpItem.Surface.FLOOR
+            val t = if (isWall) {
+                (expandedPile.position.z - rS[2]) / (rE[2] - rS[2])
+            } else {
+                (2.90f - rS[1]) / (rE[1] - rS[1]) // Matches OverlayRenderer floor plane height
+            }
+
+            if (t > 0) {
+                val hitX = rS[0] + t * (rE[0] - rS[0])
+                val hitY = rS[1] + t * (rE[1] - rS[1])
+                val hitZ = rS[2] + t * (rE[2] - rS[2])
+                
                 val uiData = overlayRenderer.getConstrainedFolderUI(expandedPile)
                 val halfDim = uiData.halfDim
                 val totalHalfDimZ = uiData.totalHalfDimZ
                 val pos = uiData.pos
 
-                val cbX = pos[0] + halfDim - 0.2f * expandedPile.scale; val cbZ = pos[2] - totalHalfDimZ + 0.2f * expandedPile.scale
-                if (abs(iX - cbX) < 0.4f && abs(iZ - cbZ) < 0.4f) { dismissExpandedPile(); return }
-                
-                if (expandedPile == sceneState.recentsPile && camera.currentViewMode == CameraManager.ViewMode.BACK_WALL) {
+                if (isWall) {
                     val width = 6f * expandedPile.scale
-                    if (abs(iX - (expandedPile.position.x - width + 0.5f)) < 0.5f) { 
+                    val height = 4f * expandedPile.scale
+                    // Arrow Left
+                    if (abs(hitX - (expandedPile.position.x - width + 0.5f)) < 0.5f && abs(hitY - expandedPile.position.y) < 0.5f) {
                         expandedPile.currentIndex = (expandedPile.currentIndex - 1).coerceAtLeast(0)
-                        playSound(leafSoundId, 0.2f)
-                        hapticManager.tick()
-                        return 
+                        playSound(leafSoundId, 0.2f); hapticManager.tick(); return
                     }
-                    if (abs(iX - (expandedPile.position.x + width - 0.5f)) < 0.5f) { 
+                    // Arrow Right
+                    if (abs(hitX - (expandedPile.position.x + width - 0.5f)) < 0.5f && abs(hitY - expandedPile.position.y) < 0.5f) {
                         expandedPile.currentIndex = (expandedPile.currentIndex + 1).coerceAtMost(expandedPile.items.size - 1)
-                        playSound(leafSoundId, 0.2f)
-                        hapticManager.tick()
-                        return 
+                        playSound(leafSoundId, 0.2f); hapticManager.tick(); return
                     }
-                }
+                    // Close check for Recents (usually top corner or clicking outside)
+                    if (abs(hitX - expandedPile.position.x) > width || abs(hitY - expandedPile.position.y) > height) { dismissExpandedPile(); return }
+                } else {
+                    val cbX = pos[0] + halfDim - 0.2f * expandedPile.scale; val cbZ = pos[2] - totalHalfDimZ + 0.2f * expandedPile.scale
+                    if (abs(hitX - cbX) < 0.4f && abs(hitZ - cbZ) < 0.4f) { dismissExpandedPile(); return }
 
-                if (expandedPile.layoutMode == Pile.LayoutMode.GRID) {
-                    val suX = pos[0] - halfDim + 0.4f * expandedPile.scale; val suZ = pos[2] - totalHalfDimZ + 0.2f * expandedPile.scale
-                    if (abs(iX - suX) < 0.4f && abs(iZ - suZ) < 0.4f) { 
-                        expandedPile.scrollIndex = (expandedPile.scrollIndex - 1).coerceAtLeast(0)
-                        playSound(leafSoundId, 0.2f)
-                        hapticManager.tick()
-                        return 
-                    }
-                    if (abs(iX - (pos[0] - halfDim + 1.0f * expandedPile.scale)) < 0.4f && abs(iZ - suZ) < 0.4f) { 
-                        expandedPile.scrollIndex++
-                        playSound(leafSoundId, 0.2f)
-                        hapticManager.tick()
-                        return 
+                    if (expandedPile.layoutMode == Pile.LayoutMode.GRID) {
+                        val suX = pos[0] - halfDim + 0.4f * expandedPile.scale; val suZ = pos[2] - totalHalfDimZ + 0.2f * expandedPile.scale
+                        if (abs(hitX - suX) < 0.4f && abs(hitZ - suZ) < 0.4f) { 
+                            expandedPile.scrollIndex = (expandedPile.scrollIndex - 1).coerceAtLeast(0)
+                            playSound(leafSoundId, 0.2f); hapticManager.tick(); return 
+                        }
+                        if (abs(hitX - (pos[0] - halfDim + 1.0f * expandedPile.scale)) < 0.4f && abs(hitZ - suZ) < 0.4f) { 
+                            expandedPile.scrollIndex++
+                            playSound(leafSoundId, 0.2f); hapticManager.tick(); return 
+                        }
                     }
                 }
             }
@@ -472,10 +481,10 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         if (item != null) {
             val pile = sceneState.getPileOf(item)
             if (pile != null && pile == sceneState.recentsPile && camera.currentViewMode == CameraManager.ViewMode.BACK_WALL) {
-                val t = (pile.position.z - rS[2]) / (rE[2] - rS[2]); val u = (rS[0] + t * (rE[0] - rS[0]) - (item.position.x - item.scale)) / (2f * item.scale); val v = 1f - (rS[1] + t * (rE[1] - rS[1]) - (item.position.y - item.scale * 1.6f)) / (2f * item.scale * 1.6f)
+                val t = (pile.position.z - rS[2]) / (rE[2] - rS[2]); val u = (rS[0] + t * (rE[0] - rS[0]) - (item.transform.position.x - item.transform.scale)) / (2f * item.transform.scale); val v = 1f - (rS[1] + t * (rE[1] - rS[1]) - (item.transform.position.y - item.transform.scale * 1.6f)) / (2f * item.transform.scale * 1.6f)
                 if (u > 0.85f && v < 0.15f) { sceneState.recentsPile?.items?.remove(item); return }
                 if (v > 0.76f && v < 0.89f) {
-                    val pkg = item.appInfo?.packageName ?: ""
+                    val pkg = item.appData?.appInfo?.packageName ?: ""
                     if (u < 0.25f) context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", pkg, null)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                     else if (u < 0.5f) (context as? LauncherActivity)?.launchApp(item, LauncherActivity.WINDOWING_MODE_FULLSCREEN)
                     else if (u < 0.75f) (context as? LauncherActivity)?.launchApp(item, LauncherActivity.WINDOWING_MODE_FREEFORM)
@@ -483,7 +492,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                     return
                 }
             }
-            if (item.type == BumpItem.Type.APP && item.appInfo?.packageName == context.packageName) { context.startActivity(Intent(context, SettingsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return }
+            if (item.appearance.type == BumpItem.Type.APP && item.appData?.appInfo?.packageName == context.packageName) { context.startActivity(Intent(context, SettingsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return }
             if (pile != null && !pile.isExpanded) {
                 playSound(expandSoundId, 0.3f)
                 hapticManager.selection()
@@ -491,17 +500,17 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 else { sceneState.piles.forEach { it.isExpanded = false }; pile.isExpanded = true; camera.focusOnFolder(pile.position.toFloatArray()) }
                 (context as? LauncherActivity)?.showResetButton(true); return
             }
-            if (item.type == BumpItem.Type.APP_DRAWER) {
+            if (item.appearance.type == BumpItem.Type.APP_DRAWER) {
                 val apps = sceneState.allAppsList
                 if (apps.isNotEmpty()) {
                     playSound(expandSoundId, 0.3f)
                     hapticManager.selection()
-                    val p = item.position.copy(); val dp = Pile(apps.map { BumpItem(appInfo = it, position = p.copy()) }.toMutableList(), p, name = "All Apps", isSystem = true)
+                    val p = item.transform.position.copy(); val dp = Pile(apps.map { BumpItem(appInfo = it, position = p.copy()) }.toMutableList(), p, name = "All Apps", isSystem = true)
                     sceneState.piles.forEach { it.isExpanded = false }; dp.isExpanded = true; sceneState.piles.add(dp); camera.focusOnFolder(p.toFloatArray()); (context as? LauncherActivity)?.showResetButton(true)
                 }
                 return
             }
-            if (item.type == BumpItem.Type.APP || item.type == BumpItem.Type.RECENT_APP) (context as? LauncherActivity)?.launchApp(item) else if (item.type == BumpItem.Type.STICKY_NOTE) (context as? LauncherActivity)?.promptEditStickyNote(item) else if (item.type == BumpItem.Type.PHOTO_FRAME) (context as? LauncherActivity)?.promptChangePhoto(item) else if (item.type == BumpItem.Type.WEB_WIDGET) (context as? LauncherActivity)?.promptEditWebWidget(item)
+            if (item.appearance.type == BumpItem.Type.APP || item.appearance.type == BumpItem.Type.RECENT_APP) (context as? LauncherActivity)?.launchApp(item) else if (item.appearance.type == BumpItem.Type.STICKY_NOTE) (context as? LauncherActivity)?.promptEditStickyNote(item) else if (item.appearance.type == BumpItem.Type.PHOTO_FRAME) (context as? LauncherActivity)?.promptChangePhoto(item) else if (item.appearance.type == BumpItem.Type.WEB_WIDGET) (context as? LauncherActivity)?.promptEditWebWidget(item)
         } else if (camera.currentViewMode != CameraManager.ViewMode.DEFAULT) dismissExpandedPile()
     }
 
@@ -526,7 +535,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         camera.handleTilt(dy)
     }
 
-    private fun breakPile(pile: Pile) { if (pile.isSystem) return; sceneState.piles.remove(pile); pile.items.forEach { if (!sceneState.bumpItems.contains(it)) sceneState.bumpItems.add(it); it.surface = BumpItem.Surface.FLOOR; it.position = it.position.copy(y = 0.05f, x = it.position.x + (Math.random().toFloat() - 0.5f) * 2f, z = it.position.z + (Math.random().toFloat() - 0.5f) * 2f) } }
+    private fun breakPile(pile: Pile) { if (pile.isSystem) return; sceneState.piles.remove(pile); pile.items.forEach { if (!sceneState.bumpItems.contains(it)) sceneState.bumpItems.add(it); it.transform.surface = BumpItem.Surface.FLOOR; it.transform.position = it.transform.position.copy(y = 0.05f, x = it.transform.position.x + (Math.random().toFloat() - 0.5f) * 2f, z = it.transform.position.z + (Math.random().toFloat() - 0.5f) * 2f) } }
     fun resetView() { sceneState.piles.removeAll { it.isSystem && it.name == "All Apps" }; sceneState.piles.forEach { it.isExpanded = false }; camera.reset(); (context as? LauncherActivity)?.showResetButton(false) }
     fun dismissExpandedPile() { sceneState.piles.removeAll { it.isSystem && it.name == "All Apps" }; sceneState.piles.forEach { it.isExpanded = false }; camera.restorePreviousView(); (context as? LauncherActivity)?.showResetButton(camera.currentViewMode != CameraManager.ViewMode.DEFAULT) }
     fun handleZoom(sf: Float) { camera.zoomLevel = (camera.zoomLevel / sf).coerceIn(0.5f, 2.0f); if (camera.zoomLevel != 1.0f) (context as? LauncherActivity)?.showResetButton(true) }
