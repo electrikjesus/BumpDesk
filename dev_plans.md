@@ -135,8 +135,12 @@
     - [x] Increase the size of walls/ceiling/floor to allow more room for zooming
     - [x] Fix camera going through the ceiling in folder view (clamp to ceiling height)
     - [x] Tie all folder and icon sizes to the global scale option in Settings
+- [x] **Priority**: Fix camera clipping and room layout regressions
+    - [x] Fix camera clipping through walls when zooming out (apply FOV shift to all modes)
+    - [x] Adjust default view to be more zoomed out and panned back, centered correctly
+    - [x] Increase wall height to match scale of wall textures
 - [ ] **Context Improvement**: use the same signature to compile in Android Studio and GitHub actions
-- [ ] **Priority**: expand on our recents widget and add logging for the activities each recents tile has
+- [ ] **Priority**: expand on our recents widget and add logging for the activities each recents tile has (right now, they all don't work as expected)
 
 ## Refactoring & Infrastructure (High Impact)
 
@@ -160,5 +164,5 @@
 - **Logic Regression**: -250 pts.
 - **Rule Breach / Forgetting Step**: -250 pts.
 
-Current Points: 7190
+Current Points: 7690
 Status: Senior Architect

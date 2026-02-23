@@ -13,8 +13,8 @@ class RoomRenderer(private val shader: DefaultShader) {
     private val modelMatrix = FloatArray(16)
 
     fun draw(vPMatrix: FloatArray, floorTexture: Int, wallTextures: IntArray, lightPos: FloatArray, isInfiniteMode: Boolean = false) {
-        val roomSize = 20f
-        val roomHeight = 20f
+        val roomSize = 30f
+        val roomHeight = 30f
         
         // Floor
         Matrix.setIdentityM(modelMatrix, 0)
