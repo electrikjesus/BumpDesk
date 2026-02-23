@@ -55,7 +55,7 @@
 - [x] Fix Pile fan-out drag lock
 - [x] Fix lasso on centered floor
 - [x] Fix Freeform intent flags
-- [x_] Fix widget orientation on side walls
+- [x] Fix widget orientation on side walls
 - [x] Fix widget texturing (white box fix)
 - [x] Recents Widget: Fix blank surfaces
 - [x] Fix All Apps stack drag lock
@@ -132,19 +132,15 @@
     - [x] Fix floor texture size to match room bounds in non-infinite mode
 - [x] **Priority**: Fix room geometry and camera constraints
     - [x] Add a front wall (behind camera) to the desktop scene cube
-    - [x] Increase the size of walls/ceiling/floor to allow more room for zooming
+    - [x] Increase the size of walls/ceiling/floor to 30f to allow more room for zooming
     - [x] Fix camera going through the ceiling in folder view (clamp to ceiling height)
     - [x] Tie all folder and icon sizes to the global scale option in Settings
-- [x] **Priority**: Fix camera clipping and room layout regressions
-    - [x] Fix camera clipping through walls when zooming out (apply FOV shift to all modes)
-    - [x] Adjust default view to be more zoomed out and panned back, centered correctly
-    - [x] Increase wall height to match scale of wall textures
-- [ ] **Priority**: dynamic room dimensions for dragging interaction
-    - [ ] Update `InteractionManager` to use dynamic room size for wall detection
-- [ ] **Priority**: add long-click menu option to set default camera view as current view (and a settings option to reset camera defaults)
-- [ ] **Priority**: expand on our recents widget and add activity specific launching and logging
-- [ ] **Priority**: fix CameraManagerTest > testZoomLogic FAILED
+- [x] **Priority**: dynamic room dimensions for dragging interaction
+    - [x] Update `InteractionManager` to use dynamic room size for wall detection
 - [ ] **Context Improvement**: use the same signature to compile in Android Studio and GitHub actions
+- [ ] **Priority**: expand on our recents widget and add activity specific launching and logging
+- [ ] **Priority**: add long-click menu option to set default camera view as current view (and a settings option to reset camera defaults)
+- [ ] **Priority**: fix CameraManagerTest > testZoomLogic FAILED
 
 ## Refactoring & Infrastructure (High Impact)
 
@@ -168,5 +164,5 @@
 - **Logic Regression**: -250 pts.
 - **Rule Breach / Forgetting Step**: -250 pts.
 
-Current Points: 7690
+Current Points: 8190
 Status: Senior Architect

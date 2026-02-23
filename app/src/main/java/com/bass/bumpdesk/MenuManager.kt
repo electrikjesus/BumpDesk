@@ -16,7 +16,7 @@ class MenuManager(
     fun showItemMenu(x: Float, y: Float, item: BumpItem) {
         val menuItems = mutableListOf<RadialMenuItem>()
         
-        if (item.type == BumpItem.Type.APP) {
+        if (item.appearance.type == BumpItem.Type.APP) {
             menuItems.add(RadialMenuItem("Open", android.R.drawable.ic_menu_send) {
                 launcher.launchApp(item)
             })
@@ -33,38 +33,38 @@ class MenuManager(
                 }
             )
             menuItems.add(RadialMenuItem("Open As...", android.R.drawable.ic_menu_more, subItems = openAsSubItems))
-        } else if (item.type == BumpItem.Type.STICKY_NOTE) {
+        } else if (item.appearance.type == BumpItem.Type.STICKY_NOTE) {
             menuItems.add(RadialMenuItem("Edit", android.R.drawable.ic_menu_edit) {
                 launcher.promptEditStickyNote(item)
             })
-        } else if (item.type == BumpItem.Type.PHOTO_FRAME) {
+        } else if (item.appearance.type == BumpItem.Type.PHOTO_FRAME) {
             menuItems.add(RadialMenuItem("Change Photo", android.R.drawable.ic_menu_gallery) {
                 launcher.promptChangePhoto(item)
             })
-        } else if (item.type == BumpItem.Type.WEB_WIDGET) {
+        } else if (item.appearance.type == BumpItem.Type.WEB_WIDGET) {
             menuItems.add(RadialMenuItem("Edit URL", android.R.drawable.ic_menu_edit) {
                 launcher.promptEditWebWidget(item)
             })
         }
         
-        val pinText = if (item.isPinned) "Unpin" else "Pin"
-        val pinIcon = if (item.isPinned) android.R.drawable.ic_menu_close_clear_cancel else android.R.drawable.ic_menu_mylocation
+        val pinText = if (item.transform.isPinned) "Unpin" else "Pin"
+        val pinIcon = if (item.transform.isPinned) android.R.drawable.ic_menu_close_clear_cancel else android.R.drawable.ic_menu_mylocation
         menuItems.add(RadialMenuItem(pinText, pinIcon) {
             glSurfaceView.queueEvent { renderer.togglePin(item) }
         })
 
         menuItems.add(RadialMenuItem("Grow", android.R.drawable.ic_input_add) {
-            glSurfaceView.queueEvent { item.scale = (item.scale * 1.25f).coerceAtMost(2.0f) }
+            glSurfaceView.queueEvent { item.transform.scale = (item.transform.scale * 1.25f).coerceAtMost(2.0f) }
         })
 
         menuItems.add(RadialMenuItem("Shrink", android.R.drawable.ic_input_delete) {
-            glSurfaceView.queueEvent { item.scale = (item.scale / 1.25f).coerceAtLeast(0.2f) }
+            glSurfaceView.queueEvent { item.transform.scale = (item.transform.scale / 1.25f).coerceAtLeast(0.2f) }
         })
 
-        if (item.type == BumpItem.Type.APP) {
+        if (item.appearance.type == BumpItem.Type.APP) {
             menuItems.add(RadialMenuItem("App Info", android.R.drawable.ic_menu_info_details) {
                 val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
-                intent.data = android.net.Uri.fromParts("package", item.appInfo?.packageName ?: "", null)
+                intent.data = android.net.Uri.fromParts("package", item.appData?.appInfo?.packageName ?: "", null)
                 context.startActivity(intent)
             })
         }
@@ -127,6 +127,9 @@ class MenuManager(
             },
             RadialMenuItem("Reset View", android.R.drawable.ic_menu_revert) {
                 glSurfaceView.queueEvent { renderer.resetView() }
+            },
+            RadialMenuItem("Set As Default View", android.R.drawable.ic_menu_camera) {
+                glSurfaceView.queueEvent { renderer.saveCustomCameraDefault() }
             }
         )
         menuItems.add(RadialMenuItem("Organize", android.R.drawable.ic_menu_sort_by_size, subItems = organizeSubItems))

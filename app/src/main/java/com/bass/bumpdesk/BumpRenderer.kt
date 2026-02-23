@@ -67,6 +67,9 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
     private var surfaceWidth = 0
     private var surfaceHeight = 0
 
+    val ROOM_SIZE = 30f
+    val ROOM_HEIGHT = 30f
+
     enum class GridLayout { GRID, ROW, COLUMN }
 
     init {
@@ -155,7 +158,14 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         val oldInfinite = physicsEngine.isInfiniteMode
         physicsEngine.isInfiniteMode = prefs.getBoolean("infinite_desktop_mode", false)
         interactionManager.isInfiniteMode = physicsEngine.isInfiniteMode
+        interactionManager.roomSize = ROOM_SIZE
+        interactionManager.roomHeight = ROOM_HEIGHT
         camera.isInfiniteMode = physicsEngine.isInfiniteMode
+        camera.MAX_X = ROOM_SIZE - 1f
+        camera.MAX_Y = ROOM_HEIGHT - 1f
+        camera.MAX_Z = ROOM_SIZE - 1f
+        camera.MIN_X = -ROOM_SIZE + 1f
+        camera.MIN_Z = -ROOM_SIZE + 1f
         
         // Load custom default camera view if it exists
         if (prefs.contains("cam_def_pos_x")) {
@@ -278,12 +288,12 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         sceneState.widgetViews[appWidgetId] = hostView
         val rS = FloatArray(4); val rE = FloatArray(4); interactionManager.calculateRay(x, y, rS, rE)
         val hit = interactionManager.findWallOrFloorHit(rS, rE, 0.05f)
-        val rawPos = hit?.second?.clone() ?: floatArrayOf(0f, 3f, -9.9f)
+        val rawPos = hit?.second?.clone() ?: floatArrayOf(0f, 3f, -ROOM_SIZE + 0.1f)
         if (hit != null) {
             when (hit.first) {
-                BumpItem.Surface.BACK_WALL -> rawPos[2] = -9.9f
-                BumpItem.Surface.LEFT_WALL -> rawPos[0] = -9.9f
-                BumpItem.Surface.RIGHT_WALL -> rawPos[0] = 9.9f
+                BumpItem.Surface.BACK_WALL -> rawPos[2] = -ROOM_SIZE + 0.1f
+                BumpItem.Surface.LEFT_WALL -> rawPos[0] = -ROOM_SIZE + 0.1f
+                BumpItem.Surface.RIGHT_WALL -> rawPos[0] = ROOM_SIZE - 0.1f
                 BumpItem.Surface.FLOOR -> rawPos[1] = 0.1f
             }
         }
@@ -301,7 +311,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
 
     fun updateRecents(recents: List<AppInfo>) {
         if (sceneState.recentsPile == null) {
-            sceneState.recentsPile = Pile(mutableListOf(), Vector3(0f, 4f, -9.4f), name = "Recents", layoutMode = Pile.LayoutMode.CAROUSEL, surface = BumpItem.Surface.BACK_WALL, isSystem = true)
+            sceneState.recentsPile = Pile(mutableListOf(), Vector3(0f, 4f, -ROOM_SIZE + 0.6f), name = "Recents", layoutMode = Pile.LayoutMode.CAROUSEL, surface = BumpItem.Surface.BACK_WALL, isSystem = true)
             sceneState.piles.add(sceneState.recentsPile!!)
         }
         
