@@ -14,37 +14,19 @@ class PhysicsEngineTest {
         item.velocity[1] = 0f
         
         // Mock update logic for one step
+        // In the real engine: 
+        // 1. apply gravity to velocity
+        // 2. add velocity to position
+        // 3. apply friction to velocity
         if (!item.isPinned && item.surface != BumpItem.Surface.FLOOR) {
             item.velocity[1] -= engine.gravity
         }
         item.position[1] += item.velocity[1]
+        
+        // Fix: Velocity is updated *before* being used for position, then friction is applied
         item.velocity[1] *= engine.friction
         
-        assertEquals(-0.1f, item.velocity[1], 0.001f)
-        assertEquals(4.9f, item.position[1], 0.001f)
-    }
-
-    @Test
-    fun testGridSpacing() {
-        val engine = PhysicsEngine()
-        engine.gridSpacingBase = 2.0f
-        
-        val pile = Pile(
-            items = mutableListOf(BumpItem(), BumpItem()),
-            position = floatArrayOf(0f, 0f, 0f),
-            layoutMode = Pile.LayoutMode.GRID,
-            surface = BumpItem.Surface.FLOOR,
-            scale = 1.0f
-        )
-        
-        // In STACK mode, calculateTargetPositionInPile uses gridSpacingBase * pile.scale
-        // Let's invoke the private method via reflection or just check the logic
-        // Actually, calculateTargetPositionInPile is private. 
-        // But we can check how it affects item positions during update.
-        
-        engine.update(mutableListOf(), mutableListOf(pile), null) {}
-        
-        // For GRID mode, items are spaced by gridSpacingBase * 2.0f (hardcoded in GRID mode in previous file?)
-        // Let me re-read PhysicsEngine.kt
+        assertEquals(-0.05f, item.velocity[1], 0.001f) // 0 - 0.1 = -0.1, then -0.1 * 0.5 = -0.05
+        assertEquals(4.9f, item.position[1], 0.001f) // 5 + (-0.1) = 4.9
     }
 }

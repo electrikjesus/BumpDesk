@@ -127,6 +127,19 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         physicsEngine.gravity = prefs.getInt("physics_gravity", 10) / 1000f
         physicsEngine.defaultScale = (prefs.getInt("layout_item_scale", 50) / 100f) + 0.2f
         physicsEngine.gridSpacingBase = (prefs.getInt("layout_grid_spacing", 60) / 100f) * 2.0f
+        
+        val showAppDrawer = prefs.getBoolean("show_app_drawer_icon", true)
+        val hasAppDrawer = sceneState.bumpItems.any { it.type == BumpItem.Type.APP_DRAWER } ||
+                           sceneState.piles.any { p -> p.items.any { it.type == BumpItem.Type.APP_DRAWER } }
+        
+        if (showAppDrawer && !hasAppDrawer) {
+            sceneState.appDrawerItem = BumpItem(type = BumpItem.Type.APP_DRAWER, position = floatArrayOf(6f, 0.05f, 6f), scale = 0.8f)
+            sceneState.bumpItems.add(sceneState.appDrawerItem!!)
+        } else if (!showAppDrawer && hasAppDrawer) {
+            sceneState.bumpItems.removeAll { it.type == BumpItem.Type.APP_DRAWER }
+            sceneState.piles.forEach { it.items.removeAll { item -> item.type == BumpItem.Type.APP_DRAWER } }
+            sceneState.appDrawerItem = null
+        }
     }
 
     private fun saveState() {
@@ -155,19 +168,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         sceneState.allAppsList.addAll(apps)
         
         loadSavedState(apps) {
-            val prefs = context.getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
-            val showAppDrawer = prefs.getBoolean("show_app_drawer_icon", true)
-            
-            val hasAppDrawer = sceneState.bumpItems.any { it.type == BumpItem.Type.APP_DRAWER } ||
-                               sceneState.piles.any { p -> p.items.any { it.type == BumpItem.Type.APP_DRAWER } }
-            
-            if (showAppDrawer && !hasAppDrawer) {
-                sceneState.appDrawerItem = BumpItem(type = BumpItem.Type.APP_DRAWER, position = floatArrayOf(6f, 0.05f, 6f), scale = 0.8f)
-                sceneState.bumpItems.add(sceneState.appDrawerItem!!)
-            } else if (!showAppDrawer && hasAppDrawer) {
-                sceneState.bumpItems.removeAll { it.type == BumpItem.Type.APP_DRAWER }
-                sceneState.piles.forEach { it.items.removeAll { item -> item.type == BumpItem.Type.APP_DRAWER } }
-            }
+            updateSettings()
         }
     }
 

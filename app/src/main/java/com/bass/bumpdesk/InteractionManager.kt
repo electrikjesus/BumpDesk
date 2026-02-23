@@ -1,7 +1,6 @@
 package com.bass.bumpdesk
 
 import android.content.Context
-import android.opengl.Matrix
 import android.os.SystemClock
 import android.view.MotionEvent
 import android.appwidget.AppWidgetHostView
@@ -10,7 +9,7 @@ import kotlin.math.ceil
 import kotlin.math.sqrt
 
 class InteractionManager(
-    private val context: Context,
+    private val context: Context?,
     private val camera: CameraManager
 ) {
     val lassoPoints = mutableListOf<FloatArray>()
@@ -375,8 +374,8 @@ class InteractionManager(
         val nearPoint = floatArrayOf(x, y, -1f, 1f)
         val farPoint = floatArrayOf(x, y, 1f, 1f)
         
-        Matrix.multiplyMV(rS, 0, invertedVPMatrix, 0, nearPoint, 0)
-        Matrix.multiplyMV(rE, 0, invertedVPMatrix, 0, farPoint, 0)
+        GLMatrix.multiplyMV(rS, 0, invertedVPMatrix, 0, nearPoint, 0)
+        GLMatrix.multiplyMV(rE, 0, invertedVPMatrix, 0, farPoint, 0)
         
         for (i in 0..3) { 
             rS[i] /= rS[3]

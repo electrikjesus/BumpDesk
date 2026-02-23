@@ -2,8 +2,10 @@ package com.bass.bumpdesk
 
 import android.appwidget.AppWidgetHost
 import android.appwidget.AppWidgetManager
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.SharedPreferences
 import android.graphics.Color
 import android.opengl.GLSurfaceView
@@ -45,6 +47,17 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
     private var lastMidX = 0f
     private var lastMidY = 0f
     private var selectedItemForPhoto: BumpItem? = null
+
+    private val recentsReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == Intent.ACTION_CLOSE_SYSTEM_DIALOGS) {
+                val reason = intent.getStringExtra("reason")
+                if (reason == "recentapps") {
+                    updateRecents()
+                }
+            }
+        }
+    }
 
     companion object {
         const val APPWIDGET_HOST_ID = 1024
@@ -107,6 +120,12 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
         setupGestures()
         loadApps()
         actionHandler.handleIntent(intent) { showResetButton(it) }
+
+        appManager.setUpdateListener(object : AppManager.RecentsUpdateListener {
+            override fun onRecentsUpdated(recents: List<AppInfo>) {
+                glSurfaceView.queueEvent { renderer.updateRecents(recents) }
+            }
+        })
     }
 
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
@@ -279,8 +298,7 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
     }
 
     fun updateRecents() {
-        val recents = appManager.getRecentApps()
-        glSurfaceView.queueEvent { renderer.updateRecents(recents) }
+        appManager.refreshRecents()
     }
 
     fun showResetButton(show: Boolean) = runOnUiThread { btnResetView.visibility = if (show) View.VISIBLE else View.GONE }
@@ -314,8 +332,16 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
         glSurfaceView.queueEvent { renderer.addWidgetAt(id, view, lastTouchX, lastTouchY) }
     }
 
-    override fun onStart() { super.onStart(); appWidgetHost.startListening() }
-    override fun onStop() { super.onStop(); appWidgetHost.stopListening() }
+    override fun onStart() { 
+        super.onStart()
+        appWidgetHost.startListening()
+        registerReceiver(recentsReceiver, IntentFilter(Intent.ACTION_CLOSE_SYSTEM_DIALOGS))
+    }
+    override fun onStop() { 
+        super.onStop()
+        appWidgetHost.stopListening()
+        try { unregisterReceiver(recentsReceiver) } catch (e: Exception) {}
+    }
     override fun onResume() { super.onResume(); glSurfaceView.onResume(); updateRecents() }
     override fun onPause() { super.onPause(); glSurfaceView.onPause() }
 }

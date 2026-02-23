@@ -5,6 +5,7 @@ import android.app.AppOpsManager
 import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.os.Build
@@ -14,15 +15,58 @@ import android.util.Log
 class AppManager(private val context: Context) {
     private val packageManager: PackageManager = context.packageManager
 
+    interface RecentsUpdateListener {
+        fun onRecentsUpdated(recents: List<AppInfo>)
+    }
+
+    private var updateListener: RecentsUpdateListener? = null
+
+    fun setUpdateListener(listener: RecentsUpdateListener) {
+        this.updateListener = listener
+    }
+
     fun loadAllApps(): List<AppInfo> {
         val mainIntent = Intent(Intent.ACTION_MAIN, null).addCategory(Intent.CATEGORY_LAUNCHER)
         val apps = packageManager.queryIntentActivities(mainIntent, 0)
         return apps.map { resolveInfo ->
-            AppInfo(
+            val packageName = resolveInfo.activityInfo.packageName
+            val appInfo = AppInfo(
                 label = resolveInfo.loadLabel(packageManager).toString(),
-                packageName = resolveInfo.activityInfo.packageName,
+                packageName = packageName,
                 icon = resolveInfo.loadIcon(packageManager)
             )
+            appInfo.category = getAppCategory(packageName)
+            appInfo
+        }
+    }
+
+    private fun getAppCategory(packageName: String): AppInfo.Category {
+        try {
+            val info = packageManager.getApplicationInfo(packageName, 0)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                when (info.category) {
+                    ApplicationInfo.CATEGORY_GAME -> return AppInfo.Category.GAME
+                    ApplicationInfo.CATEGORY_SOCIAL -> return AppInfo.Category.SOCIAL
+                    ApplicationInfo.CATEGORY_PRODUCTIVITY -> return AppInfo.Category.PRODUCTIVITY
+                    ApplicationInfo.CATEGORY_MAPS -> return AppInfo.Category.NAVIGATION
+                    ApplicationInfo.CATEGORY_NEWS -> return AppInfo.Category.NEWS
+                    ApplicationInfo.CATEGORY_AUDIO, ApplicationInfo.CATEGORY_VIDEO -> return AppInfo.Category.MULTIMEDIA
+                }
+            }
+        } catch (e: Exception) {}
+
+        // Fallback mapping based on package keywords
+        val lowerPkg = packageName.lowercase()
+        return when {
+            lowerPkg.contains("game") || lowerPkg.contains("arcade") -> AppInfo.Category.GAME
+            lowerPkg.contains("social") || lowerPkg.contains("facebook") || lowerPkg.contains("twitter") || lowerPkg.contains("instagram") -> AppInfo.Category.SOCIAL
+            lowerPkg.contains("chat") || lowerPkg.contains("messenger") || lowerPkg.contains("whatsapp") || lowerPkg.contains("messaging") || lowerPkg.contains("mail") || lowerPkg.contains("email") -> AppInfo.Category.COMMUNICATION
+            lowerPkg.contains("office") || lowerPkg.contains("calc") || lowerPkg.contains("document") || lowerPkg.contains("productivity") -> AppInfo.Category.PRODUCTIVITY
+            lowerPkg.contains("tool") || lowerPkg.contains("util") || lowerPkg.contains("settings") || lowerPkg.contains("cleaner") -> AppInfo.Category.TOOLS
+            lowerPkg.contains("music") || lowerPkg.contains("player") || lowerPkg.contains("video") || lowerPkg.contains("gallery") || lowerPkg.contains("photo") -> AppInfo.Category.MULTIMEDIA
+            lowerPkg.contains("map") || lowerPkg.contains("nav") || lowerPkg.contains("gps") -> AppInfo.Category.NAVIGATION
+            lowerPkg.contains("news") || lowerPkg.contains("article") || lowerPkg.contains("reader") -> AppInfo.Category.NEWS
+            else -> AppInfo.Category.OTHER
         }
     }
 
@@ -46,8 +90,6 @@ class AppManager(private val context: Context) {
         val recentApps = mutableListOf<AppInfo>()
 
         try {
-            // Task: Fetch actual task snapshots if possible (AOSP style)
-            // Note: This requires REAL_GET_TASKS which is only for system/signed apps.
             @Suppress("DEPRECATION")
             val tasks = am.getRecentTasks(limit, ActivityManager.RECENT_IGNORE_UNAVAILABLE)
             tasks.forEach { task ->
@@ -66,13 +108,16 @@ class AppManager(private val context: Context) {
             Log.e("AppManager", "Error getting recent tasks", e)
         }
 
-        // Fallback to UsageStats if no other apps found or permission issues.
-        // This is the standard path for Play Store devices.
         if (recentApps.isEmpty() && hasUsageStatsPermission()) {
-            return getRecentAppsViaUsageStats(limit)
+            recentApps.addAll(getRecentAppsViaUsageStats(limit))
         }
 
         return recentApps
+    }
+
+    fun refreshRecents() {
+        val apps = getRecentApps()
+        updateListener?.onRecentsUpdated(apps)
     }
 
     private fun getRecentAppsViaUsageStats(limit: Int): List<AppInfo> {
@@ -96,8 +141,6 @@ class AppManager(private val context: Context) {
                     recentApps.add(AppInfo(label, usageStat.packageName, icon))
                 } catch (e: Exception) { }
             }
-        } else {
-            Log.w("AppManager", "UsageStats returned empty. Ensure 'Usage Access' permission is granted.")
         }
         return recentApps
     }

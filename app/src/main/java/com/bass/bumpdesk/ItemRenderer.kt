@@ -51,7 +51,7 @@ class ItemRenderer(
                         
                         combined.recycle()
                         labelBitmap.recycle()
-                        iconBitmap.recycle()
+                        if (overrideBitmap != null) iconBitmap.recycle()
                     }
                 }
             }
@@ -85,7 +85,6 @@ class ItemRenderer(
             }
             BumpItem.Type.RECENT_APP -> {
                 item.appInfo?.let { app ->
-                    // Task: Support theme overrides for recents icons
                     val overrideBitmap = ThemeManager.getIconOverride(context, app.packageName)
                     val iconDrawable = if (overrideBitmap != null) BitmapDrawable(context.resources, overrideBitmap) else app.icon
                     val bitmap = TextureUtils.createRecentTaskBitmap(context, app.snapshot, iconDrawable, app.label)
@@ -96,14 +95,12 @@ class ItemRenderer(
             }
             BumpItem.Type.APP_DRAWER -> {
                 val labelBitmap = TextRenderer.createTextBitmap("All Apps", 256, 64)
-                val icon = context.getDrawable(context.applicationInfo.icon) ?: context.getDrawable(android.R.drawable.sym_def_app_icon)
-                icon?.let {
-                    val iconBitmap = TextureUtils.getBitmapFromDrawable(it)
-                    val combined = TextureUtils.getCombinedBitmap(context, iconBitmap, labelBitmap, false)
-                    item.textureId = textureManager.loadTextureFromBitmap(combined)
-                    combined.recycle()
-                    iconBitmap.recycle()
-                }
+                val iconBitmap = TextureUtils.createAppDrawerIcon(context)
+                val combined = TextureUtils.getCombinedBitmap(context, iconBitmap, labelBitmap, false)
+                item.textureId = textureManager.loadTextureFromBitmap(combined)
+                
+                combined.recycle()
+                iconBitmap.recycle()
                 labelBitmap.recycle()
             }
         }

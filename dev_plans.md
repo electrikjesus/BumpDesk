@@ -86,14 +86,14 @@
     - [x] Integrate haptics into `BumpRenderer` for collisions, selection, and leafing.
 - [x] Sound Effects Integration (Physics-based impacts and interactions)
 - [x] Widget Resizing Logic (3D handles and persistence)
-- [ ] **In Progress**: Fix widget interaction and recents widget interaction (we can't click on things within the widgets)
-    - [x] Step 1: Track active widget interaction in `InteractionManager`
-    - [x] Step 2: Implement continuous event dispatching for widgets
-    - [ ] Step 3: Verify scrolling and clicking in widgets
-- [ ] **Task**: Fix missing "All Apps" icon on the desktop (we still need a way to access all the possible app icons)
-- [ ] **Task**: Update how Recent Widget and other Widgets updates recents list in the background and pushes changes to the visual Recents widget
-- [ ] **Task**: Add option to show/hide App Drawer icon into the Settings activity
-- [ ] **Task**: Auto-Categorization Logic
+- [x] Fix widget interaction and recents widget interaction (we can't click on things within the widgets)
+- [x] Fix missing "All Apps" icon on the desktop (we still need a way to access all the possible app icons)
+- [x] Update how Recent Widget and other Widgets updates recents list in the background and pushes changes to the visual Recents widget
+- [x] Add option to show/hide App Drawer icon into the Settings activity
+- [ ] **In Progress**: Auto-Categorization Logic
+    - [ ] Step 1: Identify categories for installed apps using `ApplicationInfo`.
+    - [ ] Step 2: Implement automatic pile creation based on categories.
+    - [ ] Step 3: Add "Categorize All" trigger to radial menu.
 - [ ] **Task**: Performance Optimization (Instanced Rendering)
 - [ ] **Task**: Fix long-press gestures causing menu to show then hide (add a little wiggle room for the gesture to allow for slight finger movement when lifting from the screen)
 - [ ] **Task**: Fix 2-finger pan gesture from drawing lasso (seems there is a conflicting function trying to decide if the movement is a lasso gesture or a pan/zoom gesture)
@@ -147,5 +147,5 @@
 - **Introducing a Bug/Regression**: -40 pts.
 - **Timeout/Loss of Context**: -10 pts (My "penalty" for being inefficient).
 
-Current Points: 20
-Status: Junior Developer
+Current Points: 100
+Status: Associate Developer

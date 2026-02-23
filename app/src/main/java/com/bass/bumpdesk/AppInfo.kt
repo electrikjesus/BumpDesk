@@ -4,8 +4,13 @@ import android.graphics.Bitmap
 import android.graphics.drawable.Drawable
 
 data class AppInfo(
-    val label: String,
     val packageName: String,
-    val icon: Drawable? = null,
-    var snapshot: Bitmap? = null
-)
+    val label: String,
+    val icon: Drawable?,
+    var snapshot: Bitmap? = null,
+    var category: Category = Category.OTHER
+) {
+    enum class Category {
+        GAME, SOCIAL, COMMUNICATION, PRODUCTIVITY, TOOLS, MULTIMEDIA, NAVIGATION, NEWS, OTHER
+    }
+}

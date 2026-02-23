@@ -21,6 +21,34 @@ object TextureUtils {
         return bitmap
     }
 
+    fun createAppDrawerIcon(context: Context, size: Int = 256): Bitmap {
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        
+        // Background - Rounded rect with theme selection color (semi-transparent)
+        val selColor = ThemeManager.getSelectionColor()
+        paint.color = Color.argb(180, (selColor[0] * 255).toInt(), (selColor[1] * 255).toInt(), (selColor[2] * 255).toInt())
+        canvas.drawRoundRect(0f, 0f, size.toFloat(), size.toFloat(), size * 0.2f, size * 0.2f, paint)
+        
+        // Grid pattern
+        paint.color = Color.WHITE
+        val padding = size * 0.2f
+        val cellSize = (size - 2 * padding) / 3f
+        val dotSize = cellSize * 0.6f
+        val offset = (cellSize - dotSize) / 2f
+        
+        for (i in 0..2) {
+            for (j in 0..2) {
+                val left = padding + i * cellSize + offset
+                val top = padding + j * cellSize + offset
+                canvas.drawRoundRect(left, top, left + dotSize, top + dotSize, dotSize * 0.3f, dotSize * 0.3f, paint)
+            }
+        }
+
+        return bitmap
+    }
+
     fun getCombinedBitmap(context: Context, icon: Bitmap, label: Bitmap, isShortcut: Boolean = false): Bitmap {
         val iconSize = icon.width.coerceAtLeast(icon.height)
         val combinedWidth = iconSize

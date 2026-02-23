@@ -28,6 +28,13 @@ class SettingsActivity : AppCompatActivity() {
             }
         }
 
+        findViewById<CheckBox>(R.id.cbShowAppDrawerIcon).apply {
+            isChecked = prefs.getBoolean("show_app_drawer_icon", true)
+            setOnCheckedChangeListener { _, isChecked -> 
+                prefs.edit().putBoolean("show_app_drawer_icon", isChecked).apply() 
+            }
+        }
+
         findViewById<CheckBox>(R.id.cbUseWallpaperAsFloor).apply {
             isChecked = prefs.getBoolean("use_wallpaper_as_floor", false)
             setOnCheckedChangeListener { _, isChecked -> prefs.edit().putBoolean("use_wallpaper_as_floor", isChecked).apply() }
@@ -68,6 +75,9 @@ class SettingsActivity : AppCompatActivity() {
                 putInt("physics_gravity", 10)
                 putInt("layout_item_scale", 50)
                 putInt("layout_grid_spacing", 60)
+                putBoolean("show_recent_apps", true)
+                putBoolean("show_app_drawer_icon", true)
+                putBoolean("use_wallpaper_as_floor", false)
                 apply()
             }
             recreate()
