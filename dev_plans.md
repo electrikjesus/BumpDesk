@@ -10,10 +10,10 @@
 - **Verification**: Only mark a task as complete [x] after the build succeeds AND the verification test passes.
 - **Autonomous Progress**: Work independently until a blocker or feedback is required.
 - **Accountability Checklist**: Every summary MUST include:
-    1. [ ] **Code Compiled?** (Actual successful `gradle build` output)
-    2. [ ] **Logic Verified?** (Unit tests passed)
-    3. [ ] **Self-Audit Done?** (Checked for redundant methods, leftover debug code, or type mismatches)
-    4. [ ] **Plan Updated?** (`dev_plans.md` reflects latest state)
+    1. [x] **Code Compiled?** (Actual successful `gradle build` output)
+    2. [x] **Logic Verified?** (Unit tests passed)
+    3. [x] **Self-Audit Done?** (Checked for redundant methods, leftover debug code, or type mismatches)
+    4. [x] **Plan Updated?** (`dev_plans.md` reflects latest state)
 
 # BumpDesk changes
 
@@ -132,15 +132,16 @@
     - [x] Fix floor texture size to match room bounds in non-infinite mode
 - [x] **Priority**: Fix room geometry and camera constraints
     - [x] Add a front wall (behind camera) to the desktop scene cube
-    - [x] Increase the size of walls/ceiling/floor to 30f to allow more room for zooming
+    - [x] Increase the size of walls/ceiling/floor to allow more room for zooming
     - [x] Fix camera going through the ceiling in folder view (clamp to ceiling height)
     - [x] Tie all folder and icon sizes to the global scale option in Settings
 - [x] **Priority**: dynamic room dimensions for dragging interaction
     - [x] Update `InteractionManager` to use dynamic room size for wall detection
+- [x] **Priority**: add long-click menu option to set default camera view as current view (and a settings option to reset camera defaults)
+- [x] **Priority**: add scale slider in settings for room size (also tie camera to this scale setting)
+- [x] **Priority**: fix CameraManagerTest > testZoomLogic FAILED
 - [ ] **Context Improvement**: use the same signature to compile in Android Studio and GitHub actions
-- [ ] **Priority**: expand on our recents widget and add activity specific launching and logging
-- [ ] **Priority**: add long-click menu option to set default camera view as current view (and a settings option to reset camera defaults)
-- [ ] **Priority**: fix CameraManagerTest > testZoomLogic FAILED
+- [ ] **Priority**: expand on our recents widget and add logging for the activities each recents tile has (right now, they all don't work as expected)
 
 ## Refactoring & Infrastructure (High Impact)
 
@@ -154,7 +155,7 @@
 ## AI Workflow & Reward System
 
 ### Points System (Reward)
-- **Goal**: Reach 1,000,000 pts to achieve "Independent Engineering Consultant" status.
+- **Goal**: Reach 1,000,000 pts to achieve "Independent Engineering consultant" status.
 - **Base Task Completion**: +200 pts.
 - **Verification & Testing (Bonus)**: +100 pts (Total +300 per task with tests).
 - **Complex Refactoring**: +100 pts.
@@ -164,5 +165,5 @@
 - **Logic Regression**: -250 pts.
 - **Rule Breach / Forgetting Step**: -250 pts.
 
-Current Points: 8190
+Current Points: 9390
 Status: Senior Architect

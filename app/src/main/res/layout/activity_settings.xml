@@ -158,7 +158,28 @@
             android:layout_height="wrap_content"
             android:max="100"
             android:progress="60"
+            android:layout_marginBottom="16dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Room Size (Walls distance)"
+            android:textColor="#FFFFFF" />
+        <SeekBar
+            android:id="@+id/sbRoomSize"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="100"
+            android:progress="30"
             android:layout_marginBottom="32dp" />
+
+        <Button
+            android:id="@+id/btnResetCamera"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Reset Camera View to Defaults"
+            android:backgroundTint="#444444"
+            android:layout_marginBottom="16dp" />
 
         <Button
             android:id="@+id/btnClearCache"

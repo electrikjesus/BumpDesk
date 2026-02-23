@@ -69,6 +69,18 @@ class SettingsActivity : AppCompatActivity() {
         // Layout & Scaling
         setupSeekBar(R.id.sbItemScale, "layout_item_scale", 50, 100)
         setupSeekBar(R.id.sbGridSpacing, "layout_grid_spacing", 60, 100)
+        setupSeekBar(R.id.sbRoomSize, "room_size_scale", 30, 100)
+
+        findViewById<Button>(R.id.btnResetCamera).setOnClickListener {
+            prefs.edit().apply {
+                remove("cam_def_pos_x"); remove("cam_def_pos_y"); remove("cam_def_pos_z")
+                remove("cam_def_lat_x"); remove("cam_def_lat_y"); remove("cam_def_lat_z")
+                // Trigger a change notification
+                putBoolean("reset_camera_trigger", true)
+                apply()
+            }
+            Toast.makeText(this, "Camera defaults restored.", Toast.LENGTH_SHORT).show()
+        }
 
         findViewById<Button>(R.id.btnClearCache).setOnClickListener {
             prefs.edit().clear().apply()
@@ -82,6 +94,7 @@ class SettingsActivity : AppCompatActivity() {
                 putInt("physics_gravity", 10)
                 putInt("layout_item_scale", 50)
                 putInt("layout_grid_spacing", 60)
+                putInt("room_size_scale", 30)
                 putBoolean("show_recent_apps", true)
                 putBoolean("show_app_drawer_icon", true)
                 putBoolean("infinite_desktop_mode", false)

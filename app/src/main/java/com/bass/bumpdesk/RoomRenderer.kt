@@ -12,10 +12,15 @@ class RoomRenderer(private val shader: DefaultShader) {
     
     private val modelMatrix = FloatArray(16)
 
-    fun draw(vPMatrix: FloatArray, floorTexture: Int, wallTextures: IntArray, lightPos: FloatArray, isInfiniteMode: Boolean = false) {
-        val roomSize = 30f
-        val roomHeight = 30f
-        
+    fun draw(
+        vPMatrix: FloatArray, 
+        floorTexture: Int, 
+        wallTextures: IntArray, 
+        lightPos: FloatArray, 
+        isInfiniteMode: Boolean = false,
+        roomSize: Float = 30f,
+        roomHeight: Float = 30f
+    ) {
         // Floor
         Matrix.setIdentityM(modelMatrix, 0)
         if (isInfiniteMode) {
@@ -23,7 +28,7 @@ class RoomRenderer(private val shader: DefaultShader) {
             floor.updateUVs(2.0f)
         } else {
             Matrix.scaleM(modelMatrix, 0, roomSize, 1f, roomSize)
-            floor.updateUVs(1.0f)
+            floor.updateUVs(roomSize / 15f) // Adjust UV tiling based on size
         }
         floor.draw(vPMatrix, modelMatrix, floatArrayOf(0.4f, 0.4f, 0.4f, 1.0f), floorTexture, lightPos, 0.3f, true)
         
@@ -33,7 +38,7 @@ class RoomRenderer(private val shader: DefaultShader) {
             Matrix.translateM(modelMatrix, 0, 0f, roomHeight / 2f, -roomSize)
             Matrix.rotateM(modelMatrix, 0, 90f, 1f, 0f, 0f)
             Matrix.scaleM(modelMatrix, 0, roomSize, 1f, roomHeight / 2f)
-            wallBack.updateUVs(1f)
+            wallBack.updateUVs(roomSize / 15f)
             wallBack.draw(vPMatrix, modelMatrix, floatArrayOf(0.5f, 0.5f, 0.5f, 1.0f), wallTextures[0], lightPos, 0.2f, true)
             
             // Front Wall (Behind Camera)
@@ -41,7 +46,7 @@ class RoomRenderer(private val shader: DefaultShader) {
             Matrix.translateM(modelMatrix, 0, 0f, roomHeight / 2f, roomSize)
             Matrix.rotateM(modelMatrix, 0, -90f, 1f, 0f, 0f)
             Matrix.scaleM(modelMatrix, 0, roomSize, 1f, roomHeight / 2f)
-            wallFront.updateUVs(1f)
+            wallFront.updateUVs(roomSize / 15f)
             wallFront.draw(vPMatrix, modelMatrix, floatArrayOf(0.5f, 0.5f, 0.5f, 1.0f), wallTextures[0], lightPos, 0.2f, true)
             
             // Left Wall
@@ -49,7 +54,7 @@ class RoomRenderer(private val shader: DefaultShader) {
             Matrix.translateM(modelMatrix, 0, -roomSize, roomHeight / 2f, 0f)
             Matrix.rotateM(modelMatrix, 0, -90f, 0f, 0f, 1f)
             Matrix.scaleM(modelMatrix, 0, roomHeight / 2f, 1f, roomSize)
-            wallLeft.updateUVs(1f)
+            wallLeft.updateUVs(roomSize / 15f)
             wallLeft.draw(vPMatrix, modelMatrix, floatArrayOf(0.5f, 0.5f, 0.5f, 1.0f), wallTextures[1], lightPos, 0.2f, true)
             
             // Right Wall
@@ -57,7 +62,7 @@ class RoomRenderer(private val shader: DefaultShader) {
             Matrix.translateM(modelMatrix, 0, roomSize, roomHeight / 2f, 0f)
             Matrix.rotateM(modelMatrix, 0, 90f, 0f, 0f, 1f)
             Matrix.scaleM(modelMatrix, 0, roomHeight / 2f, 1f, roomSize)
-            wallRight.updateUVs(1f)
+            wallRight.updateUVs(roomSize / 15f)
             wallRight.draw(vPMatrix, modelMatrix, floatArrayOf(0.5f, 0.5f, 0.5f, 1.0f), wallTextures[2], lightPos, 0.2f, true)
 
             // Top Wall (Ceiling)
@@ -65,7 +70,7 @@ class RoomRenderer(private val shader: DefaultShader) {
             Matrix.translateM(modelMatrix, 0, 0f, roomHeight, 0f)
             Matrix.rotateM(modelMatrix, 0, 180f, 1f, 0f, 0f)
             Matrix.scaleM(modelMatrix, 0, roomSize, 1f, roomSize)
-            wallTop.updateUVs(1f)
+            wallTop.updateUVs(roomSize / 15f)
             wallTop.draw(vPMatrix, modelMatrix, floatArrayOf(0.3f, 0.3f, 0.3f, 1.0f), wallTextures[3], lightPos, 0.1f, true)
         }
     }

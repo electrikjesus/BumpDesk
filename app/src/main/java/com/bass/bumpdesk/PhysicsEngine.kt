@@ -12,8 +12,9 @@ class PhysicsEngine {
     var defaultScale = 0.5f
     var gridSpacingBase = 1.2f
     
-    val ROOM_SIZE = 10.0f
-    val INFINITE_SIZE = 50.0f
+    var roomSize = 30.0f
+    var roomHeight = 30.0f
+    val INFINITE_SIZE = 100.0f
     val UI_MARGIN = 0.2f
     val ITEMS_PER_PAGE = 16
 
@@ -86,7 +87,7 @@ class PhysicsEngine {
         
         when (pile.surface) {
             BumpItem.Surface.FLOOR -> {
-                val limit = if (isInfiniteMode) INFINITE_SIZE else ROOM_SIZE
+                val limit = if (isInfiniteMode) INFINITE_SIZE else roomSize
                 val bound = limit - halfDim - UI_MARGIN
                 pile.position = pile.position.copy(
                     x = pile.position.x.coerceIn(-bound, bound),
@@ -95,27 +96,27 @@ class PhysicsEngine {
                 )
             }
             BumpItem.Surface.BACK_WALL -> {
-                val limit = ROOM_SIZE - halfDim - UI_MARGIN
+                val limit = roomSize - halfDim - UI_MARGIN
                 pile.position = pile.position.copy(
                     x = pile.position.x.coerceIn(-limit, limit),
-                    y = pile.position.y.coerceIn(0.05f + halfDim, 12f - halfDim),
-                    z = -9.4f
+                    y = pile.position.y.coerceIn(0.05f + halfDim, roomHeight - 2f - halfDim),
+                    z = -roomSize + 0.6f
                 )
             }
             BumpItem.Surface.LEFT_WALL -> {
-                val limit = ROOM_SIZE - halfDim - UI_MARGIN
+                val limit = roomSize - halfDim - UI_MARGIN
                 pile.position = pile.position.copy(
                     z = pile.position.z.coerceIn(-limit, limit),
-                    y = pile.position.y.coerceIn(0.05f + halfDim, 12f - halfDim),
-                    x = -9.4f
+                    y = pile.position.y.coerceIn(0.05f + halfDim, roomHeight - 2f - halfDim),
+                    x = -roomSize + 0.6f
                 )
             }
             BumpItem.Surface.RIGHT_WALL -> {
-                val limit = ROOM_SIZE - halfDim - UI_MARGIN
+                val limit = roomSize - halfDim - UI_MARGIN
                 pile.position = pile.position.copy(
                     z = pile.position.z.coerceIn(-limit, limit),
-                    y = pile.position.y.coerceIn(0.05f + halfDim, 12f - halfDim),
-                    x = 9.4f
+                    y = pile.position.y.coerceIn(0.05f + halfDim, roomHeight - 2f - halfDim),
+                    x = roomSize - 0.6f
                 )
             }
         }
@@ -123,7 +124,7 @@ class PhysicsEngine {
 
     private fun applyConstraints(item: BumpItem, onBump: (Float) -> Unit) {
         val scale = item.transform.scale
-        val limit = if (isInfiniteMode && item.transform.surface == BumpItem.Surface.FLOOR) INFINITE_SIZE - scale - 0.05f else ROOM_SIZE - scale - 0.05f
+        val limit = if (isInfiniteMode && item.transform.surface == BumpItem.Surface.FLOOR) INFINITE_SIZE - scale - 0.05f else roomSize - scale - 0.05f
         
         when (item.transform.surface) {
             BumpItem.Surface.FLOOR -> {
@@ -142,9 +143,9 @@ class PhysicsEngine {
             }
             BumpItem.Surface.BACK_WALL -> {
                 item.transform.position = item.transform.position.copy(
-                    z = -9.95f,
-                    x = item.transform.position.x.coerceIn(-9.5f, 9.5f),
-                    y = item.transform.position.y.coerceIn(0.05f, 11.5f)
+                    z = -roomSize + 0.05f,
+                    x = item.transform.position.x.coerceIn(-roomSize + 0.5f, roomSize - 0.5f),
+                    y = item.transform.position.y.coerceIn(0.05f, roomHeight - 0.5f)
                 )
                 if (!item.transform.isPinned && item.transform.position.y <= 0.05f) {
                     item.transform.surface = BumpItem.Surface.FLOOR
@@ -154,9 +155,9 @@ class PhysicsEngine {
             }
             BumpItem.Surface.LEFT_WALL -> {
                 item.transform.position = item.transform.position.copy(
-                    x = -9.95f,
-                    z = item.transform.position.z.coerceIn(-9.5f, 9.5f),
-                    y = item.transform.position.y.coerceIn(0.05f, 11.5f)
+                    x = -roomSize + 0.05f,
+                    z = item.transform.position.z.coerceIn(-roomSize + 0.5f, roomSize - 0.5f),
+                    y = item.transform.position.y.coerceIn(0.05f, roomHeight - 0.5f)
                 )
                 if (!item.transform.isPinned && item.transform.position.y <= 0.05f) {
                     item.transform.surface = BumpItem.Surface.FLOOR
@@ -166,9 +167,9 @@ class PhysicsEngine {
             }
             BumpItem.Surface.RIGHT_WALL -> {
                 item.transform.position = item.transform.position.copy(
-                    x = 9.95f,
-                    z = item.transform.position.z.coerceIn(-9.5f, 9.5f),
-                    y = item.transform.position.y.coerceIn(0.05f, 11.5f)
+                    x = roomSize - 0.05f,
+                    z = item.transform.position.z.coerceIn(-roomSize + 0.5f, roomSize - 0.5f),
+                    y = item.transform.position.y.coerceIn(0.05f, roomHeight - 0.5f)
                 )
                 if (!item.transform.isPinned && item.transform.position.y <= 0.05f) {
                     item.transform.surface = BumpItem.Surface.FLOOR
@@ -193,7 +194,7 @@ class PhysicsEngine {
             val halfDim = (side * spacing) / 2f
             val totalHalfDimZ = (side * spacing) / 2f + 0.6f * pile.scale
 
-            val limit = if (isInfiniteMode) INFINITE_SIZE else ROOM_SIZE
+            val limit = if (isInfiniteMode) INFINITE_SIZE else roomSize
             val limitX = limit - halfDim - UI_MARGIN
             val limitZ = limit - totalHalfDimZ - UI_MARGIN
             val uiX = pile.position.x.coerceIn(-limitX, limitX)

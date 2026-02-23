@@ -67,8 +67,8 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
     private var surfaceWidth = 0
     private var surfaceHeight = 0
 
-    val ROOM_SIZE = 30f
-    val ROOM_HEIGHT = 30f
+    var ROOM_SIZE = 30f
+    var ROOM_HEIGHT = 30f
 
     enum class GridLayout { GRID, ROW, COLUMN }
 
@@ -158,8 +158,17 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         val oldInfinite = physicsEngine.isInfiniteMode
         physicsEngine.isInfiniteMode = prefs.getBoolean("infinite_desktop_mode", false)
         interactionManager.isInfiniteMode = physicsEngine.isInfiniteMode
+
+        // ROOM_SIZE slider integration (defaulting to 30f for now if not set)
+        ROOM_SIZE = prefs.getInt("room_size_scale", 30).toFloat()
+        ROOM_HEIGHT = ROOM_SIZE // Keeping it cubic for simplicity unless separate slider added
+
         interactionManager.roomSize = ROOM_SIZE
         interactionManager.roomHeight = ROOM_HEIGHT
+        
+        physicsEngine.roomSize = ROOM_SIZE
+        physicsEngine.roomHeight = ROOM_HEIGHT
+
         camera.isInfiniteMode = physicsEngine.isInfiniteMode
         camera.MAX_X = ROOM_SIZE - 1f
         camera.MAX_Y = ROOM_HEIGHT - 1f
@@ -449,7 +458,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         Matrix.multiplyMM(vPMatrix, 0, projectionMatrix, 0, viewMatrix, 0)
         Matrix.invertM(interactionManager.invertedVPMatrix, 0, vPMatrix, 0)
         
-        roomRenderer.draw(vPMatrix, floorTextureId, wallTextureIds, lightPos, interactionManager.isInfiniteMode)
+        roomRenderer.draw(vPMatrix, floorTextureId, wallTextureIds, lightPos, interactionManager.isInfiniteMode, ROOM_SIZE, ROOM_HEIGHT)
         
         val onUpdateTexture: (Runnable) -> Unit = { event -> glSurfaceView?.queueEvent(event) }
 
@@ -616,7 +625,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
             if (pile != null && !pile.isExpanded) {
                 playSound(expandSoundId, 0.3f)
                 hapticManager.selection()
-                if (pile.isSystem && pile == sceneState.recentsPile) camera.focusOnWall(CameraManager.ViewMode.BACK_WALL, floatArrayOf(0f, 4f, 2f), floatArrayOf(0f, 4f, -10f))
+                if (pile.isSystem && pile == sceneState.recentsPile) camera.focusOnWall(CameraManager.ViewMode.BACK_WALL, floatArrayOf(0f, 4f, 2f), floatArrayOf(0f, 4f, -ROOM_SIZE))
                 else { sceneState.piles.forEach { it.isExpanded = false }; pile.isExpanded = true; camera.focusOnFolder(pile.position.toFloatArray()) }
                 (context as? LauncherActivity)?.showResetButton(true); return
             }
@@ -636,11 +645,43 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
 
     fun handleDoubleTap(x: Float, y: Float) {
         val rS = FloatArray(4); val rE = FloatArray(4); interactionManager.calculateRay(x, y, rS, rE)
-        val walls = listOf(Triple(BumpItem.Surface.BACK_WALL, floatArrayOf(0f, 4f, 2f), floatArrayOf(0f, 4f, -10f)), Triple(BumpItem.Surface.LEFT_WALL, floatArrayOf(2f, 4f, 0f), floatArrayOf(-10f, 4f, 0f)), Triple(BumpItem.Surface.RIGHT_WALL, floatArrayOf(-2f, 4f, 0f), floatArrayOf(10f, 4f, 0f)))
+        val walls = listOf(
+            Triple(BumpItem.Surface.BACK_WALL, floatArrayOf(0f, 4f, 2f), floatArrayOf(0f, 4f, -ROOM_SIZE)),
+            Triple(BumpItem.Surface.LEFT_WALL, floatArrayOf(2f, 4f, 0f), floatArrayOf(-ROOM_SIZE, 4f, 0f)),
+            Triple(BumpItem.Surface.RIGHT_WALL, floatArrayOf(-2f, 4f, 0f), floatArrayOf(ROOM_SIZE, 4f, 0f))
+        )
         var best: Triple<BumpItem.Surface, FloatArray, FloatArray>? = null; var minT = Float.MAX_VALUE
-        walls.forEach { (s, cp, la) -> val t = when (s) { BumpItem.Surface.BACK_WALL -> (-9.95f - rS[2]) / (rE[2] - rS[2]); BumpItem.Surface.LEFT_WALL -> (-9.95f - rS[0]) / (rE[0] - rS[0]); BumpItem.Surface.RIGHT_WALL -> (9.95f - rS[0]) / (rE[0] - rS[0]); else -> -1f }; if (t > 0 && t < minT) { if (abs(rS[0] + t * (rE[0] - rS[0])) <= 10.1f && abs(rS[2] + t * (rE[2] - rS[2])) <= 10.1f && (rS[1] + t * (rE[1] - rS[1])) in 0f..12f) { minT = t; best = Triple(s, cp, la) } } }
-        if (best != null) { camera.focusOnWall(when(best!!.first) { BumpItem.Surface.BACK_WALL -> CameraManager.ViewMode.BACK_WALL; BumpItem.Surface.LEFT_WALL -> CameraManager.ViewMode.LEFT_WALL; else -> CameraManager.ViewMode.RIGHT_WALL }, best!!.second, best!!.third); (context as? LauncherActivity)?.showResetButton(true); return }
-        val tf = -rS[1] / (rE[1] - rS[1]); if (tf > 0 && abs(rS[0] + tf * (rE[0] - rS[0])) <= 10f && abs(rS[2] + tf * (rE[2] - rS[2])) <= 10f) { camera.focusOnFloor(); (context as? LauncherActivity)?.showResetButton(true) ; playSound(focusSoundId, 0.4f); hapticManager.selection(); return }
+        walls.forEach { (s, cp, la) -> 
+            val t = when (s) { 
+                BumpItem.Surface.BACK_WALL -> (-ROOM_SIZE + 0.05f - rS[2]) / (rE[2] - rS[2])
+                BumpItem.Surface.LEFT_WALL -> (-ROOM_SIZE + 0.05f - rS[0]) / (rE[0] - rS[0])
+                BumpItem.Surface.RIGHT_WALL -> (ROOM_SIZE - 0.05f - rS[0]) / (rE[0] - rS[0])
+                else -> -1f 
+            }
+            if (t > 0 && t < minT) { 
+                val hitX = rS[0] + t * (rE[0] - rS[0])
+                val hitY = rS[1] + t * (rE[1] - rS[1])
+                val hitZ = rS[2] + t * (rE[2] - rS[2])
+                val margin = ROOM_SIZE + 0.1f
+                if (abs(hitX) <= margin && abs(hitZ) <= margin && hitY >= 0f && hitY <= ROOM_HEIGHT) { 
+                    minT = t; best = Triple(s, cp, la) 
+                } 
+            } 
+        }
+        if (best != null) { 
+            camera.focusOnWall(when(best!!.first) { 
+                BumpItem.Surface.BACK_WALL -> CameraManager.ViewMode.BACK_WALL
+                BumpItem.Surface.LEFT_WALL -> CameraManager.ViewMode.LEFT_WALL
+                else -> CameraManager.ViewMode.RIGHT_WALL 
+            }, best!!.second, best!!.third)
+            (context as? LauncherActivity)?.showResetButton(true); return 
+        }
+        val tf = -rS[1] / (rE[1] - rS[1])
+        if (tf > 0 && abs(rS[0] + tf * (rE[0] - rS[0])) <= ROOM_SIZE && abs(rS[2] + tf * (rE[2] - rS[2])) <= ROOM_SIZE) { 
+            camera.focusOnFloor()
+            (context as? LauncherActivity)?.showResetButton(true)
+            playSound(focusSoundId, 0.4f); hapticManager.selection(); return 
+        }
         handleSingleTap(x, y)
     }
 
@@ -662,7 +703,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
     fun handlePan(dx: Float, dy: Float) { camera.handlePan(dx, dy); (context as? LauncherActivity)?.showResetButton(true) }
     override fun onSurfaceChanged(unused: GL10, w: Int, h: Int) { 
         surfaceWidth = w; surfaceHeight = h
-        GLES20.glViewport(0, 0, w, h); interactionManager.screenWidth = w; interactionManager.screenHeight = h; 
+        GLES20.glViewport(0, 0, w, h); interactionManager.screenWidth = w; interactionManager.screenHeight = h;
         Matrix.perspectiveM(projectionMatrix, 0, camera.fieldOfView, w.toFloat() / h, 0.1f, 100f) 
     }
 }

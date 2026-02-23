@@ -8,6 +8,9 @@ class CameraManagerTest {
     @Test
     fun testZoomLogic() {
         val camera = CameraManager()
+        // Reset to absolute defaults for test consistency
+        camera.resetToAbsoluteDefaults()
+        
         // New Defaults for 30f room: 
         // targetPos: (0, 12, 25), targetLookAt: (0, 0, 5)
         
@@ -33,7 +36,6 @@ class CameraManagerTest {
         val initialX = camera.targetPos[0]
         
         // Pan right (dx > 0) should move camera left (targetPos[0] decreases)
-        // In current handlePan implementation: targetPos[0] -= dx * s
         camera.handlePan(100f, 0f) 
         
         assertTrue("Camera should move left when panning right", camera.targetPos[0] < initialX)
