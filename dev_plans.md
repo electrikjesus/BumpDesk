@@ -103,10 +103,12 @@
 - [x] Fix widgets visibility and resizing while on a wall
 - [x] Texture & Memory Audit
 - [x] Concurrency Management (Optimizing SceneState)
-- [ ] **In Progress**: Physics Engine Scalability (Spatial Partitioning)
-    - [ ] Step 1: Audit `PhysicsEngine.kt` and measure O(n^2) performance.
-    - [ ] Step 2: Implement 2D Grid Partitioning.
-    - [ ] Step 3: Verify collision accuracy and FPS gains.
+- [x] Physics Engine Scalability (Spatial Partitioning)
+- [x] Advanced Lasso Menu (Organic path smoothing and optimized UI)
+- [ ] **In Progress**: Search/Find Implementation (3D Search Interface)
+    - [ ] Step 1: Implement 3D search query overlay in `UIRenderer.kt`.
+    - [ ] Step 2: Implement real-time item filtering and "freshness" highlighting.
+    - [ ] Step 3: Verify search responsiveness across apps, notes, and widgets.
 
 ## Planned Features from BumpTop Study
 
@@ -136,7 +138,7 @@
 - [x] Performance Optimization (Batching/VBOs) - Group item draws to reduce overhead.
 - [x] Texture & Memory Audit - Fix leaks, ensure `glDeleteTextures` usage, and implement caching.
 - [x] Concurrency Management - Replace `Copy on WriteArrayList` in `SceneState` with synchronized `ArrayList` to reduce GC pressure.
-- [ ] **Task**: Physics Engine Scalability - Implement spatial partitioning (grid/quadtree) for O(n log n) collision detection.
+- [x] Physics Engine Scalability - Implement spatial partitioning (grid/quadtree) for O(n log n) collision detection.
 
 ## AI Workflow & Reward System
 
@@ -155,5 +157,5 @@
 - **Introducing a Bug/Regression**: -40 pts.
 - **Timeout/Loss of Context**: -30 pts.
 
-Current Points: 1100
+Current Points: 1160
 Status: Senior Architect

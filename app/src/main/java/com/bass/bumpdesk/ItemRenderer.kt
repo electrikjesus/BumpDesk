@@ -38,6 +38,21 @@ class ItemRenderer(
     fun ensureItemTexture(item: BumpItem) {
         if (item.textureId > 0) return
         
+        // Use a unique key for caching Dynamically generated bitmaps
+        val cacheKey = when (item.type) {
+            BumpItem.Type.APP -> "app:${item.appInfo?.packageName}"
+            BumpItem.Type.APP_DRAWER -> "drawer:icon"
+            else -> null
+        }
+        
+        if (cacheKey != null) {
+            val cached = textureManager.getCachedTexture(cacheKey)
+            if (cached > 0) {
+                item.textureId = cached
+                return
+            }
+        }
+
         when (item.type) {
             BumpItem.Type.APP -> {
                 item.appInfo?.let { app ->
@@ -48,6 +63,8 @@ class ItemRenderer(
                         val labelBitmap = TextRenderer.createTextBitmap(app.label, 256, 64)
                         val combined = TextureUtils.getCombinedBitmap(context, iconBitmap, labelBitmap, false)
                         item.textureId = textureManager.loadTextureFromBitmap(combined)
+                        
+                        if (cacheKey != null) textureManager.cacheTexture(cacheKey, item.textureId)
                         
                         combined.recycle()
                         labelBitmap.recycle()
@@ -98,6 +115,8 @@ class ItemRenderer(
                 val iconBitmap = TextureUtils.createAppDrawerIcon(context)
                 val combined = TextureUtils.getCombinedBitmap(context, iconBitmap, labelBitmap, false)
                 item.textureId = textureManager.loadTextureFromBitmap(combined)
+                
+                if (cacheKey != null) textureManager.cacheTexture(cacheKey, item.textureId)
                 
                 combined.recycle()
                 iconBitmap.recycle()
@@ -184,10 +203,8 @@ class ItemRenderer(
         Matrix.scaleM(modelMatrix, 0, item.scale, 1f, item.scale * heightMult)
         
         var color = if (item.isPinned) floatArrayOf(0.8f, 0.8f, 1.0f, 1.0f) else item.color
-        if (item == sceneState.selectedItem) {
-            val selectionColor = ThemeManager.getSelectionColor()
-            color = floatArrayOf(selectionColor[0], selectionColor[1], selectionColor[2], 1.0f)
-        }
+        
+        // Search Highlighting Logic
         if (searchQuery.isNotEmpty()) {
             val label = when (item.type) {
                 BumpItem.Type.APP, BumpItem.Type.RECENT_APP -> item.appInfo?.label ?: ""
@@ -195,13 +212,19 @@ class ItemRenderer(
                 BumpItem.Type.WEB_WIDGET -> item.text
                 else -> ""
             }
-            if (label.lowercase().contains(searchQuery)) {
+            
+            if (label.lowercase().contains(searchQuery.lowercase())) {
                 val freshness = ThemeManager.getFreshnessColor()
                 color = floatArrayOf(freshness[0], freshness[1], freshness[2], 1.0f)
             } else {
-                color = floatArrayOf(color[0]*0.3f, color[1]*0.3f, color[2]*0.3f, 0.5f)
+                // Fade out non-matching items
+                color = floatArrayOf(color[0] * 0.3f, color[1] * 0.3f, color[2] * 0.3f, 0.3f)
             }
+        } else if (item == sceneState.selectedItem) {
+            val selectionColor = ThemeManager.getSelectionColor()
+            color = floatArrayOf(selectionColor[0], selectionColor[1], selectionColor[2], 1.0f)
         }
+
         appIconBox.draw(vPMatrix, modelMatrix, item.textureId, color)
     }
 }

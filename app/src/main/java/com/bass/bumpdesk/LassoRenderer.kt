@@ -12,13 +12,12 @@ class LassoRenderer(private val shader: LassoShader) {
     fun draw(vPMatrix: FloatArray, points: List<FloatArray>) {
         if (points.size < 2) return
 
-        // Task: Smooth Lasso - Use more points or interpolation if needed
-        // For now, we'll draw the raw points with additive blending for a "glow"
-        val coords = FloatArray(points.size * 3)
-        for (i in points.indices) {
-            coords[i * 3] = points[i][0]
-            coords[i * 3 + 1] = points[i][1] + 0.02f // Slightly above floor
-            coords[i * 3 + 2] = points[i][2]
+        val smoothedPoints = smoothPath(points)
+        val coords = FloatArray(smoothedPoints.size * 3)
+        for (i in smoothedPoints.indices) {
+            coords[i * 3] = smoothedPoints[i][0]
+            coords[i * 3 + 1] = smoothedPoints[i][1] + 0.02f
+            coords[i * 3 + 2] = smoothedPoints[i][2]
         }
 
         val bb = ByteBuffer.allocateDirect(coords.size * 4).run {
@@ -27,7 +26,6 @@ class LassoRenderer(private val shader: LassoShader) {
         }
         vertexBuffer = bb
 
-        // Enable additive blending for glow effect
         GLES20.glEnable(GLES20.GL_BLEND)
         GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE)
 
@@ -39,15 +37,48 @@ class LassoRenderer(private val shader: LassoShader) {
         GLES20.glUniform4fv(shader.colorHandle, 1, floatArrayOf(color[0], color[1], color[2], 0.8f), 0)
         GLES20.glUniformMatrix4fv(shader.vPMatrixHandle, 1, false, vPMatrix, 0)
 
-        GLES20.glLineWidth(8f)
-        GLES20.glDrawArrays(GLES20.GL_LINE_STRIP, 0, points.size)
+        GLES20.glLineWidth(10f)
+        GLES20.glDrawArrays(GLES20.GL_LINE_STRIP, 0, smoothedPoints.size)
         
-        // Draw points for a "beaded" look
-        GLES20.glDrawArrays(GLES20.GL_POINTS, 0, points.size)
+        GLES20.glDrawArrays(GLES20.GL_POINTS, 0, smoothedPoints.size)
 
         GLES20.glDisableVertexAttribArray(shader.posHandle)
-        
-        // Restore standard alpha blending
         GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
+    }
+
+    /**
+     * Smoothes a path of points using Chaikin's corner-cutting algorithm.
+     */
+    private fun smoothPath(points: List<FloatArray>, iterations: Int = 2): List<FloatArray> {
+        if (points.size < 3) return points
+        
+        var current = points
+        repeat(iterations) {
+            val next = mutableListOf<FloatArray>()
+            next.add(current.first())
+            
+            for (i in 0 until current.size - 1) {
+                val p0 = current[i]
+                val p1 = current[i + 1]
+                
+                // Cut the corner at 25% and 75%
+                val q = floatArrayOf(
+                    0.75f * p0[0] + 0.25f * p1[0],
+                    0.75f * p0[1] + 0.25f * p1[1],
+                    0.75f * p0[2] + 0.25f * p1[2]
+                )
+                val r = floatArrayOf(
+                    0.25f * p0[0] + 0.75f * p1[0],
+                    0.25f * p0[1] + 0.75f * p1[1],
+                    0.25f * p0[2] + 0.75f * p1[2]
+                )
+                next.add(q)
+                next.add(r)
+            }
+            
+            next.add(current.last())
+            current = next
+        }
+        return current
     }
 }
