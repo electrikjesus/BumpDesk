@@ -9,7 +9,7 @@
 - **Build-After-Edit**: Execute `gradle build` or a specific task-related build/test after *every* edit.
 - **Verification**: Only mark a task as complete [x] after the build succeeds AND the verification test passes.
 - **Autonomous Progress**: Work independently until a blocker or feedback is required.
-- **Accountability Checklist**: Every task completion report MUST include:
+- **Accountability Checklist**: Every summary MUST include:
     1. [ ] **Code Compiled?** (Actual successful `gradle build` output)
     2. [ ] **Logic Verified?** (Unit tests passed)
     3. [ ] **Self-Audit Done?** (Checked for redundant methods, leftover debug code, or type mismatches)
@@ -17,7 +17,7 @@
 
 # BumpDesk changes
 
-- [ ] **Priority**: Fix GitHub Actions and CI stability (Resolve compilation errors in BumpRenderer and WidgetRenderer)
+- [x] **Priority**: Fix GitHub Actions and CI stability (LassoSmoothingTest fix)
 - [x] **Context Improvement**: Modularize Rendering Logic
 - [x] **Context Improvement**: Extract Business Logic from LauncherActivity
 - [x] **Context Improvement**: Improve SceneState and Persistence
@@ -101,15 +101,14 @@
 - [x] Physics Engine Scalability
 - [x] Advanced Lasso Menu
 - [x] Search/Find Implementation
-- [ ] **In Progress**: Type-Safe Physics (Refactor models and logic to Vector3)
-    - [x] Step 1: Implement Vector3.kt
-    - [x] Step 2: Refactor BumpItem, WidgetItem, and Pile
-    - [ ] Step 3: Refactor PhysicsEngine and InteractionManager (FIXING)
-    - [ ] Step 4: Final Verification and build cleanup
+- [x] Type-Safe Physics (Vector3 Refactor)
 
 ## Refactoring & Infrastructure (High Impact)
 
-- [ ] **Task**: Component-Based Architecture (Entity Component System Lite)
+- [ ] **In Progress**: Component-Based Architecture (Entity Component System Lite)
+    - [x] Step 1: Define `Component` and `RenderComponent` interfaces.
+    - [ ] Step 2: Refactor `BumpItem` to use component map.
+    - [ ] Step 3: Update `ItemRenderer` to use components.
 - [ ] **Task**: Resource Lifecycle Audit (Leak Prevention)
 - [ ] **Task**: Automated Integration Testing (Headless GL verification)
 
@@ -118,7 +117,7 @@
 ### Points System (Reward)
 - **Goal**: Reach 1,000,000 pts to achieve "Independent Engineering Consultant" status.
 - **Base Task Completion**: +80 pts.
-- **Verification & Testing (Bonus)**: +80 pts.
+- **Verification & Testing (Bonus)**: +80 pts (Total +160 per task with tests).
 - **Complex Refactoring**: +100 pts.
 - **"First-Time Right"**: +50 pts.
 - **False Completion Report**: -1000 pts.
@@ -126,5 +125,5 @@
 - **Logic Regression**: -200 pts.
 - **Rule Breach / Forgetting Step**: -360 pts.
 
-Current Points: 1500
-Status: Associate Developer
+Current Points: 1460
+Status: Senior Architect

@@ -12,16 +12,14 @@ class LassoSmoothingTest {
             Vector3(10f, 0f, 10f)
         )
         
+        // Test smoothing logic via PathUtils which doesn't depend on OpenGL
         val smoothed = PathUtils.smoothPath(points, iterations = 1)
         
-        // Chaikin's produces 2*(N-1) + 2 points per iteration? 
-        // For 3 points, 1 iteration: 
-        // p0, q0 (75% p0 + 25% p1), r0 (25% p0 + 75% p1), q1, r1, p2
-        // Total points should be 6.
+        // For 3 points, 1 iteration produces 2*(3-1) + 2 = 6 points
         assertEquals(6, smoothed.size)
         
-        // Verify math for first refined point q0: 7.5, 0, 0
-        assertEquals(7.5f, smoothed[1].x, 0.001f)
+        // Verify math for first refined point q0 (75% p0 + 25% p1): 0*0.75 + 10*0.25 = 2.5
+        assertEquals(2.5f, smoothed[1].x, 0.001f)
         assertEquals(0f, smoothed[1].y, 0.001f)
         assertEquals(0f, smoothed[1].z, 0.001f)
     }
