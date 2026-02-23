@@ -1,6 +1,7 @@
 package com.bass.bumpdesk
 
 import android.opengl.Matrix
+import kotlin.math.*
 
 class CameraManager {
     val DEFAULT_CAMERA_POS = floatArrayOf(0f, 8f, 13f)
@@ -20,7 +21,6 @@ class CameraManager {
     var currentViewMode = ViewMode.DEFAULT
 
     fun update() {
-        // Apply zoom to the target position relative to lookAt
         val relX = targetPos[0] - targetLookAt[0]
         val relY = targetPos[1] - targetLookAt[1]
         val relZ = targetPos[2] - targetLookAt[2]
@@ -69,57 +69,51 @@ class CameraManager {
         }
     }
 
-    /**
-     * Context-aware panning based on the current view mode.
-     * Implements "drag content with finger" logic (camera moves opposite to finger).
-     */
     fun handlePan(dx: Float, dy: Float) {
-        // Sensitivity adjustment. Panning should feel natural at 1.0 zoom.
         val s = 0.015f * zoomLevel
         
         when (currentViewMode) {
             ViewMode.BACK_WALL -> {
-                // Looking at -Z wall. 
-                // Finger Right (dx > 0) -> Content Right -> Camera Left (X decreases)
                 targetPos[0] -= dx * s
-                // Finger Down (dy > 0) -> Content Down -> Camera Up (Y increases)
                 targetPos[1] += dy * s
                 targetLookAt[0] -= dx * s
                 targetLookAt[1] += dy * s
             }
             ViewMode.LEFT_WALL -> {
-                // Looking at -X wall. Right is +Z.
-                // Finger Right (dx > 0) -> Content Right (+Z) -> Camera Left (-Z)
                 targetPos[2] -= dx * s
                 targetPos[1] += dy * s
                 targetLookAt[2] -= dx * s
                 targetLookAt[1] += dy * s
             }
             ViewMode.RIGHT_WALL -> {
-                // Looking at +X wall. Right is -Z.
-                // Finger Right (dx > 0) -> Content Right (-Z) -> Camera Left (+Z)
                 targetPos[2] += dx * s
                 targetPos[1] += dy * s
                 targetLookAt[2] += dx * s
                 targetLookAt[1] += dy * s
             }
             ViewMode.FLOOR -> {
-                // Looking down.
-                // Finger Right (dx > 0) -> Content Right (+X) -> Camera Left (-X)
                 targetPos[0] -= dx * s
-                // Finger Down (dy > 0) -> Content Down (+Z) -> Camera Up (-Z)
                 targetPos[2] -= dy * s
                 targetLookAt[0] -= dx * s
                 targetLookAt[2] -= dy * s
             }
             else -> {
-                // Default angled view.
                 targetPos[0] -= dx * s
                 targetPos[2] -= dy * s
                 targetLookAt[0] -= dx * s
                 targetLookAt[2] -= dy * s
             }
         }
+    }
+
+    fun handleTilt(dy: Float) {
+        // Only allow tilt in Default mode for now to prevent disorienting wall views
+        if (currentViewMode != ViewMode.DEFAULT && currentViewMode != ViewMode.FLOOR) return
+        
+        val tiltSpeed = 0.05f
+        // Tilt moves the camera vertically and adjusts the look-at distance
+        targetPos[1] = (targetPos[1] + dy * tiltSpeed).coerceIn(2f, 20f)
+        targetPos[2] = (targetPos[2] - dy * tiltSpeed).coerceIn(2f, 20f)
     }
 
     fun focusOnWall(wall: CameraManager.ViewMode, pos: FloatArray, lookAt: FloatArray) {

@@ -41,12 +41,18 @@ class InteractionManager(
     private var activeWidgetView: AppWidgetHostView? = null
     private var widgetDownTime: Long = 0
 
+    // For lasso suppression
+    private var isLassoPending = false
+    private var lassoStartPoint: FloatArray? = null
+
     fun handleTouchDown(x: Float, y: Float, sceneState: SceneState): Any? {
         lastTouchX = x
         lastTouchY = y
         isDragging = false
         isLeafing = false
         isResizingWidget = false
+        isLassoPending = false
+        lassoStartPoint = null
         activeInteractingWidget = null
         activeWidgetView = null
         
@@ -91,7 +97,8 @@ class InteractionManager(
         if (sceneState.selectedItem == null && sceneState.selectedWidget == null && 
             (camera.currentViewMode == CameraManager.ViewMode.DEFAULT || camera.currentViewMode == CameraManager.ViewMode.FLOOR)) { 
             lassoPoints.clear()
-            lassoPoints.add(getFloorPoint(x, y)) 
+            isLassoPending = true
+            lassoStartPoint = getFloorPoint(x, y)
         }
         
         return sceneState.selectedWidget
@@ -103,6 +110,8 @@ class InteractionManager(
             isDragging = false
             isLeafing = false
             isResizingWidget = false
+            isLassoPending = false
+            lassoStartPoint = null
             if (activeInteractingWidget != null) {
                 dispatchWidgetTouchEvent(MotionEvent.ACTION_CANCEL, x, y)
                 activeInteractingWidget = null
@@ -134,6 +143,10 @@ class InteractionManager(
                     // isResizingWidget is already set in handleTouchDown
                 } else {
                     isDragging = true
+                    if (isLassoPending && lassoStartPoint != null) {
+                        lassoPoints.add(lassoStartPoint!!)
+                        isLassoPending = false
+                    }
                 }
             }
         }
@@ -299,6 +312,8 @@ class InteractionManager(
         }
         sceneState.selectedItem = null
         sceneState.selectedWidget = null
+        isLassoPending = false
+        lassoStartPoint = null
         lassoPoints.clear()
         isLeafing = false
         isDragging = false

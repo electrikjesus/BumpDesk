@@ -20,6 +20,8 @@ import androidx.appcompat.view.ContextThemeWrapper
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import kotlin.math.abs
+import kotlin.math.hypot
 
 class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferenceChangeListener {
 
@@ -42,11 +44,13 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
     private lateinit var actionHandler: ActionHandler
 
     private var isScaling = false
-    private var lastTouchX = 0f
-    private var lastTouchY = 0f
+    private var initialTouchX = 0f
+    private var initialTouchY = 0f
     private var lastMidX = 0f
     private var lastMidY = 0f
     private var selectedItemForPhoto: BumpItem? = null
+    
+    private val TOUCH_SLOP = 25f // Threshold for ignoring micro-movements
 
     private val recentsReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -230,14 +234,30 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
                         val midY = (event.getY(0) + event.getY(1)) / 2f
                         val dx = midX - lastMidX
                         val dy = midY - lastMidY
-                        glSurfaceView.queueEvent { renderer.handlePan(dx, dy) }
+                        
+                        // Detection for Tilt vs Pan
+                        val dy0 = event.getY(0) - initialTouchY
+                        val dy1 = event.getY(1) - initialTouchY
+                        
+                        if (abs(dy) > abs(dx) * 2f && (dy0 * dy1 > 0)) {
+                            // Both fingers moving vertically in same direction
+                            glSurfaceView.queueEvent { renderer.handleTilt(dy) }
+                        } else {
+                            glSurfaceView.queueEvent { renderer.handlePan(dx, dy) }
+                        }
+
                         lastMidX = midX
                         lastMidY = midY
                     } else if (pointerCount == 1 && !isScaling) {
-                        glSurfaceView.queueEvent { renderer.handleTouchMove(event.x, event.y, pointerCount) }
+                        val dist = hypot(event.x - initialTouchX, event.y - initialTouchY)
+                        if (dist > TOUCH_SLOP) {
+                            glSurfaceView.queueEvent { renderer.handleTouchMove(event.x, event.y, pointerCount) }
+                        }
                     }
                 }
                 MotionEvent.ACTION_DOWN -> {
+                    initialTouchX = event.x
+                    initialTouchY = event.y
                     glSurfaceView.queueEvent { renderer.handleTouchDown(event.x, event.y) }
                 }
                 MotionEvent.ACTION_UP -> {
@@ -264,7 +284,7 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
     fun promptRenamePile(pile: Pile, onRenamed: (String) -> Unit) = dialogManager.promptRenamePile(pile, onRenamed)
 
     fun promptAddPhotoFrame(x: Float, y: Float) {
-        lastTouchX = x; lastTouchY = y
+        initialTouchX = x; initialTouchY = y
         startActivityForResult(Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI), REQUEST_PICK_IMAGE)
     }
 
@@ -273,7 +293,7 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
         startActivityForResult(Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI), REQUEST_PICK_IMAGE_FOR_FRAME)
     }
 
-    fun saveLastTouchPosition(x: Float, y: Float) { lastTouchX = x; lastTouchY = y }
+    fun saveLastTouchPosition(x: Float, y: Float) { initialTouchX = x; initialTouchY = y }
 
     fun createPileFromCaptured(capturedItems: List<BumpItem>) {
         renderer.sceneState.piles.forEach { it.items.removeAll(capturedItems) }
@@ -311,7 +331,7 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
                 REQUEST_CREATE_APPWIDGET -> data?.extras?.getInt(AppWidgetManager.EXTRA_APPWIDGET_ID, -1)?.let { if (it != -1) addWidgetToRenderer(it) }
                 REQUEST_PICK_IMAGE -> data?.data?.let { uri ->
                     try { contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (e: Exception) {}
-                    glSurfaceView.queueEvent { renderer.addPhotoFrame(uri.toString(), lastTouchX, lastTouchY) }
+                    glSurfaceView.queueEvent { renderer.addPhotoFrame(uri.toString(), initialTouchX, initialTouchY) }
                 }
                 REQUEST_PICK_IMAGE_FOR_FRAME -> data?.data?.let { uri ->
                     try { contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (e: Exception) {}
@@ -329,7 +349,7 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
         val info = appWidgetManager.getAppWidgetInfo(id) ?: return
         val view = appWidgetHost.createView(ContextThemeWrapper(applicationContext, R.style.Theme_BumpDesk), id, info)
         widgetContainer.addView(view)
-        glSurfaceView.queueEvent { renderer.addWidgetAt(id, view, lastTouchX, lastTouchY) }
+        glSurfaceView.queueEvent { renderer.addWidgetAt(id, view, initialTouchX, initialTouchY) }
     }
 
     override fun onStart() { 
