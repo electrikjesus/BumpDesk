@@ -3,7 +3,6 @@ package com.bass.bumpdesk
 import android.content.Context
 import android.view.MotionEvent
 import android.appwidget.AppWidgetHostView
-import android.os.SystemClock
 import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.sqrt
@@ -12,7 +11,7 @@ class InteractionManager(
     private val context: Context?,
     private val camera: CameraManager
 ) {
-    val lassoPoints = mutableListOf<FloatArray>()
+    val lassoPoints = mutableListOf<Vector3>()
     
     var lastTouchX = 0f
     var lastTouchY = 0f
@@ -24,7 +23,7 @@ class InteractionManager(
     val invertedVPMatrix = FloatArray(16)
 
     private val undoManager = UndoManager()
-    private var dragStartPos: FloatArray? = null
+    private var dragStartPos: Vector3? = null
     private var dragStartSurface: BumpItem.Surface? = null
 
     // For leafing gesture
@@ -34,8 +33,8 @@ class InteractionManager(
     // For widget resizing
     private var isResizingWidget = false
     private var resizeWidget: WidgetItem? = null
-    private var resizeStartSize: FloatArray? = null
-    private var resizeStartPos: FloatArray? = null
+    private var resizeStartSize: Vector3? = null
+    private var resizeStartPos: Vector3? = null
 
     // For widget interaction
     private var activeInteractingWidget: WidgetItem? = null
@@ -44,7 +43,7 @@ class InteractionManager(
 
     // For lasso suppression
     private var isLassoPending = false
-    private var lassoStartPoint: FloatArray? = null
+    private var lassoStartPoint: Vector3? = null
 
     var isInfiniteMode = false
 
@@ -70,7 +69,7 @@ class InteractionManager(
             if (isTouchOnResizeHandle(widget, rS, rE)) {
                 isResizingWidget = true
                 resizeWidget = widget
-                resizeStartSize = widget.size.clone()
+                resizeStartSize = widget.size.copy()
                 resizeStartPos = getWidgetPoint(widget, x, y)
                 return widget
             } else if (camera.currentViewMode == CameraManager.ViewMode.WIDGET_FOCUS) {
@@ -87,7 +86,7 @@ class InteractionManager(
         sceneState.selectedWidget = widgetHit?.first
 
         sceneState.selectedItem?.let {
-            dragStartPos = it.position.clone()
+            dragStartPos = it.position.copy()
             dragStartSurface = it.surface
             
             val pile = sceneState.getPileOf(it)
@@ -108,7 +107,6 @@ class InteractionManager(
     }
 
     fun handleTouchMove(x: Float, y: Float, sceneState: SceneState, pointerCount: Int): Boolean {
-        var eventConsumed = false
         if (pointerCount > 1) {
             isDragging = false
             isLeafing = false
@@ -143,7 +141,7 @@ class InteractionManager(
                         isDragging = true
                     }
                 } else if (resizeWidget != null && isResizingWidget) {
-                    // isResizingWidget is already set in handleTouchDown
+                    // isResizingWidget is already set
                 } else {
                     isDragging = true
                     if (isLassoPending && lassoStartPoint != null) {
@@ -154,18 +152,18 @@ class InteractionManager(
             }
         }
         
-        val rS = FloatArray(4)
-        val rE = FloatArray(4)
-        calculateRay(x, y, rS, rE)
+        val rS = FloatArray(4); val rE = FloatArray(4); calculateRay(x, y, rS, rE)
 
         if (isResizingWidget && resizeWidget != null) {
             val point = getWidgetPoint(resizeWidget!!, x, y)
             resizeStartPos?.let { start ->
-                val du = point[0] - start[0]
-                val dv = point[1] - start[1]
+                val du = point.x - start.x
+                val dv = point.z - start.z
                 resizeStartSize?.let { size ->
-                    resizeWidget!!.size[0] = (size[0] + du).coerceIn(1.0f, 5.0f)
-                    resizeWidget!!.size[1] = (size[1] + dv).coerceIn(1.0f, 5.0f)
+                    resizeWidget!!.size = size.copy(
+                        x = (size.x + du).coerceIn(1.0f, 5.0f),
+                        z = (size.z + dv).coerceIn(1.0f, 5.0f)
+                    )
                 }
             }
             return true
@@ -182,10 +180,10 @@ class InteractionManager(
                         it.currentIndex = (it.currentIndex - 1 + it.items.size) % it.items.size
                     }
                     leafStartY = y
-                    eventConsumed = true
+                    return true
                 }
             }
-            return eventConsumed
+            return false
         }
 
         if (sceneState.selectedItem != null && isDragging) {
@@ -197,34 +195,30 @@ class InteractionManager(
             hit?.let { (surface, pos) ->
                 val raiseOffset = 0.2f
                 
-                item.velocity[0] = (pos[0] - item.position[0]) * 0.5f
-                item.velocity[1] = (pos[1] - item.position[1]) * 0.5f
-                item.velocity[2] = (pos[2] - item.position[2]) * 0.5f
+                val targetPos = Vector3.fromArray(pos)
+                item.velocity = (targetPos - item.position) * 0.5f
 
                 item.surface = surface
-                item.position[0] = pos[0]
-                item.position[1] = pos[1] + (if (surface == BumpItem.Surface.FLOOR) raiseOffset else 0f)
-                item.position[2] = pos[2]
-                
-                when (surface) {
-                    BumpItem.Surface.BACK_WALL -> item.position[2] = pos[2] + raiseOffset
-                    BumpItem.Surface.LEFT_WALL -> item.position[0] = pos[0] + raiseOffset
-                    BumpItem.Surface.RIGHT_WALL -> item.position[0] = pos[0] - raiseOffset
-                    else -> {}
+                var finalPos = targetPos
+                if (surface == BumpItem.Surface.FLOOR) {
+                    finalPos = finalPos.copy(y = finalPos.y + raiseOffset)
+                } else {
+                    when (surface) {
+                        BumpItem.Surface.BACK_WALL -> finalPos = finalPos.copy(z = finalPos.z + raiseOffset)
+                        BumpItem.Surface.LEFT_WALL -> finalPos = finalPos.copy(x = finalPos.x + raiseOffset)
+                        BumpItem.Surface.RIGHT_WALL -> finalPos = finalPos.copy(x = finalPos.x - raiseOffset)
+                        else -> {}
+                    }
                 }
+                item.position = finalPos
                 
                 pile?.let { 
                     if (!it.isExpanded) {
-                        it.position[0] = pos[0]
-                        it.position[1] = pos[1]
-                        it.position[2] = pos[2]
+                        it.position = targetPos
                         it.surface = surface
-                        
                         it.items.forEach { pileItem ->
                             pileItem.surface = surface
-                            pileItem.position[0] = pos[0]
-                            pileItem.position[1] = pos[1]
-                            pileItem.position[2] = pos[2]
+                            pileItem.position = targetPos
                         }
                     }
                 }
@@ -267,7 +261,7 @@ class InteractionManager(
             dragStartPos?.let { startPos ->
                 dragStartSurface?.let { startSurface ->
                     if (isDragging && !isLeafing) {
-                        undoManager.execute(MoveCommand(item, startPos, startSurface, item.position.clone(), item.surface))
+                        undoManager.execute(MoveCommand(item, startPos, startSurface, item.position.copy(), item.surface))
                     }
                 }
             }
@@ -275,8 +269,8 @@ class InteractionManager(
             dragStartSurface = null
 
             if (pile != null && pile.isExpanded) {
-                val dx = item.position[0] - pile.position[0]
-                val dz = item.position[2] - pile.position[2]
+                val dx = item.position.x - pile.position.x
+                val dz = item.position.z - pile.position.z
                 val side = ceil(sqrt(pile.items.size.toDouble())).toInt().coerceAtLeast(1)
                 val spacing = 1.2f
                 val halfDim = ((side * spacing) / 2f + 0.5f) * pile.scale
@@ -287,20 +281,18 @@ class InteractionManager(
                         if (!sceneState.isAlreadyOnDesktop(appInfo)) {
                             pile.items.remove(item)
                             sceneState.bumpItems.add(item)
-                            if (item.surface == BumpItem.Surface.FLOOR) item.position[1] = 0.05f
+                            if (item.surface == BumpItem.Surface.FLOOR) item.position = item.position.copy(y = 0.05f)
                         }
                     } else {
                         pile.items.remove(item)
                         sceneState.bumpItems.add(item)
-                        if (item.surface == BumpItem.Surface.FLOOR) item.position[1] = 0.05f
+                        if (item.surface == BumpItem.Surface.FLOOR) item.position = item.position.copy(y = 0.05f)
                     }
                 }
             } else if (pile == null && isDragging) {
                 val nearbyPile = sceneState.piles.find { p ->
                     if (p.isSystem) return@find false
-                    val dX = item.position[0] - p.position[0]
-                    val dZ = item.position[2] - p.position[2]
-                    val dist = sqrt((dX * dX + dZ * dZ).toDouble())
+                    val dist = item.position.distance(p.position)
                     dist < 1.5f
                 }
                 if (nearbyPile != null) {
@@ -308,7 +300,7 @@ class InteractionManager(
                 }
             }
         } else if (isDragging && (camera.currentViewMode == CameraManager.ViewMode.DEFAULT || camera.currentViewMode == CameraManager.ViewMode.FLOOR) && lassoPoints.isNotEmpty()) {
-            val capturedItems = sceneState.bumpItems.filter { isPointInPolygon(it.position[0], it.position[2], lassoPoints) }
+            val capturedItems = sceneState.bumpItems.filter { isPointInPolygon(it.position.x, it.position.z, lassoPoints) }
             if (capturedItems.size > 1) {
                 onCaptured(capturedItems)
             }
@@ -363,27 +355,19 @@ class InteractionManager(
         val iZ = rS[2] + t * (rE[2] - rS[2])
         
         return when (widget.surface) {
-            BumpItem.Surface.BACK_WALL -> (iX - (widget.position[0] - widget.size[0])) / (2f * widget.size[0]) to 1f - (iY - (widget.position[1] - widget.size[1])) / (2f * widget.size[1])
-            BumpItem.Surface.LEFT_WALL -> (iZ - (widget.position[2] - widget.size[0])) / (2f * widget.size[0]) to 1f - (iY - (widget.position[1] - widget.size[1])) / (2f * widget.size[1])
-            BumpItem.Surface.RIGHT_WALL -> 1f - (iZ - (widget.position[2] - widget.size[0])) / (2f * widget.size[0]) to 1f - (iY - (widget.position[1] - widget.size[1])) / (2f * widget.size[1])
-            BumpItem.Surface.FLOOR -> (iX - (widget.position[0] - widget.size[0])) / (2f * widget.size[0]) to (iZ - (widget.position[2] - widget.size[1])) / (2f * widget.size[1])
+            BumpItem.Surface.BACK_WALL -> (iX - (widget.position.x - widget.size.x)) / (2f * widget.size.x) to 1f - (iY - (widget.position.y - widget.size.z)) / (2f * widget.size.z)
+            BumpItem.Surface.LEFT_WALL -> (iZ - (widget.position.z - widget.size.x)) / (2f * widget.size.x) to 1f - (iY - (widget.position.y - widget.size.z)) / (2f * widget.size.z)
+            BumpItem.Surface.RIGHT_WALL -> 1f - (iZ - (widget.position.z - widget.size.x)) / (2f * widget.size.x) to 1f - (iY - (widget.position.y - widget.size.z)) / (2f * widget.size.z)
+            BumpItem.Surface.FLOOR -> (iX - (widget.position.x - widget.size.x)) / (2f * widget.size.x) to (iZ - (widget.position.z - widget.size.z)) / (2f * widget.size.z)
         }
     }
 
-    private fun getWidgetPoint(widget: WidgetItem, x: Float, y: Float): FloatArray {
+    private fun getWidgetPoint(widget: WidgetItem, x: Float, y: Float): Vector3 {
         val rS = FloatArray(4); val rE = FloatArray(4); calculateRay(x, y, rS, rE)
         val t = getWidgetT(widget, rS, rE)
         val iX = rS[0] + t * (rE[0] - rS[0]); val iY = rS[1] + t * (rE[1] - rS[1]); val iZ = rS[2] + t * (rE[2] - rS[2])
-        return when (widget.surface) {
-            BumpItem.Surface.BACK_WALL -> floatArrayOf(iX, iY)
-            BumpItem.Surface.LEFT_WALL -> floatArrayOf(iZ, iY)
-            BumpItem.Surface.RIGHT_WALL -> floatArrayOf(-iZ, iY)
-            BumpItem.Surface.FLOOR -> floatArrayOf(iX, iZ)
-        }
+        return Vector3(iX, iY, iZ)
     }
-
-    fun undo() = undoManager.undo()
-    fun redo() = undoManager.redo()
 
     fun calculateRay(sX: Float, sY: Float, rS: FloatArray, rE: FloatArray) {
         val x = (2f * sX) / screenWidth - 1f
@@ -412,12 +396,14 @@ class InteractionManager(
     }
 
     private fun checkIntersection(item: BumpItem, rS: FloatArray, rE: FloatArray): Float {
-        val dX = item.position[0] - rS[0]; val dY = item.position[1] - rS[1]; val dZ = item.position[2] - rS[2]
         val rDX = rE[0] - rS[0]; val rDY = rE[1] - rS[1]; val rDZ = rE[2] - rS[2]
         val rL = sqrt((rDX*rDX + rDY*rDY + rDZ*rDZ).toDouble()).toFloat()
+        
+        val dX = item.position.x - rS[0]; val dY = item.position.y - rS[1]; val dZ = item.position.z - rS[2]
         val dot = (dX*(rDX/rL) + dY*(rDY/rL) + dZ*(rDZ/rL))
+        
         val pX = rS[0] + dot*(rDX/rL); val pY = rS[1] + dot*(rDY/rL); val pZ = rS[2] + dot*(rDZ/rL)
-        val distSq = (pX-item.position[0])*(pX-item.position[0]) + (pY-item.position[1])*(pY-item.position[1]) + (pZ-item.position[2])*(pZ-item.position[2])
+        val distSq = (pX-item.position.x)*(pX-item.position.x) + (pY-item.position.y)*(pY-item.position.y) + (pZ-item.position.z)*(pZ-item.position.z)
         return if (distSq < 1.5f) dot else -1f
     }
 
@@ -443,10 +429,10 @@ class InteractionManager(
         val iZ = rS[2] + t * (rE[2] - rS[2])
         
         return when (widget.surface) {
-            BumpItem.Surface.BACK_WALL -> if (!isInfiniteMode && abs(iX - widget.position[0]) < widget.size[0] && abs(iY - widget.position[1]) < widget.size[1]) t else -1f
-            BumpItem.Surface.LEFT_WALL -> if (!isInfiniteMode && abs(iZ - widget.position[2]) < widget.size[0] && abs(iY - widget.position[1]) < widget.size[1]) t else -1f
-            BumpItem.Surface.RIGHT_WALL -> if (!isInfiniteMode && abs(iZ - widget.position[2]) < widget.size[0] && abs(iY - widget.position[1]) < widget.size[1]) t else -1f
-            BumpItem.Surface.FLOOR -> if (abs(iX - widget.position[0]) < widget.size[0] && abs(iZ - widget.position[2]) < widget.size[1]) t else -1f
+            BumpItem.Surface.BACK_WALL -> if (!isInfiniteMode && abs(iX - widget.position.x) < widget.size.x && abs(iY - widget.position.y) < widget.size.z) t else -1f
+            BumpItem.Surface.LEFT_WALL -> if (!isInfiniteMode && abs(iZ - widget.position.z) < widget.size.x && abs(iY - widget.position.y) < widget.size.z) t else -1f
+            BumpItem.Surface.RIGHT_WALL -> if (!isInfiniteMode && abs(iZ - widget.position.z) < widget.size.x && abs(iY - widget.position.y) < widget.size.z) t else -1f
+            BumpItem.Surface.FLOOR -> if (abs(iX - widget.position.x) < widget.size.x && abs(iZ - widget.position.z) < widget.size.z) t else -1f
         }
     }
 
@@ -485,36 +471,37 @@ class InteractionManager(
         return bestSurface?.let { it to bestPos }
     }
 
-    private fun dragWidget(widget: WidgetItem, rS: FloatArray, rE: FloatArray) {
+    fun dragWidget(widget: WidgetItem, rS: FloatArray, rE: FloatArray) {
         val hit = findWallOrFloorHit(rS, rE, 0.1f)
         hit?.let { (surface, pos) ->
             widget.surface = surface
-            widget.position[0] = pos[0]
-            widget.position[1] = pos[1]
-            widget.position[2] = pos[2]
+            widget.position = Vector3.fromArray(pos)
             
             when (surface) {
-                BumpItem.Surface.BACK_WALL -> widget.position[2] = -9.9f
-                BumpItem.Surface.LEFT_WALL -> widget.position[0] = -9.9f
-                BumpItem.Surface.RIGHT_WALL -> widget.position[0] = 9.9f
-                BumpItem.Surface.FLOOR -> widget.position[1] = 0.1f
+                BumpItem.Surface.BACK_WALL -> widget.position = widget.position.copy(z = -9.9f)
+                BumpItem.Surface.LEFT_WALL -> widget.position = widget.position.copy(x = -9.9f)
+                BumpItem.Surface.RIGHT_WALL -> widget.position = widget.position.copy(x = 9.9f)
+                BumpItem.Surface.FLOOR -> widget.position = widget.position.copy(y = 0.1f)
             }
         }
     }
 
-    fun getFloorPoint(x: Float, y: Float): FloatArray {
+    fun getFloorPoint(x: Float, y: Float): Vector3 {
         val rS = FloatArray(4); val rE = FloatArray(4); calculateRay(x, y, rS, rE)
-        if (abs(rE[1] - rS[1]) < 0.0001f) return floatArrayOf(0f, 0.05f, 0f)
+        if (abs(rE[1] - rS[1]) < 0.0001f) return Vector3(0f, 0.05f, 0f)
         val t = -rS[1] / (rE[1] - rS[1])
-        return floatArrayOf(rS[0] + t * (rE[0] - rS[0]), 0.05f, rS[2] + t * (rE[2] - rS[2]))
+        return Vector3(rS[0] + t * (rE[0] - rS[0]), 0.05f, rS[2] + t * (rE[2] - rS[2]))
     }
 
-    private fun isPointInPolygon(x: Float, z: Float, poly: List<FloatArray>): Boolean {
+    private fun isPointInPolygon(x: Float, z: Float, poly: List<Vector3>): Boolean {
         var c = false; var j = poly.size - 1
         for (i in poly.indices) {
-            if (((poly[i][2] > z) != (poly[j][2] > z)) && (x < (poly[j][0] - poly[i][0]) * (z - poly[i][2]) / (poly[j][2] - poly[i][2]) + poly[i][0])) c = !c
+            if (((poly[i].z > z) != (poly[j].z > z)) && (x < (poly[j].x - poly[i].x) * (z - poly[i].z) / (poly[j].z - poly[i].z) + poly[i].x)) c = !c
             j = i
         }
         return c
     }
+    
+    fun undo() = undoManager.undo()
+    fun redo() = undoManager.redo()
 }

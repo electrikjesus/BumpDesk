@@ -36,22 +36,18 @@ class UndoManager {
 
 data class MoveCommand(
     private val item: BumpItem,
-    private val oldPos: FloatArray,
+    private val oldPos: Vector3,
     private val oldSurface: BumpItem.Surface,
-    private val newPos: FloatArray,
+    private val newPos: Vector3,
     private val newSurface: BumpItem.Surface
 ) : Command {
     override fun undo() {
-        item.position[0] = oldPos[0]
-        item.position[1] = oldPos[1]
-        item.position[2] = oldPos[2]
+        item.position = oldPos
         item.surface = oldSurface
     }
 
     override fun redo() {
-        item.position[0] = newPos[0]
-        item.position[1] = newPos[1]
-        item.position[2] = newPos[2]
+        item.position = newPos
         item.surface = newSurface
     }
 }

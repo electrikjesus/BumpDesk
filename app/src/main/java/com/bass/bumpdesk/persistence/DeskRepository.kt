@@ -5,6 +5,7 @@ import com.bass.bumpdesk.AppInfo
 import com.bass.bumpdesk.BumpItem
 import com.bass.bumpdesk.SceneState
 import com.bass.bumpdesk.WidgetItem
+import com.bass.bumpdesk.Vector3
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.UUID
@@ -29,9 +30,9 @@ class DeskRepository(context: Context) {
                 packageName = item.appInfo?.packageName,
                 appWidgetId = null,
                 text = item.text,
-                posX = item.position[0],
-                posY = item.position[1],
-                posZ = item.position[2],
+                posX = item.position.x,
+                posY = item.position.y,
+                posZ = item.position.z,
                 sizeX = 1.0f,
                 sizeZ = 1.0f,
                 surface = item.surface.name,
@@ -49,11 +50,11 @@ class DeskRepository(context: Context) {
                 packageName = null,
                 appWidgetId = widget.appWidgetId,
                 text = null,
-                posX = widget.position[0],
-                posY = widget.position[1],
-                posZ = widget.position[2],
-                sizeX = widget.size[0],
-                sizeZ = widget.size[1],
+                posX = widget.position.x,
+                posY = widget.position.y,
+                posZ = widget.position.z,
+                sizeX = widget.size.x,
+                sizeZ = widget.size.z,
                 surface = widget.surface.name,
                 isPinned = true,
                 scale = 1.0f
@@ -74,8 +75,8 @@ class DeskRepository(context: Context) {
                 "WIDGET" -> {
                     widgetItems.add(WidgetItem(
                         appWidgetId = saved.appWidgetId ?: 0,
-                        position = floatArrayOf(saved.posX, saved.posY, saved.posZ),
-                        size = floatArrayOf(saved.sizeX, saved.sizeZ),
+                        position = Vector3(saved.posX, saved.posY, saved.posZ),
+                        size = Vector3(saved.sizeX, 0f, saved.sizeZ),
                         surface = BumpItem.Surface.valueOf(saved.surface)
                     ))
                 }
@@ -89,7 +90,7 @@ class DeskRepository(context: Context) {
                         type = type,
                         appInfo = appInfo,
                         text = saved.text ?: "",
-                        position = floatArrayOf(saved.posX, saved.posY, saved.posZ),
+                        position = Vector3(saved.posX, saved.posY, saved.posZ),
                         surface = BumpItem.Surface.valueOf(saved.surface),
                         isPinned = saved.isPinned,
                         scale = saved.scale

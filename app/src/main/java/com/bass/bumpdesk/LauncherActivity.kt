@@ -298,7 +298,7 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
     fun createPileFromCaptured(capturedItems: List<BumpItem>) {
         renderer.sceneState.piles.forEach { it.items.removeAll(capturedItems) }
         renderer.sceneState.piles.removeAll { it.items.size < 2 && !it.isSystem }
-        val pPos = floatArrayOf(capturedItems.map { it.position[0] }.average().toFloat(), 0.05f, capturedItems.map { it.position[2] }.average().toFloat())
+        val pPos = Vector3(capturedItems.map { it.position.x }.average().toFloat(), 0.05f, capturedItems.map { it.position.z }.average().toFloat())
         renderer.sceneState.piles.add(Pile(capturedItems.toMutableList(), pPos))
     }
 

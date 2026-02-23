@@ -160,9 +160,9 @@ class ItemRenderer(
         val surfaceToUse = if (pile?.isExpanded == true) BumpItem.Surface.FLOOR else item.surface
         
         val zOffset = 0.01f
-        var posX = item.position[0]
-        var posY = item.position[1]
-        var posZ = item.position[2]
+        var posX = item.position.x
+        var posY = item.position.y
+        var posZ = item.position.z
 
         when (surfaceToUse) {
             BumpItem.Surface.BACK_WALL -> {

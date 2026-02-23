@@ -82,9 +82,9 @@ class WidgetRenderer(
         Matrix.setIdentityM(modelMatrix, 0)
         
         val zOffset = 0.02f
-        val posX = widget.position[0]
-        val posY = widget.position[1]
-        val posZ = widget.position[2]
+        val posX = widget.position.x
+        val posY = widget.position.y
+        val posZ = widget.position.z
         
         when (widget.surface) {
             BumpItem.Surface.BACK_WALL -> {
@@ -108,7 +108,7 @@ class WidgetRenderer(
         }
         
         val savedModelMatrix = modelMatrix.clone()
-        Matrix.scaleM(modelMatrix, 0, widget.size[0], 1f, widget.size[1])
+        Matrix.scaleM(modelMatrix, 0, widget.size.x, 1f, widget.size.z)
         widgetBox.draw(vPMatrix, modelMatrix, widget.textureId, floatArrayOf(1f, 1f, 1f, 1.0f))
 
         if (isSelected) {
@@ -116,9 +116,10 @@ class WidgetRenderer(
         }
     }
 
-    private fun drawResizeHandle(vPMatrix: FloatArray, baseModelMatrix: FloatArray, size: FloatArray) {
+    private fun drawResizeHandle(vPMatrix: FloatArray, baseModelMatrix: FloatArray, size: Vector3) {
         val handleMatrix = baseModelMatrix.clone()
-        Matrix.translateM(handleMatrix, 0, size[0] - 0.2f, 0.01f, size[1] - 0.2f)
+        // Position handle at bottom-right corner of the scaled widget
+        Matrix.translateM(handleMatrix, 0, size.x - 0.2f, 0.01f, size.z - 0.2f)
         Matrix.scaleM(handleMatrix, 0, 0.2f, 1f, 0.2f)
         
         val selectionColor = ThemeManager.getSelectionColor()

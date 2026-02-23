@@ -2,7 +2,7 @@ package com.bass.bumpdesk
 
 data class Pile(
     val items: MutableList<BumpItem> = mutableListOf(),
-    var position: FloatArray = floatArrayOf(0f, 0f, 0f),
+    var position: Vector3 = Vector3(0f, 0.05f, 0f),
     var isExpanded: Boolean = false,
     var isFannedOut: Boolean = false,
     var name: String = "Folder",
