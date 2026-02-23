@@ -44,6 +44,7 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
     private lateinit var actionHandler: ActionHandler
 
     private var isScaling = false
+    private var isMiddleDragging = false
     private var initialTouchX = 0f
     private var initialTouchY = 0f
     private var lastMidX = 0f
@@ -191,18 +192,19 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
             }
             
             override fun onScroll(e1: MotionEvent?, e2: MotionEvent, distanceX: Float, distanceY: Float): Boolean {
-                if (radialMenu.visibility == View.VISIBLE || isScaling) return true
+                if (radialMenu.visibility == View.VISIBLE || isScaling || isMiddleDragging) return true
                 return false
             }
         })
         
         scaleGestureDetector = ScaleGestureDetector(this, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
             override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
+                if (isMiddleDragging) return false
                 isScaling = true
                 return true
             }
             override fun onScale(detector: ScaleGestureDetector): Boolean {
-                if (radialMenu.visibility == View.VISIBLE) return true
+                if (radialMenu.visibility == View.VISIBLE || isMiddleDragging) return true
                 glSurfaceView.queueEvent { renderer.handleZoom(detector.scaleFactor) }
                 return true
             }
@@ -216,10 +218,14 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
                 return@setOnTouchListener radialMenu.dispatchTouchEvent(event)
             }
             
-            scaleGestureDetector.onTouchEvent(event)
-            gestureDetector.onTouchEvent(event)
-            
             val pointerCount = event.pointerCount
+            // BUTTON_MIDDLE = 2
+            val isMiddleButton = (event.buttonState and 2) != 0
+            
+            if (!isMiddleButton && !isMiddleDragging) {
+                scaleGestureDetector.onTouchEvent(event)
+                gestureDetector.onTouchEvent(event)
+            }
             
             when (event.actionMasked) {
                 MotionEvent.ACTION_POINTER_DOWN -> {
@@ -229,25 +235,38 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
                     }
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    if (pointerCount == 2 && !isScaling) {
-                        val midX = (event.getX(0) + event.getX(1)) / 2f
-                        val midY = (event.getY(0) + event.getY(1)) / 2f
-                        val dx = midX - lastMidX
-                        val dy = midY - lastMidY
+                    if (isMiddleDragging || (pointerCount == 2 && !isScaling)) {
+                        val currentX = if (isMiddleDragging) event.x else (event.getX(0) + event.getX(1)) / 2f
+                        val currentY = if (isMiddleDragging) event.y else (event.getY(0) + event.getY(1)) / 2f
+                        val dx = currentX - lastMidX
+                        val dy = currentY - lastMidY
                         
-                        // Detection for Tilt vs Pan
-                        val dy0 = event.getY(0) - initialTouchY
-                        val dy1 = event.getY(1) - initialTouchY
-                        
-                        if (abs(dy) > abs(dx) * 2f && (dy0 * dy1 > 0)) {
-                            // Both fingers moving vertically in same direction
-                            glSurfaceView.queueEvent { renderer.handleTilt(dy) }
+                        if (isMiddleDragging) {
+                            if (!isMiddleButton) {
+                                isMiddleDragging = false
+                            } else {
+                                if (abs(dy) > abs(dx) * 2f) {
+                                    glSurfaceView.queueEvent { renderer.handleTilt(dy) }
+                                } else {
+                                    glSurfaceView.queueEvent { renderer.handlePan(dx, dy) }
+                                }
+                            }
                         } else {
-                            glSurfaceView.queueEvent { renderer.handlePan(dx, dy) }
+                            // Detection for Tilt vs Pan
+                            val dy0 = event.getY(0) - initialTouchY
+                            val dy1 = event.getY(1) - initialTouchY
+                            
+                            if (abs(dy) > abs(dx) * 2f && (dy0 * dy1 > 0)) {
+                                // Both fingers moving vertically in same direction
+                                glSurfaceView.queueEvent { renderer.handleTilt(dy) }
+                            } else {
+                                glSurfaceView.queueEvent { renderer.handlePan(dx, dy) }
+                            }
                         }
 
-                        lastMidX = midX
-                        lastMidY = midY
+                        lastMidX = currentX
+                        lastMidY = currentY
+                        if (isMiddleDragging) return@setOnTouchListener true
                     } else if (pointerCount == 1 && !isScaling) {
                         val dist = hypot(event.x - initialTouchX, event.y - initialTouchY)
                         if (dist > TOUCH_SLOP) {
@@ -258,9 +277,19 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
                 MotionEvent.ACTION_DOWN -> {
                     initialTouchX = event.x
                     initialTouchY = event.y
+                    if (isMiddleButton) {
+                        isMiddleDragging = true
+                        lastMidX = event.x
+                        lastMidY = event.y
+                        return@setOnTouchListener true
+                    }
                     glSurfaceView.queueEvent { renderer.handleTouchDown(event.x, event.y) }
                 }
                 MotionEvent.ACTION_UP -> {
+                    if (isMiddleDragging) {
+                        isMiddleDragging = false
+                        return@setOnTouchListener true
+                    }
                     glSurfaceView.queueEvent { renderer.handleTouchUp() }
                 }
             }

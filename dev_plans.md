@@ -17,6 +17,7 @@
 
 # BumpDesk changes
 
+- [x] **Priority**: Fix app size in folder views (Apps in All Icons group/folder are way too large when the folder view is open)
 - [x] **Priority**: Fix GitHub Actions and CI stability (LassoSmoothingTest fix)
 - [x] **Context Improvement**: Modularize Rendering Logic
 - [x] **Context Improvement**: Extract Business Logic from LauncherActivity
@@ -102,13 +103,14 @@
 - [x] Advanced Lasso Menu
 - [x] Search/Find Implementation
 - [x] Type-Safe Physics (Vector3 Refactor)
+- [ ] Allow mouse middle click to be used for 2-finger pan/tilt gestures
 
 ## Refactoring & Infrastructure (High Impact)
 
-- [ ] **In Progress**: Component-Based Architecture (Entity Component System Lite)
+- [x] **Complete**: Component-Based Architecture (Entity Component System Lite)
     - [x] Step 1: Define `Component` and `RenderComponent` interfaces.
     - [x] Step 2: Refactor `BumpItem` to use component map.
-    - [ ] Step 3: Update `ItemRenderer` to use components.
+    - [x] Step 3: Update `ItemRenderer` to use components.
 - [ ] **Task**: Resource Lifecycle Audit (Leak Prevention)
 - [ ] **Task**: Automated Integration Testing (Headless GL verification)
 
@@ -125,5 +127,5 @@
 - **Logic Regression**: -250 pts.
 - **Rule Breach / Forgetting Step**: -250 pts.
 
-Current Points: 1640
+Current Points: 2540
 Status: Senior Architect

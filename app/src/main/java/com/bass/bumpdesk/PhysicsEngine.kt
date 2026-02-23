@@ -31,7 +31,7 @@ class PhysicsEngine {
                 if (item == selectedItem) return@forEachIndexed
                 
                 val targetScale = when {
-                    pile.isExpanded -> defaultScale
+                    pile.isExpanded -> defaultScale * 0.6f
                     pile.layoutMode == Pile.LayoutMode.CAROUSEL -> 1.5f * pile.scale
                     pile.layoutMode == Pile.LayoutMode.GRID -> 0.8f * pile.scale
                     else -> defaultScale
