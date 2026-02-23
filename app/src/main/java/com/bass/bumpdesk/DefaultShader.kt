@@ -39,6 +39,12 @@ class DefaultShader : BaseShader(
           } else {
             baseColor = vColor;
           }
+          
+          // Discard fragments with very low alpha to prevent depth-buffer occlusion
+          if (baseColor.a < 0.1) {
+            discard;
+          }
+          
           if (uUseLighting) {
             vec3 normal = normalize(fNormal);
             vec3 lightDir = normalize(uLightPos - fPosition);
@@ -93,7 +99,6 @@ class DefaultShader : BaseShader(
         GLES20.glUniformMatrix4fv(modelMatrixHandle, 1, false, modelMatrix, 0)
         GLES20.glUniform4fv(colorHandle, 1, color, 0)
         
-        // Task: Fix white surfaces by ensuring textureId is valid (> 0)
         val hasTexture = textureId > 0
         GLES20.glUniform1i(useTextureHandle, if (hasTexture) 1 else 0)
         if (hasTexture) {

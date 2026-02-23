@@ -63,6 +63,8 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
     private var frameCount = 0
     var glSurfaceView: GLSurfaceView? = null
     private var searchQuery = ""
+    private var surfaceWidth = 0
+    private var surfaceHeight = 0
 
     enum class GridLayout { GRID, ROW, COLUMN }
 
@@ -383,6 +385,10 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         frameCount++
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
         camera.update(); camera.setViewMatrix(viewMatrix)
+        
+        // Update projection matrix if FOV has changed
+        Matrix.perspectiveM(projectionMatrix, 0, camera.fieldOfView, surfaceWidth.toFloat() / surfaceHeight, 0.1f, 100f)
+        
         Matrix.multiplyMM(vPMatrix, 0, projectionMatrix, 0, viewMatrix, 0)
         Matrix.invertM(interactionManager.invertedVPMatrix, 0, vPMatrix, 0)
         
@@ -461,11 +467,12 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         val rS = FloatArray(4); val rE = FloatArray(4); interactionManager.calculateRay(x, y, rS, rE)
         val expandedPile = sceneState.piles.find { it.isExpanded }
         if (expandedPile != null) {
+            // Task: Support hit detection on Wall-mounted folders (Recents)
             val isWall = expandedPile.surface != BumpItem.Surface.FLOOR
             val t = if (isWall) {
                 (expandedPile.position.z - rS[2]) / (rE[2] - rS[2])
             } else {
-                (2.90f - rS[1]) / (rE[1] - rS[1])
+                (2.90f - rS[1]) / (rE[1] - rS[1]) // Matches OverlayRenderer floor plane height
             }
 
             if (t > 0) {
@@ -481,23 +488,25 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 if (isWall) {
                     val width = 6f * expandedPile.scale
                     val height = 4f * expandedPile.scale
+                    // Arrow Left
                     if (abs(hitX - (expandedPile.position.x - width + 0.5f)) < 0.5f && abs(hitY - expandedPile.position.y) < 0.5f) {
                         expandedPile.currentIndex = (expandedPile.currentIndex - 1).coerceAtLeast(0)
                         playSound(leafSoundId, 0.2f); hapticManager.tick(); return
                     }
+                    // Arrow Right
                     if (abs(hitX - (expandedPile.position.x + width - 0.5f)) < 0.5f && abs(hitY - expandedPile.position.y) < 0.5f) {
                         expandedPile.currentIndex = (expandedPile.currentIndex + 1).coerceAtMost(expandedPile.items.size - 1)
                         playSound(leafSoundId, 0.2f); hapticManager.tick(); return
                     }
+                    // Close check for Recents (usually top corner or clicking outside)
                     if (abs(hitX - expandedPile.position.x) > width || abs(hitY - expandedPile.position.y) > height) { dismissExpandedPile(); return }
                 } else {
-                    // Close button check
-                    val cbX = pos[0] + halfDimX - 0.2f * expandedPile.scale; val cbZ = pos[2] - halfDimZ + 0.2f * expandedPile.scale
+                    val cbX = pos[0] + halfDimX - 0.3f * expandedPile.scale; val cbZ = pos[2] - halfDimZ + 0.3f * expandedPile.scale
                     if (abs(hitX - cbX) < 0.4f && abs(hitZ - cbZ) < 0.4f) { dismissExpandedPile(); return }
 
                     // Pagination check
                     val totalPages = ceil(expandedPile.items.size.toFloat() / 16f).toInt().coerceAtLeast(1)
-                    val pY = 2.91f; val pZ = pos[2] + halfDimZ - 0.4f * expandedPile.scale
+                    val pZ = pos[2] + halfDimZ - 0.5f * expandedPile.scale
                     
                     // Left Arrow
                     if (expandedPile.scrollIndex > 0 && abs(hitX - (pos[0] - 1.5f * expandedPile.scale)) < 0.4f && abs(hitZ - pZ) < 0.4f) {
@@ -594,5 +603,9 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
     fun dismissExpandedPile() { sceneState.piles.removeAll { it.isSystem && it.name == "All Apps" }; sceneState.piles.forEach { it.isExpanded = false }; camera.restorePreviousView(); (context as? LauncherActivity)?.showResetButton(camera.currentViewMode != CameraManager.ViewMode.DEFAULT) }
     fun handleZoom(sf: Float) { camera.zoomLevel = (camera.zoomLevel / sf).coerceIn(0.5f, 2.0f); if (camera.zoomLevel != 1.0f) (context as? LauncherActivity)?.showResetButton(true) }
     fun handlePan(dx: Float, dy: Float) { camera.handlePan(dx, dy); (context as? LauncherActivity)?.showResetButton(true) }
-    override fun onSurfaceChanged(unused: GL10, w: Int, h: Int) { GLES20.glViewport(0, 0, w, h); interactionManager.screenWidth = w; interactionManager.screenHeight = h; Matrix.perspectiveM(projectionMatrix, 0, 60f, w.toFloat() / h, 0.1f, 100f) }
+    override fun onSurfaceChanged(unused: GL10, w: Int, h: Int) { 
+        surfaceWidth = w; surfaceHeight = h
+        GLES20.glViewport(0, 0, w, h); interactionManager.screenWidth = w; interactionManager.screenHeight = h; 
+        Matrix.perspectiveM(projectionMatrix, 0, camera.fieldOfView, w.toFloat() / h, 0.1f, 100f) 
+    }
 }

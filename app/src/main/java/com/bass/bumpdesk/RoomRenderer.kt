@@ -12,10 +12,16 @@ class RoomRenderer(private val shader: DefaultShader) {
     private val modelMatrix = FloatArray(16)
 
     fun draw(vPMatrix: FloatArray, floorTexture: Int, wallTextures: IntArray, lightPos: FloatArray, isInfiniteMode: Boolean = false) {
-        // Floor - Always drawn
+        // Floor
         Matrix.setIdentityM(modelMatrix, 0)
-        Matrix.scaleM(modelMatrix, 0, 50f, 1f, 50f)
-        floor.updateUVs(1.0f)
+        if (isInfiniteMode) {
+            Matrix.scaleM(modelMatrix, 0, 50f, 1f, 50f)
+            floor.updateUVs(1.0f)
+        } else {
+            // Match the bounds of the walls
+            Matrix.scaleM(modelMatrix, 0, 10f, 1f, 10f)
+            floor.updateUVs(1.0f)
+        }
         floor.draw(vPMatrix, modelMatrix, floatArrayOf(0.4f, 0.4f, 0.4f, 1.0f), floorTexture, lightPos, 0.3f, true)
         
         if (!isInfiniteMode) {

@@ -90,6 +90,11 @@ class SettingsActivity : AppCompatActivity() {
             }
             recreate()
         }
+
+        // Apply and Exit
+        findViewById<Button>(R.id.btnApplyChanges).setOnClickListener {
+            finish()
+        }
     }
 
     private fun setupSeekBar(resId: Int, prefKey: String, defaultValue: Int, max: Int) {

@@ -250,11 +250,8 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
                             if (!isMiddleButton) {
                                 isMiddleDragging = false
                             } else {
-                                if (abs(dy) > abs(dx) * 2f) {
-                                    glSurfaceView.queueEvent { renderer.handleTilt(dy) }
-                                } else {
-                                    glSurfaceView.queueEvent { renderer.handlePan(dx, dy) }
-                                }
+                                // Middle Button Panning (standard L/R, F/B mapping)
+                                glSurfaceView.queueEvent { renderer.handlePan(dx, dy) }
                             }
                         } else {
                             // Detection for Tilt vs Pan
@@ -307,6 +304,21 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
 
             true
         }
+    }
+
+    override fun onGenericMotionEvent(event: MotionEvent): Boolean {
+        if (event.action == MotionEvent.ACTION_SCROLL && event.isFromSource(InputDevice.SOURCE_MOUSE)) {
+            val delta = event.getAxisValue(MotionEvent.AXIS_VSCROLL)
+            if (delta != 0f) {
+                glSurfaceView.queueEvent {
+                    // Zoom in for positive delta, out for negative
+                    val factor = if (delta > 0) 1.1f else 0.9f
+                    renderer.handleZoom(factor)
+                }
+                return true
+            }
+        }
+        return super.onGenericMotionEvent(event)
     }
 
     fun showItemMenu(x: Float, y: Float, item: BumpItem) = runOnUiThread { menuManager.showItemMenu(x, y, item) }

@@ -119,6 +119,17 @@
     - [x] Maintain default icon scale in folder views
     - [x] Scaling folder view up to fit 4x4 icons
     - [x] Implement paging with dots and arrows navigation
+- [x] **Priority**: Fix Folder and Recents UI issues
+    - [x] Zoom out camera more in folder view to fit 4x4 icons
+    - [x] Restore visibility of close button and folder names in folder view
+    - [x] Fix app names/labels intersecting with folder background
+    - [x] Fix Recents Widget visibility issues (ensuring it shows immediately)
+    - [x] Implement "Apply Changes" button in Settings or reload theme on exit
+    - [x] Map scroll wheel to zoom and middle click to pan (L/R, F/B)
+- [x] **Priority**: Fix Infinite mode transitions and Camera boundaries
+    - [x] Implement rear wall camera boundary in non-infinite mode
+    - [x] Implement dynamic focal length adjustment when boundaries are reached
+    - [x] Fix floor texture size to match room bounds in non-infinite mode
 
 ## Refactoring & Infrastructure (High Impact)
 
@@ -142,5 +153,5 @@
 - **Logic Regression**: -250 pts.
 - **Rule Breach / Forgetting Step**: -250 pts.
 
-Current Points: 4690
+Current Points: 6190
 Status: Senior Architect

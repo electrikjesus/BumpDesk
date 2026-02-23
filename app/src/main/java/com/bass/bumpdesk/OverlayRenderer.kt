@@ -14,24 +14,24 @@ class OverlayRenderer(private val shader: DefaultShader) {
         val data = getConstrainedFolderUI(pile)
         val uiX = data.pos[0]; val uiZ = data.pos[2]
 
-        // Background
+        // Background - lowered to 2.80f to ensure clear separation from icons
         Matrix.setIdentityM(modelMatrix, 0)
-        Matrix.translateM(modelMatrix, 0, uiX, 2.90f, uiZ)
+        Matrix.translateM(modelMatrix, 0, uiX, 2.80f, uiZ)
         Matrix.scaleM(modelMatrix, 0, data.halfDimX, 1f, data.halfDimZ)
         folderBgPlane.draw(vPMatrix, modelMatrix, floatArrayOf(0.1f, 0.1f, 0.1f, 0.8f), -1, lightPos, 1.0f, false)
 
-        // Title
+        // Title - elevated to 2.95f
         if (nameTextureId != -1) {
             Matrix.setIdentityM(modelMatrix, 0)
-            Matrix.translateM(modelMatrix, 0, uiX, 2.91f, uiZ - data.halfDimZ + 0.3f * pile.scale)
-            Matrix.scaleM(modelMatrix, 0, data.halfDimX * 0.8f, 1f, 0.25f * pile.scale)
+            Matrix.translateM(modelMatrix, 0, uiX, 2.95f, uiZ - data.halfDimZ + 0.4f * pile.scale)
+            Matrix.scaleM(modelMatrix, 0, data.halfDimX * 0.8f, 1f, 0.3f * pile.scale)
             folderBgPlane.draw(vPMatrix, modelMatrix, floatArrayOf(1f, 1f, 1f, 1.0f), nameTextureId, lightPos, 1.0f, false)
         }
 
-        // Close Button
+        // Close Button - elevated to 2.95f
         Matrix.setIdentityM(modelMatrix, 0)
-        Matrix.translateM(modelMatrix, 0, uiX + data.halfDimX - 0.2f * pile.scale, 2.91f, uiZ - data.halfDimZ + 0.2f * pile.scale)
-        Matrix.scaleM(modelMatrix, 0, 0.2f * pile.scale, 1f, 0.2f * pile.scale)
+        Matrix.translateM(modelMatrix, 0, uiX + data.halfDimX - 0.3f * pile.scale, 2.95f, uiZ - data.halfDimZ + 0.3f * pile.scale)
+        Matrix.scaleM(modelMatrix, 0, 0.25f * pile.scale, 1f, 0.25f * pile.scale)
         folderBgPlane.draw(vPMatrix, modelMatrix, floatArrayOf(0.8f, 0.2f, 0.2f, 1.0f), closeBtnTextureId, lightPos, 1.0f, false)
     }
 
@@ -41,29 +41,29 @@ class OverlayRenderer(private val shader: DefaultShader) {
         val totalPages = ceil(pile.items.size.toFloat() / 16f).toInt().coerceAtLeast(1)
         val currentPage = pile.scrollIndex
 
-        // Pagination Arrows
+        // Pagination Arrows - elevated to 2.95f
         if (arrowLeftId != -1 && currentPage > 0) {
             Matrix.setIdentityM(modelMatrix, 0)
-            Matrix.translateM(modelMatrix, 0, uiX - 1.5f * pile.scale, 2.91f, uiZ + data.halfDimZ - 0.4f * pile.scale)
-            Matrix.scaleM(modelMatrix, 0, 0.25f * pile.scale, 1f, 0.25f * pile.scale)
+            Matrix.translateM(modelMatrix, 0, uiX - 1.5f * pile.scale, 2.95f, uiZ + data.halfDimZ - 0.5f * pile.scale)
+            Matrix.scaleM(modelMatrix, 0, 0.3f * pile.scale, 1f, 0.3f * pile.scale)
             folderBgPlane.draw(vPMatrix, modelMatrix, floatArrayOf(1f, 1f, 1f, 1.0f), arrowLeftId, lightPos, 1.0f, false)
         }
 
         if (arrowRightId != -1 && currentPage < totalPages - 1) {
             Matrix.setIdentityM(modelMatrix, 0)
-            Matrix.translateM(modelMatrix, 0, uiX + 1.5f * pile.scale, 2.91f, uiZ + data.halfDimZ - 0.4f * pile.scale)
-            Matrix.scaleM(modelMatrix, 0, 0.25f * pile.scale, 1f, 0.25f * pile.scale)
+            Matrix.translateM(modelMatrix, 0, uiX + 1.5f * pile.scale, 2.95f, uiZ + data.halfDimZ - 0.5f * pile.scale)
+            Matrix.scaleM(modelMatrix, 0, 0.3f * pile.scale, 1f, 0.3f * pile.scale)
             folderBgPlane.draw(vPMatrix, modelMatrix, floatArrayOf(1f, 1f, 1f, 1.0f), arrowRightId, lightPos, 1.0f, false)
         }
 
-        // Pagination Dots
+        // Pagination Dots - elevated to 2.95f
         val dotSpacing = 0.3f * pile.scale
         val startX = uiX - ((totalPages - 1) * dotSpacing) / 2f
         for (i in 0 until totalPages) {
             val isCurrent = i == currentPage
             Matrix.setIdentityM(modelMatrix, 0)
-            Matrix.translateM(modelMatrix, 0, startX + i * dotSpacing, 2.91f, uiZ + data.halfDimZ - 0.4f * pile.scale)
-            Matrix.scaleM(modelMatrix, 0, 0.08f * pile.scale, 1f, 0.08f * pile.scale)
+            Matrix.translateM(modelMatrix, 0, startX + i * dotSpacing, 2.95f, uiZ + data.halfDimZ - 0.5f * pile.scale)
+            Matrix.scaleM(modelMatrix, 0, 0.1f * pile.scale, 1f, 0.1f * pile.scale)
             val color = if (isCurrent) floatArrayOf(1f, 1f, 1f, 1f) else floatArrayOf(0.5f, 0.5f, 0.5f, 0.6f)
             folderBgPlane.draw(vPMatrix, modelMatrix, color, -1, lightPos, 1.0f, false)
         }
@@ -95,11 +95,11 @@ class OverlayRenderer(private val shader: DefaultShader) {
         // Fixed 4x4 Grid dimensions
         val spacing = 2.0f
         val sideDim = 4 * spacing
-        val halfDimX = (sideDim / 2f + 0.5f) * pile.scale
-        val halfDimZ = (sideDim / 2f + 1.0f) * pile.scale // Extra room for pagination at bottom
+        val halfDimX = (sideDim / 2f + 0.8f) * pile.scale
+        val halfDimZ = (sideDim / 2f + 1.2f) * pile.scale // Extra room for pagination at bottom
         
         val uiX = pile.position[0].coerceIn(-50f + halfDimX, 50f - halfDimX)
         val uiZ = pile.position[2].coerceIn(-50f + halfDimZ, 50f - halfDimZ)
-        return FolderUIData(halfDimX, halfDimZ, floatArrayOf(uiX, 2.90f, uiZ))
+        return FolderUIData(halfDimX, halfDimZ, floatArrayOf(uiX, 2.80f, uiZ))
     }
 }
