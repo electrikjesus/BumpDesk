@@ -1,7 +1,6 @@
 package com.bass.bumpdesk
 
 import android.content.Context
-import android.os.SystemClock
 import android.view.MotionEvent
 import android.appwidget.AppWidgetHostView
 import kotlin.math.abs
@@ -69,7 +68,7 @@ class InteractionManager(
                 // In focus mode, we allow direct interaction
                 activeInteractingWidget = widget
                 activeWidgetView = sceneState.widgetViews[widget.appWidgetId]
-                widgetDownTime = SystemClock.uptimeMillis()
+                widgetDownTime = System.currentTimeMillis()
                 dispatchWidgetTouchEvent(MotionEvent.ACTION_DOWN, x, y)
                 return widget
             }
@@ -316,7 +315,7 @@ class InteractionManager(
         val (u, v) = getWidgetUV(widget, rS, rE, t)
         
         view.post {
-            val eventTime = SystemClock.uptimeMillis()
+            val eventTime = System.currentTimeMillis()
             val event = MotionEvent.obtain(widgetDownTime, eventTime, action, u * view.width, v * view.height, 0)
             view.dispatchTouchEvent(event)
             event.recycle()

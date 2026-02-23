@@ -11,6 +11,16 @@ class TextureManager(private val context: Context) {
     private val textureCache = mutableMapOf<String, Int>()
     private val allTextures = mutableSetOf<Int>()
 
+    fun getCachedTexture(key: String): Int {
+        return textureCache[key] ?: -1
+    }
+
+    fun cacheTexture(key: String, textureId: Int) {
+        if (textureId > 0) {
+            textureCache[key] = textureId
+        }
+    }
+
     fun loadTextureFromAsset(fileName: String): Int {
         textureCache[fileName]?.let { return it }
 

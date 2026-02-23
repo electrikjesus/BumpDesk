@@ -253,6 +253,37 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         sceneState.recentsPile!!.items.addAll(newItems)
     }
 
+    fun categorizeAllApps() {
+        val apps = sceneState.bumpItems.filter { it.type == BumpItem.Type.APP && it.appInfo != null }
+        if (apps.isEmpty()) return
+        
+        val groups = apps.groupBy { it.appInfo?.category ?: AppInfo.Category.OTHER }
+        
+        sceneState.bumpItems.removeAll(apps)
+        
+        var pileIdx = 0
+        groups.forEach { (category, items) ->
+            if (items.size < 2) {
+                sceneState.bumpItems.addAll(items)
+                return@forEach
+            }
+            
+            val posX = (pileIdx % 3) * 4f - 4f
+            val posZ = (pileIdx / 3) * 4f - 4f
+            val pile = Pile(
+                items = items.toMutableList(),
+                position = floatArrayOf(posX, 0.05f, posZ),
+                name = category.name.lowercase().capitalize(),
+                surface = BumpItem.Surface.FLOOR
+            )
+            sceneState.piles.add(pile)
+            pileIdx++
+        }
+        
+        playSound(expandSoundId, 0.5f)
+        hapticManager.selection()
+    }
+
     fun reloadTheme() {
         glSurfaceView?.queueEvent { 
             textureManager.clearCache()

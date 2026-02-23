@@ -119,6 +119,18 @@ class MenuManager(
 
     fun showDesktopMenu(x: Float, y: Float) {
         val menuItems = mutableListOf<RadialMenuItem>()
+        
+        // Organization Submenu
+        val organizeSubItems = listOf(
+            RadialMenuItem("Categorize All", android.R.drawable.ic_menu_sort_by_size) {
+                glSurfaceView.queueEvent { renderer.categorizeAllApps() }
+            },
+            RadialMenuItem("Reset View", android.R.drawable.ic_menu_revert) {
+                glSurfaceView.queueEvent { renderer.resetView() }
+            }
+        )
+        menuItems.add(RadialMenuItem("Organize", android.R.drawable.ic_menu_sort_by_size, subItems = organizeSubItems))
+
         menuItems.add(RadialMenuItem("Add Widget", android.R.drawable.ic_menu_add) {
             launcher.saveLastTouchPosition(x, y)
             launcher.openWidgetPicker()

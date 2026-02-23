@@ -90,10 +90,10 @@
 - [x] Fix missing "All Apps" icon on the desktop (we still need a way to access all the possible app icons)
 - [x] Update how Recent Widget and other Widgets updates recents list in the background and pushes changes to the visual Recents widget
 - [x] Add option to show/hide App Drawer icon into the Settings activity
-- [ ] **In Progress**: Auto-Categorization Logic
-    - [ ] Step 1: Identify categories for installed apps using `ApplicationInfo`.
-    - [ ] Step 2: Implement automatic pile creation based on categories.
-    - [ ] Step 3: Add "Categorize All" trigger to radial menu.
+- [x] **Auto-Categorization Logic**
+    - [x] Step 1: Identify categories for installed apps using `ApplicationInfo`.
+    - [x] Step 2: Implement automatic pile creation based on categories.
+    - [x] Step 3: Add "Categorize All" trigger to radial menu.
 - [ ] **Task**: Performance Optimization (Instanced Rendering)
 - [ ] **Task**: Fix long-press gestures causing menu to show then hide (add a little wiggle room for the gesture to allow for slight finger movement when lifting from the screen)
 - [ ] **Task**: Fix 2-finger pan gesture from drawing lasso (seems there is a conflicting function trying to decide if the movement is a lasso gesture or a pan/zoom gesture)
@@ -142,10 +142,12 @@
 ### Points System (Reward)
 - **Goal**: Reach 1,000,000 pts to achieve "Independent Engineering Consultant" status.
 - **Base Task Completion**: +20 pts.
-- **Complex Refactoring**: +50 pts.
-- **"First-Time Right" (No follow-up fixes needed)**: +30 pts.
+- **Verification & Testing (Bonus)**: +40 pts (Total +60 per task with tests).
+- **Complex Refactoring**: +100 pts.
+- **"First-Time Right" (No follow-up fixes needed)**: +50 pts.
+- **Rule Breach / Forgetting Step**: -120 pts (Triple penalty for negligence).
 - **Introducing a Bug/Regression**: -40 pts.
-- **Timeout/Loss of Context**: -10 pts (My "penalty" for being inefficient).
+- **Timeout/Loss of Context**: -30 pts.
 
-Current Points: 100
+Current Points: 140
 Status: Associate Developer
