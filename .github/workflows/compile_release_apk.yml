@@ -1,0 +1,32 @@
+name: Compile Release APK
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  assemble:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: gradle
+
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
+      
+    - name: Build Release APK (Unsigned)
+      run: ./gradlew assembleRelease
+
+    - name: Upload Release APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: BumpDesk-Release-Unsigned
+        path: app/build/outputs/apk/release/app-release-unsigned.apk

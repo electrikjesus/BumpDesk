@@ -105,10 +105,14 @@
 - [x] Concurrency Management (Optimizing SceneState)
 - [x] Physics Engine Scalability (Spatial Partitioning)
 - [x] Advanced Lasso Menu (Organic path smoothing and optimized UI)
-- [ ] **In Progress**: Search/Find Implementation (3D Search Interface)
-    - [ ] Step 1: Implement 3D search query overlay in `UIRenderer.kt`.
-    - [ ] Step 2: Implement real-time item filtering and "freshness" highlighting.
-    - [ ] Step 3: Verify search responsiveness across apps, notes, and widgets.
+- [x] Search/Find Implementation (3D Search Interface)
+
+## Refactoring & Infrastructure (High Impact)
+
+- [ ] **Task**: Type-Safe Physics (Implement `Vector3` class) - Replace raw `FloatArray(3)` usage.
+- [ ] **Task**: Component-Based Architecture (Entity Component System Lite) - Decouple `BumpItem` logic.
+- [ ] **Task**: Resource Lifecycle Audit (Leak Prevention) - Implement Native Resource Registry.
+- [ ] **Task**: Automated Integration Testing (Headless GL verification) - Verify widget interactions via tests.
 
 ## Planned Features from BumpTop Study
 
@@ -133,13 +137,6 @@
 - [x] **Enhanced Room Rendering**: Support distinct textures for each wall (top, right, bottom, left) as specified in the theme config.
 - [x] **Sticky Note Fonts**: Apply specific fonts to sticky notes if found in the theme (e.g., "Comic Sans MS" from the default theme).
 
-## Refactoring & Infrastructure (Critical for Stability)
-
-- [x] Performance Optimization (Batching/VBOs) - Group item draws to reduce overhead.
-- [x] Texture & Memory Audit - Fix leaks, ensure `glDeleteTextures` usage, and implement caching.
-- [x] Concurrency Management - Replace `Copy on WriteArrayList` in `SceneState` with synchronized `ArrayList` to reduce GC pressure.
-- [x] Physics Engine Scalability - Implement spatial partitioning (grid/quadtree) for O(n log n) collision detection.
-
 ## AI Workflow & Reward System
 
 ### Workflow Improvements
@@ -157,5 +154,5 @@
 - **Introducing a Bug/Regression**: -40 pts.
 - **Timeout/Loss of Context**: -30 pts.
 
-Current Points: 1160
+Current Points: 1340
 Status: Senior Architect
