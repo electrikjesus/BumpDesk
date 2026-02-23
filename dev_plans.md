@@ -80,16 +80,19 @@
 - [x] Find a fix or work around for any features that would prevent the app being submitted to Play Store
 - [x] Implement Permission Onboarding Screen (Play Store Compliance)
 - [x] Improve Lasso Selection Visuals (Smooth 3D line strip)
-- [x] Sound Effects Integration (Physics-based impacts and interactions)
-- [x] Widget Resizing Logic (3D handles and persistence)
-- [ ] **Task**: Fix widget interaction and recents widget interaction (we can't click on things within the widgets)
-- [ ] **Task**: Fix missing "All Apps" icon on the desktop (we still need a way to access all the possible app icons)
-- [ ] **Task**: Update how Recent Widget and other Widgets updates recents list in the background and pushes changes to the visual Recents widget
-- [ ] **Task**: Add option to show/hide App Drawer icon into the Settings activity
-- [ ] **In Progress**: Haptic Feedback Integration
+- [x] **Haptic Feedback Integration**
     - [x] Add `VIBRATE` permission to `AndroidManifest.xml`.
     - [x] Implement `HapticManager` to wrap vibration logic.
     - [x] Integrate haptics into `BumpRenderer` for collisions, selection, and leafing.
+- [x] Sound Effects Integration (Physics-based impacts and interactions)
+- [x] Widget Resizing Logic (3D handles and persistence)
+- [ ] **In Progress**: Fix widget interaction and recents widget interaction (we can't click on things within the widgets)
+    - [ ] Step 1: Track active widget interaction in `InteractionManager`
+    - [ ] Step 2: Implement continuous event dispatching for widgets
+    - [ ] Step 3: Verify scrolling and clicking in widgets
+- [ ] **Task**: Fix missing "All Apps" icon on the desktop (we still need a way to access all the possible app icons)
+- [ ] **Task**: Update how Recent Widget and other Widgets updates recents list in the background and pushes changes to the visual Recents widget
+- [ ] **Task**: Add option to show/hide App Drawer icon into the Settings activity
 - [ ] **Task**: Auto-Categorization Logic
 - [ ] **Task**: Performance Optimization (Instanced Rendering)
 - [ ] **Task**: Fix long-press gestures causing menu to show then hide (add a little wiggle room for the gesture to allow for slight finger movement when lifting from the screen)

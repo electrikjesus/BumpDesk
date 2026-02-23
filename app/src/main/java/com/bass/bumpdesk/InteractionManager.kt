@@ -2,7 +2,9 @@ package com.bass.bumpdesk
 
 import android.content.Context
 import android.opengl.Matrix
+import android.os.SystemClock
 import android.view.MotionEvent
+import android.appwidget.AppWidgetHostView
 import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.sqrt
@@ -36,18 +38,24 @@ class InteractionManager(
     private var resizeStartSize: FloatArray? = null
     private var resizeStartPos: FloatArray? = null
 
+    // For widget interaction
+    private var activeInteractingWidget: WidgetItem? = null
+    private var activeWidgetView: AppWidgetHostView? = null
+
     fun handleTouchDown(x: Float, y: Float, sceneState: SceneState): Any? {
         lastTouchX = x
         lastTouchY = y
         isDragging = false
         isLeafing = false
         isResizingWidget = false
+        activeInteractingWidget = null
+        activeWidgetView = null
         
         val rS = FloatArray(4)
         val rE = FloatArray(4)
         calculateRay(x, y, rS, rE)
         
-        // Task: Check for resize handle intersection first
+        // Check for widget interaction first
         val widgetHit = findIntersectingWidget(rS, rE, sceneState.widgetItems)
         if (widgetHit != null) {
             val widget = widgetHit.first
@@ -56,6 +64,12 @@ class InteractionManager(
                 resizeWidget = widget
                 resizeStartSize = widget.size.clone()
                 resizeStartPos = getWidgetPoint(widget, x, y)
+                return widget
+            } else if (camera.currentViewMode == CameraManager.ViewMode.WIDGET_FOCUS) {
+                // In focus mode, we allow direct interaction
+                activeInteractingWidget = widget
+                activeWidgetView = sceneState.widgetViews[widget.appWidgetId]
+                dispatchWidgetTouchEvent(MotionEvent.ACTION_DOWN, x, y)
                 return widget
             }
         }
@@ -83,44 +97,24 @@ class InteractionManager(
         return sceneState.selectedWidget
     }
 
-    private fun isTouchOnResizeHandle(widget: WidgetItem, rS: FloatArray, rE: FloatArray): Boolean {
-        val t = getWidgetT(widget, rS, rE)
-        if (t < 0) return false
-        
-        val (u, v) = getWidgetUV(widget, rS, rE, t)
-        return u > 0.85f && v > 0.85f
-    }
-
-    private fun getWidgetT(widget: WidgetItem, rS: FloatArray, rE: FloatArray): Float {
-        return when (widget.surface) {
-            BumpItem.Surface.BACK_WALL -> (-9.9f - rS[2]) / (rE[2] - rS[2])
-            BumpItem.Surface.LEFT_WALL -> (-9.9f - rS[0]) / (rE[0] - rS[0])
-            BumpItem.Surface.RIGHT_WALL -> (9.9f - rS[0]) / (rE[0] - rS[0])
-            BumpItem.Surface.FLOOR -> (0.1f - rS[1]) / (rE[1] - rS[1])
-        }
-    }
-
-    private fun getWidgetUV(widget: WidgetItem, rS: FloatArray, rE: FloatArray, t: Float): Pair<Float, Float> {
-        val iX = rS[0] + t * (rE[0] - rS[0])
-        val iY = rS[1] + t * (rE[1] - rS[1])
-        val iZ = rS[2] + t * (rE[2] - rS[2])
-        
-        return when (widget.surface) {
-            BumpItem.Surface.BACK_WALL -> (iX - (widget.position[0] - widget.size[0])) / (2f * widget.size[0]) to 1f - (iY - (widget.position[1] - widget.size[1])) / (2f * widget.size[1])
-            BumpItem.Surface.LEFT_WALL -> (iZ - (widget.position[2] - widget.size[0])) / (2f * widget.size[0]) to 1f - (iY - (widget.position[1] - widget.size[1])) / (2f * widget.size[1])
-            BumpItem.Surface.RIGHT_WALL -> 1f - (iZ - (widget.position[2] - widget.size[0])) / (2f * widget.size[0]) to 1f - (iY - (widget.position[1] - widget.size[1])) / (2f * widget.size[1])
-            BumpItem.Surface.FLOOR -> (iX - (widget.position[0] - widget.size[0])) / (2f * widget.size[0]) to (iZ - (widget.position[2] - widget.size[1])) / (2f * widget.size[1])
-        }
-    }
-
     fun handleTouchMove(x: Float, y: Float, sceneState: SceneState, pointerCount: Int): Boolean {
         var eventConsumed = false
         if (pointerCount > 1) {
             isDragging = false
             isLeafing = false
             isResizingWidget = false
+            if (activeInteractingWidget != null) {
+                dispatchWidgetTouchEvent(MotionEvent.ACTION_CANCEL, x, y)
+                activeInteractingWidget = null
+                activeWidgetView = null
+            }
             lassoPoints.clear()
             return false
+        }
+
+        if (activeInteractingWidget != null) {
+            dispatchWidgetTouchEvent(MotionEvent.ACTION_MOVE, x, y)
+            return true
         }
 
         val dxTouch = abs(x - lastTouchX)
@@ -232,19 +226,14 @@ class InteractionManager(
         return false
     }
 
-    private fun getWidgetPoint(widget: WidgetItem, x: Float, y: Float): FloatArray {
-        val rS = FloatArray(4); val rE = FloatArray(4); calculateRay(x, y, rS, rE)
-        val t = getWidgetT(widget, rS, rE)
-        val iX = rS[0] + t * (rE[0] - rS[0]); val iY = rS[1] + t * (rE[1] - rS[1]); val iZ = rS[2] + t * (rE[2] - rS[2])
-        return when (widget.surface) {
-            BumpItem.Surface.BACK_WALL -> floatArrayOf(iX, iY)
-            BumpItem.Surface.LEFT_WALL -> floatArrayOf(iZ, iY)
-            BumpItem.Surface.RIGHT_WALL -> floatArrayOf(-iZ, iY)
-            BumpItem.Surface.FLOOR -> floatArrayOf(iX, iZ)
-        }
-    }
-
     fun handleTouchUp(sceneState: SceneState, onCaptured: (List<BumpItem>) -> Unit) {
+        if (activeInteractingWidget != null) {
+            dispatchWidgetTouchEvent(MotionEvent.ACTION_UP, lastTouchX, lastTouchY)
+            activeInteractingWidget = null
+            activeWidgetView = null
+            return
+        }
+
         if (isResizingWidget) {
             isResizingWidget = false
             resizeWidget = null
@@ -313,6 +302,66 @@ class InteractionManager(
         lassoPoints.clear()
         isLeafing = false
         isDragging = false
+    }
+
+    private fun dispatchWidgetTouchEvent(action: Int, x: Float, y: Float) {
+        val widget = activeInteractingWidget ?: return
+        val view = activeWidgetView ?: return
+        
+        val rS = FloatArray(4); val rE = FloatArray(4); calculateRay(x, y, rS, rE)
+        val t = getWidgetT(widget, rS, rE)
+        if (t < 0 && action != MotionEvent.ACTION_UP && action != MotionEvent.ACTION_CANCEL) return
+        
+        val (u, v) = getWidgetUV(widget, rS, rE, t)
+        
+        view.post {
+            val dt = SystemClock.uptimeMillis()
+            val event = MotionEvent.obtain(dt, dt, action, u * view.width, v * view.height, 0)
+            view.dispatchTouchEvent(event)
+            event.recycle()
+        }
+    }
+
+    private fun isTouchOnResizeHandle(widget: WidgetItem, rS: FloatArray, rE: FloatArray): Boolean {
+        val t = getWidgetT(widget, rS, rE)
+        if (t < 0) return false
+        
+        val (u, v) = getWidgetUV(widget, rS, rE, t)
+        return u > 0.85f && v > 0.85f
+    }
+
+    private fun getWidgetT(widget: WidgetItem, rS: FloatArray, rE: FloatArray): Float {
+        return when (widget.surface) {
+            BumpItem.Surface.BACK_WALL -> (-9.9f - rS[2]) / (rE[2] - rS[2])
+            BumpItem.Surface.LEFT_WALL -> (-9.9f - rS[0]) / (rE[0] - rS[0])
+            BumpItem.Surface.RIGHT_WALL -> (9.9f - rS[0]) / (rE[0] - rS[0])
+            BumpItem.Surface.FLOOR -> (0.1f - rS[1]) / (rE[1] - rS[1])
+        }
+    }
+
+    private fun getWidgetUV(widget: WidgetItem, rS: FloatArray, rE: FloatArray, t: Float): Pair<Float, Float> {
+        val iX = rS[0] + t * (rE[0] - rS[0])
+        val iY = rS[1] + t * (rE[1] - rS[1])
+        val iZ = rS[2] + t * (rE[2] - rS[2])
+        
+        return when (widget.surface) {
+            BumpItem.Surface.BACK_WALL -> (iX - (widget.position[0] - widget.size[0])) / (2f * widget.size[0]) to 1f - (iY - (widget.position[1] - widget.size[1])) / (2f * widget.size[1])
+            BumpItem.Surface.LEFT_WALL -> (iZ - (widget.position[2] - widget.size[0])) / (2f * widget.size[0]) to 1f - (iY - (widget.position[1] - widget.size[1])) / (2f * widget.size[1])
+            BumpItem.Surface.RIGHT_WALL -> 1f - (iZ - (widget.position[2] - widget.size[0])) / (2f * widget.size[0]) to 1f - (iY - (widget.position[1] - widget.size[1])) / (2f * widget.size[1])
+            BumpItem.Surface.FLOOR -> (iX - (widget.position[0] - widget.size[0])) / (2f * widget.size[0]) to (iZ - (widget.position[2] - widget.size[1])) / (2f * widget.size[1])
+        }
+    }
+
+    private fun getWidgetPoint(widget: WidgetItem, x: Float, y: Float): FloatArray {
+        val rS = FloatArray(4); val rE = FloatArray(4); calculateRay(x, y, rS, rE)
+        val t = getWidgetT(widget, rS, rE)
+        val iX = rS[0] + t * (rE[0] - rS[0]); val iY = rS[1] + t * (rE[1] - rS[1]); val iZ = rS[2] + t * (rE[2] - rS[2])
+        return when (widget.surface) {
+            BumpItem.Surface.BACK_WALL -> floatArrayOf(iX, iY)
+            BumpItem.Surface.LEFT_WALL -> floatArrayOf(iZ, iY)
+            BumpItem.Surface.RIGHT_WALL -> floatArrayOf(-iZ, iY)
+            BumpItem.Surface.FLOOR -> floatArrayOf(iX, iZ)
+        }
     }
 
     fun undo() = undoManager.undo()
