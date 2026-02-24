@@ -1,4 +1,4 @@
-# BumpDesk - 3D Android Workspace
+# ![BumpDesk Logo](docs/assets/BumpDesk.svg) BumpDesk - 3D Android Workspace
 
 BumpDesk is an experimental 3D launcher for Android that reimagines the traditional home screen as a physical workspace. Inspired by the classic "BumpTop" desktop metaphor, it treats applications, widgets, and notes as physical objects that can be moved, stacked, pinned to walls, and interacted with in a natural way.
 
@@ -26,11 +26,22 @@ BumpDesk is in an **Advanced Beta** state.
 
 ## 🚀 Getting Started
 
-### Run Instructions
+### Quick Start (Releases)
+The easiest way to try BumpDesk is to download the latest APK from the **[Releases](https://github.com/electrikjesus/BumpDesk/releases)** page.
+
+1.  Download the `app-debug.apk` from the latest release.
+2.  Install it via ADB:
+    ```bash
+    adb install app-debug.apk
+    ```
+3.  Launch the app and follow the **Onboarding Wizard**.
+
+### Build from Source
+If you are a developer and want to contribute or customize:
 1.  Open the project in **Android Studio Koala (or newer)**.
 2.  Connect an Android device or emulator (Android 12+ recommended).
-3.  Run the `:app:assembleDebug` task.
-4.  Launch the app. On first run, follow the **Onboarding Wizard** to grant permissions and optionally set BumpDesk as your default home app.
+3.  Run the `:app:assembleDebug` task to build the APK.
+4.  Deploy to your device using the **Run** button in Android Studio.
 
 ### Prerequisites
 - Android device running Android 12 (API 31) or higher.
