@@ -22,14 +22,14 @@ class RoomRenderer(private val shader: DefaultShader) {
         roomSize: Float = 30f,
         roomHeight: Float = 30f
     ) {
-        // Floor
+        // Floor - Reset UV scaling to 1.0f to fill plane instead of tiling
         Matrix.setIdentityM(modelMatrix, 0)
         if (isInfiniteMode) {
             Matrix.scaleM(modelMatrix, 0, 100f, 1f, 100f)
-            floor.updateUVs(2.0f)
+            floor.updateUVs(1.0f) // Fill the large plane
         } else {
             Matrix.scaleM(modelMatrix, 0, roomSize, 1f, roomSize)
-            floor.updateUVs(roomSize / 15f) // Adjust UV tiling based on size
+            floor.updateUVs(1.0f) // Fill the room size plane
         }
         floor.draw(vPMatrix, modelMatrix, floatArrayOf(0.4f, 0.4f, 0.4f, 1.0f), floorTexture, lightPos, 0.3f, true)
         
@@ -38,12 +38,14 @@ class RoomRenderer(private val shader: DefaultShader) {
             GLES20.glEnable(GLES20.GL_CULL_FACE)
             GLES20.glCullFace(GLES20.GL_BACK)
 
+            val wallTiling = roomSize / 15f
+
             // Back Wall
             Matrix.setIdentityM(modelMatrix, 0)
             Matrix.translateM(modelMatrix, 0, 0f, roomHeight / 2f, -roomSize)
             Matrix.rotateM(modelMatrix, 0, 90f, 1f, 0f, 0f)
             Matrix.scaleM(modelMatrix, 0, roomSize, 1f, roomHeight / 2f)
-            wallBack.updateUVs(roomSize / 15f)
+            wallBack.updateUVs(wallTiling)
             wallBack.draw(vPMatrix, modelMatrix, floatArrayOf(0.5f, 0.5f, 0.5f, 1.0f), wallTextures[0], lightPos, 0.2f, true)
             
             // Front Wall (Behind Camera) - Normally invisible due to culling if camera is inside
@@ -51,7 +53,7 @@ class RoomRenderer(private val shader: DefaultShader) {
             Matrix.translateM(modelMatrix, 0, 0f, roomHeight / 2f, roomSize)
             Matrix.rotateM(modelMatrix, 0, -90f, 1f, 0f, 0f)
             Matrix.scaleM(modelMatrix, 0, roomSize, 1f, roomHeight / 2f)
-            wallFront.updateUVs(roomSize / 15f)
+            wallFront.updateUVs(wallTiling)
             wallFront.draw(vPMatrix, modelMatrix, floatArrayOf(0.5f, 0.5f, 0.5f, 1.0f), wallTextures[0], lightPos, 0.2f, true)
             
             // Left Wall
@@ -59,7 +61,7 @@ class RoomRenderer(private val shader: DefaultShader) {
             Matrix.translateM(modelMatrix, 0, -roomSize, roomHeight / 2f, 0f)
             Matrix.rotateM(modelMatrix, 0, -90f, 0f, 0f, 1f)
             Matrix.scaleM(modelMatrix, 0, roomHeight / 2f, 1f, roomSize)
-            wallLeft.updateUVs(roomSize / 15f)
+            wallLeft.updateUVs(wallTiling)
             wallLeft.draw(vPMatrix, modelMatrix, floatArrayOf(0.5f, 0.5f, 0.5f, 1.0f), wallTextures[1], lightPos, 0.2f, true)
             
             // Right Wall
@@ -67,7 +69,7 @@ class RoomRenderer(private val shader: DefaultShader) {
             Matrix.translateM(modelMatrix, 0, roomSize, roomHeight / 2f, 0f)
             Matrix.rotateM(modelMatrix, 0, 90f, 0f, 0f, 1f)
             Matrix.scaleM(modelMatrix, 0, roomHeight / 2f, 1f, roomSize)
-            wallRight.updateUVs(roomSize / 15f)
+            wallRight.updateUVs(wallTiling)
             wallRight.draw(vPMatrix, modelMatrix, floatArrayOf(0.5f, 0.5f, 0.5f, 1.0f), wallTextures[2], lightPos, 0.2f, true)
 
             // Top Wall (Ceiling)
@@ -75,7 +77,7 @@ class RoomRenderer(private val shader: DefaultShader) {
             Matrix.translateM(modelMatrix, 0, 0f, roomHeight, 0f)
             Matrix.rotateM(modelMatrix, 0, 180f, 1f, 0f, 0f)
             Matrix.scaleM(modelMatrix, 0, roomSize, 1f, roomSize)
-            wallTop.updateUVs(roomSize / 15f)
+            wallTop.updateUVs(wallTiling)
             wallTop.draw(vPMatrix, modelMatrix, floatArrayOf(0.3f, 0.3f, 0.3f, 1.0f), wallTextures[3], lightPos, 0.1f, true)
 
             GLES20.glDisable(GLES20.GL_CULL_FACE)

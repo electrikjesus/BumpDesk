@@ -123,16 +123,17 @@
     - [x] 2-finger: Up/Down = Pan Forward/Backward, Left/Right = Pan Left/Right, Pinch = Zoom
     - [x] 3-finger: Up/Down = Tilt Up/Down, Left/Right = Look Left/Right
     - [x] Fix lasso triggering erroneously during multi-finger gestures
-- [ ] **Priority**: Global UI and Persistence Sync
-    - [ ] Update icon scale from Settings to affect desktop icons immediately
+- [x] **Priority**: Global UI and Persistence Sync
+    - [x] Update icon scale from Settings to affect desktop icons immediately
     - [x] Fix icons showing too large in folder view when slider is high (scale them together)
-    - [ ] Remember custom default camera positions across restarts (Persistence)
-    - [ ] **Task**: Fix item focus scaling (2/3 rule for widgets/folders)
-- [ ] **Priority**: Fix floor texture scaling (Incorrect quadrants mapping/stretching)
+    - [x] Remember custom default camera positions across restarts (Persistence)
+    - [x] **Task**: Fix item focus scaling (2/3 rule for widgets/folders)
+- [x] **Priority**: Fix floor texture scaling (Incorrect quadrants mapping/stretching)
+    - [x] **Task**: Fix floor texture tiling (should fill entire plane)
 - [ ] **Priority**: Fix missing "set camera default" right-click/long-click menu option in all context menus
-- [ ] **Priority**: Fix camera clipping through front wall
-    - [ ] Implement back-face culling for room walls
-    - [ ] Ensure front wall is invisible when camera is outside the room
+- [x] **Priority**: Fix camera clipping through front wall
+    - [x] Implement back-face culling for room walls
+    - [x] Ensure front wall is invisible when camera is outside the room
 - [x] **Performance**: Implement virtualized AppDrawer loading (paged bitmap generation).
 - [x] **UX**: Improve complex widget horizontal/vertical scrolling in 3D projection.
 - [ ] **Tactile**: Advanced haptic feedback for room boundary collisions and item interactions.
@@ -156,5 +157,5 @@
 - **Logic Regression**: -250 pts.
 - **Rule Breach / Forgetting Step**: -250 pts.
 
-Current Points: 12590
+Current Points: 14290
 Status: Senior Architect
