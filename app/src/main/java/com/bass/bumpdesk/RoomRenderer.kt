@@ -1,5 +1,6 @@
 package com.bass.bumpdesk
 
+import android.opengl.GLES20
 import android.opengl.Matrix
 
 class RoomRenderer(private val shader: DefaultShader) {
@@ -33,6 +34,10 @@ class RoomRenderer(private val shader: DefaultShader) {
         floor.draw(vPMatrix, modelMatrix, floatArrayOf(0.4f, 0.4f, 0.4f, 1.0f), floorTexture, lightPos, 0.3f, true)
         
         if (!isInfiniteMode) {
+            // Enable Back-Face Culling for Walls to allow seeing inside when camera is outside
+            GLES20.glEnable(GLES20.GL_CULL_FACE)
+            GLES20.glCullFace(GLES20.GL_BACK)
+
             // Back Wall
             Matrix.setIdentityM(modelMatrix, 0)
             Matrix.translateM(modelMatrix, 0, 0f, roomHeight / 2f, -roomSize)
@@ -41,7 +46,7 @@ class RoomRenderer(private val shader: DefaultShader) {
             wallBack.updateUVs(roomSize / 15f)
             wallBack.draw(vPMatrix, modelMatrix, floatArrayOf(0.5f, 0.5f, 0.5f, 1.0f), wallTextures[0], lightPos, 0.2f, true)
             
-            // Front Wall (Behind Camera)
+            // Front Wall (Behind Camera) - Normally invisible due to culling if camera is inside
             Matrix.setIdentityM(modelMatrix, 0)
             Matrix.translateM(modelMatrix, 0, 0f, roomHeight / 2f, roomSize)
             Matrix.rotateM(modelMatrix, 0, -90f, 1f, 0f, 0f)
@@ -72,6 +77,8 @@ class RoomRenderer(private val shader: DefaultShader) {
             Matrix.scaleM(modelMatrix, 0, roomSize, 1f, roomSize)
             wallTop.updateUVs(roomSize / 15f)
             wallTop.draw(vPMatrix, modelMatrix, floatArrayOf(0.3f, 0.3f, 0.3f, 1.0f), wallTextures[3], lightPos, 0.1f, true)
+
+            GLES20.glDisable(GLES20.GL_CULL_FACE)
         }
     }
 }

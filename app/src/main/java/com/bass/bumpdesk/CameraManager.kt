@@ -211,11 +211,13 @@ class CameraManager {
         fieldOfView = 60f
     }
 
-    fun focusOnFolder(folderPos: FloatArray) {
+    fun focusOnFolder(folderPos: FloatArray, scale: Float = 1.0f) {
         saveCurrentView()
-        // Focus camera above folder, higher up due to larger room and icon scale
-        targetPos = floatArrayOf(folderPos[0], 25f, folderPos[2] + 8f)
-        targetLookAt = floatArrayOf(folderPos[0], 2.90f, folderPos[2])
+        // Focus camera closer to folder for 2/3 rule
+        // A 4x4 grid is about 8f wide. At D=10f, view height is ~11.5f. 8/11.5 is ~0.7.
+        val focusDist = 10f * scale
+        targetPos = floatArrayOf(folderPos[0], folderPos[1] + focusDist, folderPos[2] + focusDist * 0.4f)
+        targetLookAt = floatArrayOf(folderPos[0], folderPos[1], folderPos[2])
         currentViewMode = ViewMode.FOLDER_EXPANDED
         zoomLevel = 1.0f
         fieldOfView = 60f
@@ -223,7 +225,10 @@ class CameraManager {
 
     fun focusOnWidget(widget: WidgetItem) {
         saveCurrentView()
-        val dist = 6f
+        // Determine distance based on widget size to satisfy 2/3 rule
+        val maxDim = max(widget.size.x, widget.size.z)
+        val dist = (maxDim * 2.5f).coerceIn(4f, 15f)
+        
         when (widget.surface) {
             BumpItem.Surface.BACK_WALL -> {
                 targetPos = floatArrayOf(widget.position[0], widget.position[1], widget.position[2] + dist)
@@ -238,8 +243,8 @@ class CameraManager {
                 targetLookAt = floatArrayOf(widget.position[0], widget.position[1], widget.position[2])
             }
             else -> {
-                targetPos = floatArrayOf(widget.position[0], 12f, widget.position[2] + 6f)
-                targetLookAt = floatArrayOf(widget.position[0], 0.1f, widget.position[2])
+                targetPos = floatArrayOf(widget.position[0], widget.position[1] + dist, widget.position[2] + dist * 0.2f)
+                targetLookAt = floatArrayOf(widget.position[0], widget.position[1], widget.position[2])
             }
         }
         currentViewMode = ViewMode.WIDGET_FOCUS

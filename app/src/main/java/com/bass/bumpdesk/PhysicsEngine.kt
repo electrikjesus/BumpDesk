@@ -41,7 +41,16 @@ class PhysicsEngine {
                     else -> defaultScale
                 }
                 
-                item.transform.scale += (targetScale - item.transform.scale) * 0.1f
+                // If the pile is expanded, we want to scale the items relative to the pile scale,
+                // but we also need to account for the global defaultScale.
+                // We use a fixed base scale for expanded icons (0.8f) and multiply by the folder's scale.
+                val finalTargetScale = if (pile.isExpanded) {
+                    (0.8f * pile.scale).coerceIn(0.4f, 2.0f)
+                } else {
+                    targetScale
+                }
+
+                item.transform.scale += (finalTargetScale - item.transform.scale) * 0.1f
                 
                 val targetPos = calculateTargetPositionInPile(pile, index)
                 item.transform.position = item.transform.position + (targetPos - item.transform.position) * 0.15f

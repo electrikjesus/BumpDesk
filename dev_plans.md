@@ -125,8 +125,9 @@
     - [x] Fix lasso triggering erroneously during multi-finger gestures
 - [ ] **Priority**: Global UI and Persistence Sync
     - [ ] Update icon scale from Settings to affect desktop icons immediately
-    - [ ] Fix icons showing too large in folder view when slider is high (scale them together)
+    - [x] Fix icons showing too large in folder view when slider is high (scale them together)
     - [ ] Remember custom default camera positions across restarts (Persistence)
+    - [ ] **Task**: Fix item focus scaling (2/3 rule for widgets/folders)
 - [ ] **Priority**: Fix floor texture scaling (Incorrect quadrants mapping/stretching)
 - [ ] **Priority**: Fix missing "set camera default" right-click/long-click menu option in all context menus
 - [ ] **Priority**: Fix camera clipping through front wall
@@ -155,5 +156,5 @@
 - **Logic Regression**: -250 pts.
 - **Rule Breach / Forgetting Step**: -250 pts.
 
-Current Points: 12390
+Current Points: 12590
 Status: Senior Architect

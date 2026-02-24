@@ -154,7 +154,8 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         sceneState.withWriteLock {
             sceneState.bumpItems.forEach { it.transform.scale = physicsEngine.defaultScale }
             sceneState.piles.forEach { p ->
-                p.scale = scalePref + 0.5f
+                // Piles also get scaled but remain relatively larger than individual icons
+                p.scale = (scalePref + 0.5f).coerceIn(0.5f, 2.5f)
                 p.items.forEach { it.transform.scale = physicsEngine.defaultScale }
             }
         }
@@ -202,6 +203,9 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
             camera.customDefaultLookAt[1] = prefs.getFloat("cam_def_lat_y", camera.ABSOLUTE_DEFAULT_LOOKAT[1])
             camera.customDefaultLookAt[2] = prefs.getFloat("cam_def_lat_z", camera.ABSOLUTE_DEFAULT_LOOKAT[2])
             camera.reset() // Apply custom defaults
+        } else if (prefs.getBoolean("reset_camera_trigger", false)) {
+            camera.resetToAbsoluteDefaults()
+            prefs.edit().remove("reset_camera_trigger").apply()
         }
 
         // Force immediate reload of theme textures to ensure floor updates when infinite mode changes
@@ -280,7 +284,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         if (!sceneState.isAlreadyOnDesktop(app)) {
             val x = (Math.random().toFloat() * 4f) - 2f
             val z = (Math.random().toFloat() * 4f) - 2f
-            sceneState.bumpItems.add(BumpItem(appInfo = app, position = Vector3(x, 0.05f, z)))
+            sceneState.bumpItems.add(BumpItem(appInfo = app, position = Vector3(x, 0.05f, z), scale = physicsEngine.defaultScale))
             saveState()
         }
     }
@@ -289,7 +293,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         val rS = FloatArray(4); val rE = FloatArray(4); interactionManager.calculateRay(x, y, rS, rE)
         val hit = interactionManager.findWallOrFloorHit(rS, rE, 0.05f)
         val pos = if (hit != null) Vector3.fromArray(hit.second) else Vector3(0f, 0.05f, 0f)
-        sceneState.bumpItems.add(BumpItem(type = BumpItem.Type.STICKY_NOTE, text = text, position = pos, surface = hit?.first ?: BumpItem.Surface.FLOOR, color = floatArrayOf(1f, 1f, 0.6f, 1f)))
+        sceneState.bumpItems.add(BumpItem(type = BumpItem.Type.STICKY_NOTE, text = text, position = pos, surface = hit?.first ?: BumpItem.Surface.FLOOR, color = floatArrayOf(1f, 1f, 0.6f, 1f), scale = physicsEngine.defaultScale))
         saveState()
     }
 
@@ -297,7 +301,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         val rS = FloatArray(4); val rE = FloatArray(4); interactionManager.calculateRay(x, y, rS, rE)
         val hit = interactionManager.findWallOrFloorHit(rS, rE, 0.05f)
         val pos = if (hit != null) Vector3.fromArray(hit.second) else Vector3(0f, 0.05f, 0f)
-        sceneState.bumpItems.add(BumpItem(type = BumpItem.Type.PHOTO_FRAME, text = uri, position = pos, surface = hit?.first ?: BumpItem.Surface.FLOOR, scale = 1.5f))
+        sceneState.bumpItems.add(BumpItem(type = BumpItem.Type.PHOTO_FRAME, text = uri, position = pos, surface = hit?.first ?: BumpItem.Surface.FLOOR, scale = physicsEngine.defaultScale * 2.0f))
         saveState()
     }
 
@@ -305,7 +309,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         val rS = FloatArray(4); val rE = FloatArray(4); interactionManager.calculateRay(x, y, rS, rE)
         val hit = interactionManager.findWallOrFloorHit(rS, rE, 0.05f)
         val pos = if (hit != null) Vector3.fromArray(hit.second) else Vector3(0f, 0.05f, 0f)
-        sceneState.bumpItems.add(BumpItem(type = BumpItem.Type.WEB_WIDGET, text = url, position = pos, surface = hit?.first ?: BumpItem.Surface.FLOOR, scale = 2.0f))
+        sceneState.bumpItems.add(BumpItem(type = BumpItem.Type.WEB_WIDGET, text = url, position = pos, surface = hit?.first ?: BumpItem.Surface.FLOOR, scale = physicsEngine.defaultScale * 3.0f))
         saveState()
     }
 
@@ -649,7 +653,11 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 playSound(expandSoundId, 0.3f)
                 hapticManager.selection()
                 if (pile.isSystem && pile == sceneState.recentsPile) camera.focusOnWall(CameraManager.ViewMode.BACK_WALL, floatArrayOf(0f, 4f, 2f), floatArrayOf(0f, 4f, -ROOM_SIZE))
-                else { sceneState.piles.forEach { it.isExpanded = false }; pile.isExpanded = true; camera.focusOnFolder(pile.position.toFloatArray()) }
+                else { 
+                    sceneState.piles.forEach { it.isExpanded = false }
+                    pile.isExpanded = true
+                    camera.focusOnFolder(pile.position.toFloatArray(), pile.scale) 
+                }
                 (context as? LauncherActivity)?.showResetButton(true); return
             }
             if (item.appearance.type == BumpItem.Type.APP_DRAWER) {
@@ -657,8 +665,9 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 if (apps.isNotEmpty()) {
                     playSound(expandSoundId, 0.3f)
                     hapticManager.selection()
-                    val p = item.transform.position.copy(); val dp = Pile(apps.map { BumpItem(appInfo = it, position = p.copy()) }.toMutableList(), p, name = "All Apps", isSystem = true)
-                    sceneState.piles.forEach { it.isExpanded = false }; dp.isExpanded = true; sceneState.piles.add(dp); camera.focusOnFolder(p.toFloatArray()); (context as? LauncherActivity)?.showResetButton(true)
+                    val p = item.transform.position.copy()
+                    val dp = Pile(apps.map { BumpItem(appInfo = it, position = p.copy(), scale = physicsEngine.defaultScale) }.toMutableList(), p, name = "All Apps", isSystem = true)
+                    sceneState.piles.forEach { it.isExpanded = false }; dp.isExpanded = true; sceneState.piles.add(dp); camera.focusOnFolder(p.toFloatArray(), dp.scale); (context as? LauncherActivity)?.showResetButton(true)
                 }
                 return
             }

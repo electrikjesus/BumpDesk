@@ -199,6 +199,10 @@ class MenuManager(
         )
         menuItems.add(RadialMenuItem("Layout", android.R.drawable.ic_menu_sort_by_size, subItems = gridSubItems))
 
+        menuItems.add(RadialMenuItem("Set As Default View", android.R.drawable.ic_menu_camera) {
+            glSurfaceView.queueEvent { renderer.saveCustomCameraDefault() }
+        })
+
         menuItems.add(RadialMenuItem("Delete All", android.R.drawable.ic_menu_delete) {
             glSurfaceView.queueEvent { renderer.sceneState.bumpItems.removeAll(selectedItems) }
         })
