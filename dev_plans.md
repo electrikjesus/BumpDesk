@@ -105,62 +105,42 @@
 - [x] Type-Safe Physics (Vector3 Refactor)
 - [x] Allow mouse middle click to be used for 2-finger pan/tilt gestures
 - [x] **Priority**: Fix rendering issues
-    - [x] Recents Widget arrows are showing as a white square
-    - [x] app icons are making folder background/plane seem invisible. Make sure there is no intersecting happening to cause this
-    - [x] Some interaction issues with Recents Widget: cant click on controls on pinned tiles. Also arrows on main Recents Widget can't be clicked.
 - [x] **Priority**: Fix Persistence and Interaction Accuracy
-    - [x] Fix state saving: apps not saved to places on theme/layout change
-    - [x] Fix pile/fan persistence: ensure custom piles and fanned stacks are saved
-    - [x] Improve interaction accuracy in folder views: scale hit registration with scaled-down icons
 - [x] **Priority**: Fix theme and infinite desktop application delay
-    - [x] Ensure theme changes apply immediately without needing toggles
-    - [x] Ensure infinite desktop mode changes apply immediately
 - [x] **Priority**: Implement 4x4 paging grid for expanded folders
-    - [x] Maintain default icon scale in folder views
-    - [x] Scaling folder view up to fit 4x4 icons
-    - [x] Implement paging with dots and arrows navigation
 - [x] **Priority**: Fix Folder and Recents UI issues
-    - [x] Zoom out camera more in folder view to fit 4x4 icons
-    - [x] Restore visibility of close button and folder names in folder view
-    - [x] Fix app names/labels intersecting with folder background
-    - [x] Fix Recents Widget visibility issues (ensuring it shows immediately)
-    - [x] Implement "Apply Changes" button in Settings or reload theme on exit
-    - [x] Map scroll wheel to zoom and middle click to pan (L/R, F/B)
 - [x] **Priority**: Fix Infinite mode transitions and Camera boundaries
-    - [x] Implement rear wall camera boundary in non-infinite mode
-    - [x] Implement dynamic focal length adjustment when boundaries are reached
-    - [x] Fix floor texture size to match room bounds in non-infinite mode
 - [x] **Priority**: Fix room geometry and camera constraints
-    - [x] Add a front wall (behind camera) to the desktop scene cube
-    - [x] Increase the size of walls/ceiling/floor to allow more room for zooming
-    - [x] Fix camera going through the ceiling in folder view (clamp to ceiling height)
-    - [x] Tie all folder and icon sizes to the global scale option in Settings
 - [x] **Priority**: dynamic room dimensions for dragging interaction
-    - [x] Update `InteractionManager` to use dynamic room size for wall detection
-- [x] **Priority**: add long-click menu option to set default camera view as current view (and a settings option to reset camera defaults)
-- [x] **Priority**: add scale slider in settings for room size (also tie camera to this scale setting)
+- [x] **Priority**: add long-click menu option to set default camera view as current view
+- [x] **Priority**: add scale slider in settings for room size
 - [x] **Priority**: fix CameraManagerTest > testZoomLogic FAILED
 - [x] **Context Improvement**: use the same signature to compile in Android Studio and GitHub actions
-- [x] **Priority**: expand on our recents widget and add logging for the activities each recents tile has (right now, they all don't work as expected)
+- [x] **Priority**: expand on our recents widget and add logging
+- [x] **Priority**: Fix LauncherActivity crash on destroy (Uninitialized renderer)
+- [x] **Priority**: Fix release APK compilation failure in CI (Keystore error)
+- [ ] **Priority**: Fix multi-finger touchscreen gestures
+    - [ ] 2-finger: Up/Down = Pan Forward/Backward, Left/Right = Pan Left/Right, Pinch = Zoom
+    - [ ] 3-finger: Up/Down = Tilt Up/Down, Left/Right = Look Left/Right
+    - [ ] Fix lasso triggering erroneously during multi-finger gestures
+- [ ] **Priority**: Global UI and Persistence Sync
+    - [ ] Update icon scale from Settings to affect desktop icons immediately
+    - [ ] Fix icons showing too large in folder view when slider is high (scale them together)
+    - [ ] Remember custom default camera positions across restarts (Persistence)
+- [ ] **Priority**: Fix floor texture scaling (Incorrect quadrants mapping/stretching)
+- [ ] **Priority**: Fix missing "set camera default" right-click/long-click menu option in all context menus
+- [ ] **Priority**: Fix camera clipping through front wall
+    - [ ] Implement back-face culling for room walls
+    - [ ] Ensure front wall is invisible when camera is outside the room
+- [x] **Performance**: Implement virtualized AppDrawer loading (paged bitmap generation).
+- [x] **UX**: Improve complex widget horizontal/vertical scrolling in 3D projection.
+- [ ] **Tactile**: Advanced haptic feedback for room boundary collisions and item interactions.
 
 ## Refactoring & Infrastructure (High Impact)
 
 - [x] **Complete**: Component-Based Architecture (Entity Component System Lite)
-    - [x] Step 1: Define `Component` and `RenderComponent` interfaces.
-    - [x] Step 2: Refactor `BumpItem` to use component map.
-    - [x] Step 3: Update `ItemRenderer` to use components.
 - [x] **Task**: Resource Lifecycle Audit (Leak Prevention)
 - [x] **Task**: Automated Integration Testing (Headless GL verification)
-
-## Next Priorities:
-- [x] **Priority**: Fix LauncherActivity crash on destroy (Uninitialized renderer)
-- [x] **Priority**: Fix release APK compilation failure in CI (Keystore error) and revert release signing for now
-- [x] **Priority**: Fix 2-finger pan/tilt/zoom gestures on touchscreen (Ensure zoom works on touchscreen)
-- [x] **Priority**: Fix lasso triggering erroneously with 2-finger touchscreen gestures
-- [x] **Priority**: Fix missing "set camera default" right-click/long-click menu option
-- [ ] **Performance**: Implement virtualized AppDrawer loading (paged bitmap generation).
-- [ ] **UX**: Improve complex widget horizontal/vertical scrolling in 3D projection.
-- [ ] **Tactile**: Advanced haptic feedback for room boundary collisions and item interactions.
 
 ## AI Workflow & Reward System
 
@@ -175,5 +155,5 @@
 - **Logic Regression**: -250 pts.
 - **Rule Breach / Forgetting Step**: -250 pts.
 
-Current Points: 11490
+Current Points: 12090
 Status: Senior Architect

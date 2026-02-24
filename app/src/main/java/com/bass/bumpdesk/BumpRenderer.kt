@@ -150,8 +150,14 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         physicsEngine.defaultScale = scalePref + 0.2f
         physicsEngine.gridSpacingBase = (prefs.getInt("layout_grid_spacing", 60) / 100f) * 2.0f
         
-        // Update all existing piles to reflect the new global scale
-        sceneState.piles.forEach { it.scale = scalePref + 0.5f }
+        // Update all existing items and piles to reflect the new global scale immediately
+        sceneState.withWriteLock {
+            sceneState.bumpItems.forEach { it.transform.scale = physicsEngine.defaultScale }
+            sceneState.piles.forEach { p ->
+                p.scale = scalePref + 0.5f
+                p.items.forEach { it.transform.scale = physicsEngine.defaultScale }
+            }
+        }
         
         val showAppDrawer = prefs.getBoolean("show_app_drawer_icon", true)
         val hasAppDrawer = sceneState.bumpItems.any { it.appearance.type == BumpItem.Type.APP_DRAWER } ||
@@ -195,6 +201,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
             camera.customDefaultLookAt[0] = prefs.getFloat("cam_def_lat_x", camera.ABSOLUTE_DEFAULT_LOOKAT[0])
             camera.customDefaultLookAt[1] = prefs.getFloat("cam_def_lat_y", camera.ABSOLUTE_DEFAULT_LOOKAT[1])
             camera.customDefaultLookAt[2] = prefs.getFloat("cam_def_lat_z", camera.ABSOLUTE_DEFAULT_LOOKAT[2])
+            camera.reset() // Apply custom defaults
         }
 
         // Force immediate reload of theme textures to ensure floor updates when infinite mode changes
@@ -451,9 +458,9 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         
         // Ensure textures are non-zero/valid to fix white square issues
         uiAssets = UIRenderer.UIAssets(
-            closeBtn = textureManager.loadTextureFromBitmap(TextRenderer.createTextBitmap("X", 64, 64), "ui_close"),
-            arrowLeft = textureManager.loadTextureFromBitmap(TextRenderer.createTextBitmap(" < ", 64, 64), "ui_arrow_left"),
-            arrowRight = textureManager.loadTextureFromBitmap(TextRenderer.createTextBitmap(" > ", 64, 64), "ui_arrow_right"),
+            closeBtn = textureManager.loadTextureFromBitmap(TextRenderer.createTextBitmap("X", 64, 64)),
+            arrowLeft = textureManager.loadTextureFromBitmap(TextRenderer.createTextBitmap(" < ", 64, 64)),
+            arrowRight = textureManager.loadTextureFromBitmap(TextRenderer.createTextBitmap(" > ", 64, 64)),
             scrollUp = textureManager.loadTextureFromAsset("BumpTop/${ThemeManager.currentThemeName}/widgets/scrollUp.png"),
             scrollDown = textureManager.loadTextureFromAsset("BumpTop/${ThemeManager.currentThemeName}/widgets/scrollDown.png")
         )

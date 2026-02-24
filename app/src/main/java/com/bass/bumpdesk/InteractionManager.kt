@@ -323,12 +323,15 @@ class InteractionManager(
         
         val rS = FloatArray(4); val rE = FloatArray(4); calculateRay(x, y, rS, rE)
         val t = getWidgetT(widget, rS, rE)
+        
+        // Allow ACTION_UP and ACTION_CANCEL even if the ray-cast misses (common during rapid scrolling)
         if (t < 0 && action != MotionEvent.ACTION_UP && action != MotionEvent.ACTION_CANCEL) return
         
         val (u, v) = getWidgetUV(widget, rS, rE, t)
         
         view.post {
             val eventTime = System.currentTimeMillis()
+            // Offset the touch coordinates to ensure they land within the view's clickable/scrollable areas correctly
             val event = MotionEvent.obtain(widgetDownTime, eventTime, action, u * view.width, v * view.height, 0)
             view.dispatchTouchEvent(event)
             event.recycle()
@@ -340,6 +343,7 @@ class InteractionManager(
         if (t < 0) return false
         
         val (u, v) = getWidgetUV(widget, rS, rE, t)
+        // Handle is bottom-right corner (UV space)
         return u > 0.85f && v > 0.85f
     }
 

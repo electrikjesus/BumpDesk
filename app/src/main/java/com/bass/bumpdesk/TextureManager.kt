@@ -60,8 +60,18 @@ class TextureManager(private val context: Context) {
             GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureHandle[0])
             GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR_MIPMAP_LINEAR)
             GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
-            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE)
-            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE)
+            
+            // Task: Use REPEAT for room surfaces, but default to CLAMP for icons
+            // We can determine if it's a room surface by checking the key
+            val wrapMode = if (key?.contains("desktop") == true || key?.contains("wall") == true || key?.contains("floor") == true) {
+                GLES20.GL_REPEAT
+            } else {
+                GLES20.GL_CLAMP_TO_EDGE
+            }
+            
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, wrapMode)
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, wrapMode)
+
             GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, bitmap, 0)
             GLES20.glGenerateMipmap(GLES20.GL_TEXTURE_2D)
 

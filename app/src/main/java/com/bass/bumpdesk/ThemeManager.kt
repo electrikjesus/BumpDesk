@@ -62,7 +62,8 @@ object ThemeManager {
                 val wm = WallpaperManager.getInstance(context)
                 val drawable = wm.drawable
                 if (drawable is BitmapDrawable) {
-                    val tex = textureManager.loadTextureFromBitmap(drawable.bitmap)
+                    // Task: Pass a key containing "floor" to ensure GL_REPEAT is used
+                    val tex = textureManager.loadTextureFromBitmap(drawable.bitmap, "desktop:wallpaper_floor")
                     if (tex != -1) return tex
                 }
             } catch (e: Exception) {

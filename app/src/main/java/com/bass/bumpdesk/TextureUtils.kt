@@ -7,6 +7,8 @@ import android.opengl.GLES20
 import android.opengl.GLUtils
 
 object TextureUtils {
+    private var arrowOverlayCache: Bitmap? = null
+
     /**
      * Converts a Drawable to a Bitmap, handling VectorDrawables and ensuring a minimum size.
      */
@@ -64,12 +66,13 @@ object TextureUtils {
         canvas.drawBitmap(icon, iconX, iconY, null)
         
         if (isShortcut) {
-            val themeIcon = ThemeManager.loadBitmapFromAsset(context, "BumpTop/${ThemeManager.currentThemeName}/core/icon/link_arrow_overlay.png")
-            themeIcon?.let {
+            if (arrowOverlayCache == null) {
+                arrowOverlayCache = ThemeManager.loadBitmapFromAsset(context, "BumpTop/${ThemeManager.currentThemeName}/core/icon/link_arrow_overlay.png")
+            }
+            arrowOverlayCache?.let {
                 val overlaySize = (iconSize * 0.3f).toInt()
                 val dst = Rect(0, iconSize - overlaySize, overlaySize, iconSize)
                 canvas.drawBitmap(it, null, dst, Paint(Paint.FILTER_BITMAP_FLAG))
-                it.recycle()
             }
         }
         
@@ -97,7 +100,6 @@ object TextureUtils {
 
     /**
      * Creates a bitmap for a recent task tile.
-     * Task: Fixed icons not showing by ensuring they are drawn correctly.
      */
     fun createRecentTaskBitmap(context: Context, snapshot: Bitmap?, icon: Drawable?, label: String): Bitmap {
         val width = 512
@@ -201,5 +203,10 @@ object TextureUtils {
             return textureHandle[0]
         }
         return -1
+    }
+
+    fun clearArrowCache() {
+        arrowOverlayCache?.recycle()
+        arrowOverlayCache = null
     }
 }

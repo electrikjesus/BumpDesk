@@ -27,6 +27,9 @@ class ItemRenderer(
         onUpdateTexture: (Runnable) -> Unit
     ) {
         items.forEach { item ->
+            // Performance optimization: skip rendering and texture loading for hidden items
+            if (item.transform.position.y < -5f) return@forEach
+            
             ensureItemTexture(item)
             val appearance = item.appearance
             if (appearance.type == BumpItem.Type.WEB_WIDGET && (System.currentTimeMillis() % 1000 < 16)) {
@@ -42,7 +45,7 @@ class ItemRenderer(
         
         val appInfo = item.appData?.appInfo
         
-        // Use a unique key for caching Dynamically generated bitmaps
+        // Use a unique key for caching dynamically generated bitmaps
         val cacheKey = when (appearance.type) {
             BumpItem.Type.APP -> "app:${appInfo?.packageName}"
             BumpItem.Type.APP_DRAWER -> "drawer:icon"

@@ -35,7 +35,7 @@ class PhysicsEngine {
                 val isVisibleInPage = !pile.isExpanded || (index >= pile.scrollIndex * ITEMS_PER_PAGE && index < (pile.scrollIndex + 1) * ITEMS_PER_PAGE)
                 
                 val targetScale = when {
-                    pile.isExpanded -> if (isVisibleInPage) defaultScale else 0.01f
+                    pile.isExpanded -> if (isVisibleInPage) 0.8f * pile.scale else 0.01f
                     pile.layoutMode == Pile.LayoutMode.CAROUSEL -> 1.5f * pile.scale
                     pile.layoutMode == Pile.LayoutMode.GRID -> 0.8f * pile.scale
                     else -> defaultScale

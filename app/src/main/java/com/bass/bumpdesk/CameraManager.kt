@@ -30,6 +30,9 @@ class CameraManager {
     private var savedLookAt = customDefaultLookAt.clone()
     private var savedViewMode = ViewMode.DEFAULT
 
+    var onBoundaryHit: (() -> Unit)? = null
+    private var wasAtBoundary = false
+
     enum class ViewMode { DEFAULT, FLOOR, BACK_WALL, LEFT_WALL, RIGHT_WALL, FOLDER_EXPANDED, WIDGET_FOCUS }
     var currentViewMode = ViewMode.DEFAULT
 
@@ -49,11 +52,18 @@ class CameraManager {
                 targetPos[2] = targetPos[2].coerceIn(-MAX_Z, MAX_Z)
                 targetPos[1] = targetPos[1].coerceIn(1f, MAX_Y)
                 targetPos[0] = targetPos[0].coerceIn(-MAX_X, MAX_X)
+
+                if (!wasAtBoundary) {
+                    onBoundaryHit?.invoke()
+                    wasAtBoundary = true
+                }
             } else {
                 fieldOfView = 60f
+                wasAtBoundary = false
             }
         } else {
             fieldOfView = 60f
+            wasAtBoundary = false
         }
 
         val relX = targetPos[0] - targetLookAt[0]
@@ -160,6 +170,14 @@ class CameraManager {
         val tiltSpeed = 0.05f
         targetPos[1] = (targetPos[1] + dy * tiltSpeed).coerceIn(2f, MAX_Y)
         targetPos[2] = (targetPos[2] - dy * tiltSpeed).coerceIn(-MAX_Z, MAX_Z)
+    }
+
+    fun handleLook(dx: Float) {
+        if (currentViewMode != ViewMode.DEFAULT && currentViewMode != ViewMode.FLOOR) return
+        
+        val lookSpeed = 0.05f
+        // Rotate lookAt point around Y axis passing through camera position
+        targetLookAt[0] -= dx * lookSpeed
     }
 
     fun focusOnWall(wall: CameraManager.ViewMode, pos: FloatArray, lookAt: FloatArray) {

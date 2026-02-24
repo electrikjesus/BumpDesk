@@ -11,6 +11,8 @@ class PileRenderer(
     private val overlayRenderer: OverlayRenderer,
     private val sceneState: SceneState
 ) {
+    private val ITEMS_PER_PAGE = 16
+
     fun drawPiles(
         vPMatrix: FloatArray,
         piles: List<Pile>,
@@ -21,28 +23,43 @@ class PileRenderer(
     ) {
         piles.forEach { pile ->
             val isExpanded = pile.isExpanded
-            val isCarousel = pile.layoutMode == Pile.LayoutMode.CAROUSEL && !isExpanded
             
-            // Task: Increased width limit for carousel visibility.
-            // Items are spaced at 3.5f * scale. 
-            // 8f * scale allows approx 2 items on each side of the center.
+            if (isExpanded) {
+                // Performance: Virtualized rendering for expanded folders.
+                val startIdx = pile.scrollIndex * ITEMS_PER_PAGE
+                val endIdx = (startIdx + ITEMS_PER_PAGE).coerceAtMost(pile.items.size)
+                
+                // Task: Clear texture IDs for items on non-visible pages to allow 
+                // TextureManager's LRU cache to manage memory effectively.
+                // We keep a 1-page buffer for smoother scrolling.
+                val bufferRange = (pile.scrollIndex - 1) * ITEMS_PER_PAGE until (pile.scrollIndex + 2) * ITEMS_PER_PAGE
+                
+                pile.items.forEachIndexed { index, item ->
+                    if (index in startIdx until endIdx) {
+                        itemRenderer.drawItems(vPMatrix, listOf(item), lightPos, searchQuery, onUpdateTexture)
+                    } else if (index !in bufferRange) {
+                        // Mark texture as eligible for eviction if far from visible page
+                        item.appearance.textureId = -1
+                    }
+                }
+                return@forEach
+            }
+
+            val isCarousel = pile.layoutMode == Pile.LayoutMode.CAROUSEL
             val widthLimit = 10f * pile.scale
 
             pile.items.forEachIndexed { index, item ->
-                // Task: Removed duplicate positioning logic. 
-                // Positioning is now handled exclusively by PhysicsEngine.
-                
                 if (isCarousel) {
-                    // Basic culling for carousel mode to save draw calls.
-                    // We check distance along the major axis of the carousel.
                     val dist = when (pile.surface) {
-                        BumpItem.Surface.BACK_WALL -> Math.abs(item.position[0] - pile.position[0])
-                        BumpItem.Surface.LEFT_WALL -> Math.abs(item.position[2] - pile.position[2])
-                        BumpItem.Surface.RIGHT_WALL -> Math.abs(item.position[2] - pile.position[2])
-                        else -> Math.abs(item.position[0] - pile.position[0])
+                        BumpItem.Surface.BACK_WALL -> Math.abs(item.transform.position.x - pile.position.x)
+                        BumpItem.Surface.LEFT_WALL -> Math.abs(item.transform.position.z - pile.position.z)
+                        BumpItem.Surface.RIGHT_WALL -> Math.abs(item.transform.position.z - pile.position.z)
+                        else -> Math.abs(item.transform.position.x - pile.position.x)
                     }
                     
                     if (dist > widthLimit) {
+                        // Mark non-visible carousel items for texture eviction
+                        item.appearance.textureId = -1
                         return@forEachIndexed
                     }
                 }
