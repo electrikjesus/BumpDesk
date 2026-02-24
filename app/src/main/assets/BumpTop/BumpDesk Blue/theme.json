@@ -1,0 +1,36 @@
+{
+	"header" : {
+		"version" : 		"1.0",
+		"name" : 			"BumpDesk Blue",
+		"author" : 			"BumpDesk Team",
+		"description" : 	"A classic, vibrant blue theme for a nostalgic feel.",
+		"schema" : 			"theme/1.0.3"
+	},
+	"ui" : {
+		"icon" : {
+			"highlight" : {
+				"color" : {
+					"selection" : [ 255, 255, 255, 140 ],
+					"hover" : 	  [ 110, 140, 215, 220 ],
+					"freshness" : [ 160, 255, 85, 220 ]
+				}
+			},
+			"font" : {
+				"family" : 			["sans-serif-medium", "Arial"],
+				"size" : 			10,
+				"color" : 		 	[255, 255, 255, 255]
+			}
+		}
+	},
+	"textures" : {
+		"floor" : {
+			"desktop" : 			"floor.svg"
+		},
+		"wall" : {
+			"top" : 				"wall.svg",
+			"right" : 				"wall.svg",
+			"bottom" : 				"wall.svg",
+			"left" : 				"wall.svg"
+		}
+	}
+}

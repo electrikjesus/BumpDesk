@@ -12,7 +12,7 @@ import java.io.InputStream
 import org.json.JSONObject
 
 object ThemeManager {
-    var currentThemeName: String = "BumpTop Classic"
+    var currentThemeName: String = "BumpDesk Animated"
         internal set
         
     private var isInitialized = false
@@ -22,7 +22,7 @@ object ThemeManager {
     fun init(context: Context, forceReload: Boolean = false) {
         if (isInitialized && !forceReload) return
         val prefs = context.getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
-        currentThemeName = prefs.getString("selected_theme", "BumpTop Classic") ?: "BumpTop Classic"
+        currentThemeName = prefs.getString("selected_theme", "BumpDesk Animated") ?: "BumpDesk Animated"
         loadThemeConfig(context)
         isInitialized = true
     }
@@ -62,7 +62,6 @@ object ThemeManager {
                 val wm = WallpaperManager.getInstance(context)
                 val drawable = wm.drawable
                 if (drawable is BitmapDrawable) {
-                    // Task: Pass a key containing "floor" to ensure GL_REPEAT is used
                     val tex = textureManager.loadTextureFromBitmap(drawable.bitmap, "desktop:wallpaper_floor")
                     if (tex != -1) return tex
                 }
@@ -72,14 +71,15 @@ object ThemeManager {
         }
 
         val themePathBase = "BumpTop/$currentThemeName/desktop/"
-        var textureId = textureManager.loadTextureFromAsset("${themePathBase}floor_desktop.jpg")
+        
+        var textureId = loadTextureWithFallback(context, textureManager, "${themePathBase}floor.svg", 1024, 1024)
         
         if (textureId == -1) {
             val relativePath = themeConfig?.optJSONObject("textures")?.optJSONObject("floor")?.optString("desktop", "floor_desktop.jpg") ?: "floor_desktop.jpg"
-            textureId = textureManager.loadTextureFromAsset("$themePathBase$relativePath")
+            textureId = loadTextureWithFallback(context, textureManager, "$themePathBase$relativePath", 1024, 1024)
         }
 
-        if (textureId == -1) textureId = textureManager.loadTextureFromAsset("floor.png")
+        if (textureId == -1) textureId = loadTextureWithFallback(context, textureManager, "floor.png", 1024, 1024)
         return textureId
     }
 
@@ -93,31 +93,56 @@ object ThemeManager {
         val rightPath = walls?.optString("right", "wall.png") ?: "wall.png"
         val topPath = walls?.optString("top", "wall.png") ?: "wall.png"
 
-        ids[0] = textureManager.loadTextureFromAsset("BumpTop/$currentThemeName/desktop/$backPath")
-        ids[1] = textureManager.loadTextureFromAsset("BumpTop/$currentThemeName/desktop/$leftPath")
-        ids[2] = textureManager.loadTextureFromAsset("BumpTop/$currentThemeName/desktop/$rightPath")
-        ids[3] = textureManager.loadTextureFromAsset("BumpTop/$currentThemeName/desktop/$topPath")
+        val themePathBase = "BumpTop/$currentThemeName/desktop/"
+        
+        // Walls should use a 2:1 aspect ratio to match geometry (e.g. 1024x512)
+        val wW = 1024
+        val wH = 512
+        
+        ids[0] = loadTextureWithFallback(context, textureManager, "$themePathBase$backPath", wW, wH)
+        ids[1] = loadTextureWithFallback(context, textureManager, "$themePathBase$leftPath", wW, wH)
+        ids[2] = loadTextureWithFallback(context, textureManager, "$themePathBase$rightPath", wW, wH)
+        ids[3] = loadTextureWithFallback(context, textureManager, "$themePathBase$topPath", 1024, 1024)
 
         for (i in ids.indices) {
             if (ids[i] == -1) ids[i] = textureManager.loadTextureFromAsset("wall.png")
         }
         return ids
     }
+
+    private fun loadTextureWithFallback(context: Context, textureManager: TextureManager, assetPath: String, width: Int = 512, height: Int = 512): Int {
+        if (assetPath.endsWith(".svg")) {
+            try {
+                val inputStream = context.assets.open(assetPath)
+                val bitmap = TextureUtils.getBitmapFromSvg(inputStream, width, height)
+                if (bitmap != null) {
+                    val id = textureManager.loadTextureFromBitmap(bitmap, assetPath)
+                    bitmap.recycle()
+                    return id
+                }
+            } catch (e: Exception) {}
+        }
+        
+        return textureManager.loadTextureFromAsset(assetPath)
+    }
     
+    fun getShaderCode(context: Context, type: String): String? {
+        val fileName = themeConfig?.optJSONObject("shaders")?.optString(type) ?: return null
+        return try {
+            context.assets.open("BumpTop/$currentThemeName/$fileName").bufferedReader().use { it.readText() }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     fun getPileBackgroundTexture(context: Context, textureManager: TextureManager): Int {
         init(context)
         val themePath = "BumpTop/$currentThemeName/core/pile/background.png"
-        return textureManager.loadTextureFromAsset(themePath)
+        return loadTextureWithFallback(context, textureManager, themePath)
     }
 
-    /**
-     * Checks if there's a theme override for a specific package name.
-     */
     fun getIconOverride(context: Context, packageName: String): Bitmap? {
         init(context)
-        // Check standard override names (folder, txt, pdf, etc are usually handled via type)
-        // For apps, we might use the package name or a mapping.
-        // BT classic uses generic names. We'll try to match some common ones.
         val genericName = when {
             packageName.contains("android.calendar") -> "calendar"
             packageName.contains("android.email") -> "email"
@@ -128,12 +153,23 @@ object ThemeManager {
         }
         
         if (genericName != null) {
-            val bitmap = loadBitmapFromAsset(context, "BumpTop/$currentThemeName/override/$genericName.png")
+            val bitmap = loadBitmapFromAssetWithSvg(context, "BumpTop/$currentThemeName/override/$genericName")
             if (bitmap != null) return bitmap
         }
         
-        // Also try literal package name as override
-        return loadBitmapFromAsset(context, "BumpTop/$currentThemeName/override/$packageName.png")
+        return loadBitmapFromAssetWithSvg(context, "BumpTop/$currentThemeName/override/$packageName")
+    }
+
+    private fun loadBitmapFromAssetWithSvg(context: Context, basePath: String): Bitmap? {
+        try {
+            return context.assets.open("$basePath.svg").use { TextureUtils.getBitmapFromSvg(it) }
+        } catch (e: Exception) {}
+        
+        try {
+            return context.assets.open("$basePath.png").use { BitmapFactory.decodeStream(it) }
+        } catch (e: Exception) {}
+        
+        return null
     }
 
     fun loadBitmapFromAsset(context: Context, assetPath: String): Bitmap? {

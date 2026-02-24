@@ -2,6 +2,8 @@
 
 BumpDesk is an experimental 3D launcher for Android that reimagines the traditional home screen as a physical workspace. Inspired by the classic "BumpTop" desktop metaphor, it treats applications, widgets, and notes as physical objects that can be moved, stacked, pinned to walls, and interacted with in a natural way.
 
+![BumpDesk Animated Desktop](docs/assets/screenshot1.png)
+
 ## 🌟 Key Features
 
 - **Physics-Based Workspace**: Objects collide, bounce, and have "weight". Move items naturally around the room.
@@ -9,9 +11,9 @@ BumpDesk is an experimental 3D launcher for Android that reimagines the traditio
 - **Smart Piles**: Gather items into piles by "lassoing" them. Piles can be fanned out for quick scanning or expanded into an organized grid.
 - **Immersive Widgets**: Android widgets are rendered as 3D panels. Interact with them directly in the 3D scene.
 - **Recent Tasks Carousel**: A dedicated 3D view on the back wall showing live snapshots of your recently used applications.
-- **Dynamic Themes**: Fully customizable workspace appearance, including wall textures, floor materials, and selection colors.
+- **Dynamic Themes & Procedural Shaders**: Fully customizable workspace appearance. Themes like **BumpDesk Animated** feature real-time procedural caustics and underwater effects.
+- **SVG Vector Support**: High-fidelity rendering across all surface textures and icons using sharp vector graphics.
 - **Contextual UI**: Intuitive radial menus provide quick access to advanced launch modes (Freeform, Pinned, Fullscreen) and item properties.
-- **AI-Driven Development**: This project is developed using an experimental "Agentic Workflow," where an AI Assistant operates as a Senior Architect, managing task plans, verification builds, and performance audits autonomously.
 
 ## 📊 Current Project State
 
@@ -19,6 +21,8 @@ BumpDesk is in an **Advanced Beta** state.
 - **Stability**: High. Recent infrastructure refactors (VBOs, LRU Texture Caching, and Synchronized Concurrency) have significantly improved frame rates and memory reliability.
 - **Performance**: Optimized for O(n log n) physics scaling and batched rendering.
 - **Persistence**: Desktop layouts, widgets, and theme preferences are fully saved via Room DB.
+
+![All Apps Folder View](docs/assets/screenshot2.png)
 
 ## 🚀 Getting Started
 
@@ -58,6 +62,7 @@ For the best experience, several system-level settings should be configured via 
 BumpDesk is built using:
 - **OpenGL ES 2.0**: For high-performance 3D rendering using Vertex Buffer Objects (VBOs).
 - **Custom Physics Engine**: Optimized with Spatial Grid Partitioning for high item counts.
+- **Modular Shader Engine**: Supports theme-local GLSL injection for custom procedural effects.
 - **Kotlin & Coroutines**: For efficient thread-safe state management.
 - **Room Persistence**: To save your desktop layout across reboots.
 
@@ -66,7 +71,7 @@ BumpDesk is built using:
 This project leverages a strict **AI Workflow & Reward System**:
 - **Test-First**: Verification tests are created before major logic changes.
 - **Build-After-Edit**: Automated builds verify every iteration to prevent regressions.
-- **Senior Architect Agent**: The development is guided by an AI agent that maintains a detailed `dev_plans.md` and `docs/architecture.md`, earning points for verified completions and suffering penalties for rule breaches.
+- **Lead Developer Agent**: The development is guided by an AI agent that maintains a detailed `dev_plans.md` and earning points for verified completions.
 
 ## 💎 Credits & Inspiration
 

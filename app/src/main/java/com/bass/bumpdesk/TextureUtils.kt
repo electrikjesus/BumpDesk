@@ -5,6 +5,9 @@ import android.graphics.*
 import android.graphics.drawable.Drawable
 import android.opengl.GLES20
 import android.opengl.GLUtils
+import com.caverock.androidsvg.PreserveAspectRatio
+import com.caverock.androidsvg.SVG
+import java.io.InputStream
 
 object TextureUtils {
     private var arrowOverlayCache: Bitmap? = null
@@ -21,6 +24,36 @@ object TextureUtils {
         drawable.setBounds(0, 0, width, height)
         drawable.draw(canvas)
         return bitmap
+    }
+
+    /**
+     * Loads an SVG from an InputStream and renders it to a Bitmap.
+     * Forces the SVG to stretch to fill the provided dimensions.
+     */
+    fun getBitmapFromSvg(inputStream: InputStream, width: Int = 512, height: Int = 512): Bitmap? {
+        return try {
+            val svg = SVG.getFromInputStream(inputStream)
+            
+            val targetW = if (width > 0) width else {
+                if (svg.documentWidth > 0) svg.documentWidth.toInt() else 512
+            }
+            val targetH = if (height > 0) height else {
+                if (svg.documentHeight > 0) svg.documentHeight.toInt() else 512
+            }
+
+            val bitmap = Bitmap.createBitmap(targetW, targetH, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            
+            // Perspective Correction: Force SVG to stretch to fill the bitmap dimensions
+            svg.documentWidth = targetW.toFloat()
+            svg.documentHeight = targetH.toFloat()
+            svg.documentPreserveAspectRatio = PreserveAspectRatio.STRETCH
+
+            svg.renderToCanvas(canvas)
+            bitmap
+        } catch (e: Exception) {
+            null
+        }
     }
 
     fun createAppDrawerIcon(context: Context, size: Int = 256): Bitmap {

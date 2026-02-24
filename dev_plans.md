@@ -139,10 +139,15 @@
     - [x] Add numeric value displays next to all sliders
     - [x] Implement Expressive Material You styling (Large sliders, bold titles)
 - [x] **Visuals**: Create new Logo App Icon
-    - [x] Design stacked icon logo paying homage to BumpTop
+    - [x] Design stacked 3D icon logo paying homage to BumpTop (3-4 icons, Android face on top)
     - [x] Implement as Vector Drawable
 - [x] **Performance**: Implement virtualized AppDrawer loading (paged bitmap generation).
 - [x] **UX**: Improve complex widget horizontal/vertical scrolling in 3D projection.
+- [x] **Themes**: Create "BumpDesk Next" and "BumpDesk Blue" themes
+    - [x] Implement "BumpDesk Next" (Minimalist, modern light theme)
+    - [x] Implement "BumpDesk Blue" (Classic shiny blue theme)
+- [ ] **Themes**: Create "BumpDesk Animated" theme
+    - [ ] Implement underwater scene with animated caustic SVG effects
 - [ ] **Tactile**: Advanced haptic feedback for room boundary collisions and item interactions.
 
 ## Refactoring & Infrastructure (High Impact)
@@ -164,5 +169,5 @@
 - **Logic Regression**: -250 pts.
 - **Rule Breach / Forgetting Step**: -250 pts.
 
-Current Points: 16690
-Status: Senior Architect
+Current Points: 22390
+Status: Lead Developer

@@ -1,0 +1,59 @@
+{
+	"header" : {
+		"version" : 		"1.0",
+		"name" : 			"BumpDesk Next",
+		"author" : 			"BumpDesk Team",
+		"description" : 	"A fresh, modern take on the BumpTop experience.",
+		"schema" : 			"theme/1.0.3"
+	},
+	"ui" : {
+		"icon" : {
+			"highlight" : {
+				"color" : {
+					"selection" : [ 103, 80, 164, 120 ],
+					"hover" : 	  [ 103, 80, 164, 60 ],
+					"freshness" : [ 50, 200, 50, 200 ]
+				}
+			},
+			"font" : {
+				"family" : 			["sans-serif", "Arial"],
+				"size" : 			11,
+				"color" : 		 	[28, 27, 31, 255]
+			}
+		},
+		"markingMenu" : {
+			"color" : {
+				"default" : {
+					"inner" : 		[255, 255, 255, 255],
+					"outer" : 		[230, 230, 230, 220]
+				},
+				"highlight" : {
+					"inner" : 		[208, 188, 255, 255],
+					"outer" : 		[190, 170, 240, 220]
+				},
+				"border" : 			[100, 100, 100, 255]
+			},
+			"font" : {
+				"family" : 			["sans-serif"],
+				"size" : 			16,
+				"subTextSize" : 	10,
+				"color"	: 			[28, 27, 31, 255],
+				"subTextColor" : 	[50, 50, 50, 255]
+			}
+		}
+	},
+	"textures" : {
+		"floor" : {
+			"desktop" : 			"floor.svg"
+		},
+		"wall" : {
+			"top" : 				"wall.svg",
+			"right" : 				"wall.svg",
+			"bottom" : 				"wall.svg",
+			"left" : 				"wall.svg"
+		},
+		"pile" : {
+			"background" : 			"background.svg"
+		}
+	}
+}

@@ -109,7 +109,8 @@ class WidgetRenderer(
         
         val savedModelMatrix = modelMatrix.clone()
         Matrix.scaleM(modelMatrix, 0, widget.size.x, 1f, widget.size.z)
-        widgetBox.draw(vPMatrix, modelMatrix, widget.textureId, floatArrayOf(1f, 1f, 1f, 1.0f))
+        // Widgets should NEVER show the caustic animation
+        widgetBox.draw(vPMatrix, modelMatrix, widget.textureId, floatArrayOf(1f, 1f, 1f, 1.0f), isAnimated = false)
 
         if (isSelected) {
             drawResizeHandle(vPMatrix, savedModelMatrix, widget.size)
@@ -123,6 +124,6 @@ class WidgetRenderer(
         Matrix.scaleM(handleMatrix, 0, 0.2f, 1f, 0.2f)
         
         val selectionColor = ThemeManager.getSelectionColor()
-        handlePlane.draw(vPMatrix, handleMatrix, floatArrayOf(selectionColor[0], selectionColor[1], selectionColor[2], 1.0f), -1, floatArrayOf(0f, 10f, 0f), 1.0f, false)
+        handlePlane.draw(vPMatrix, handleMatrix, floatArrayOf(selectionColor[0], selectionColor[1], selectionColor[2], 1.0f), -1, floatArrayOf(0f, 10f, 0f), 1.0f, false, isAnimated = false)
     }
 }

@@ -80,7 +80,7 @@ class Box(private val shader: DefaultShader) {
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
     }
 
-    fun draw(vPMatrix: FloatArray, modelMatrix: FloatArray, textureId: Int, color: FloatArray) {
+    fun draw(vPMatrix: FloatArray, modelMatrix: FloatArray, textureId: Int, color: FloatArray, isAnimated: Boolean = false) {
         shader.use()
         
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, vboId)
@@ -104,6 +104,7 @@ class Box(private val shader: DefaultShader) {
         }
 
         GLES20.glUniform1i(shader.useLightingHandle, 0)
+        GLES20.glUniform1i(shader.animatedHandle, if (isAnimated) 1 else 0)
         
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_FAN, 0, 4)
         

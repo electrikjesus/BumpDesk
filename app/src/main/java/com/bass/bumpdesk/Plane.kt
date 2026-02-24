@@ -63,12 +63,12 @@ class Plane(private val shader: DefaultShader) {
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
     }
 
-    fun updateUVs(scale: Float) {
+    fun updateUVs(scaleX: Float, scaleY: Float = scaleX) {
         val newTexCoords = floatArrayOf(
             0.0f, 0.0f,
-            0.0f, scale,
-            scale, scale,
-            scale, 0.0f
+            0.0f, scaleY,
+            scaleX, scaleY,
+            scaleX, 0.0f
         )
         val texCoordBuffer = ByteBuffer.allocateDirect(newTexCoords.size * 4).run {
             order(ByteOrder.nativeOrder())
@@ -79,7 +79,17 @@ class Plane(private val shader: DefaultShader) {
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
     }
 
-    fun draw(vPMatrix: FloatArray, modelMatrix: FloatArray, color: FloatArray, textureId: Int = -1, lightPos: FloatArray = floatArrayOf(0f, 10f, 0f), ambient: Float = 0.3f, useLighting: Boolean = true) {
+    fun draw(
+        vPMatrix: FloatArray,
+        modelMatrix: FloatArray,
+        color: FloatArray,
+        textureId: Int = -1,
+        lightPos: FloatArray = floatArrayOf(0f, 10f, 0f),
+        ambient: Float = 0.3f,
+        useLighting: Boolean = true,
+        time: Float = 0f,
+        isAnimated: Boolean = false
+    ) {
         shader.use()
         
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, vboId)
@@ -109,6 +119,9 @@ class Plane(private val shader: DefaultShader) {
         GLES20.glUniform1i(shader.useLightingHandle, if (useLighting) 1 else 0)
         GLES20.glUniform3fv(shader.lightPosHandle, 1, lightPos, 0)
         GLES20.glUniform1f(shader.ambientHandle, ambient)
+        
+        GLES20.glUniform1f(shader.timeHandle, time)
+        GLES20.glUniform1i(shader.animatedHandle, if (isAnimated) 1 else 0)
         
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_FAN, 0, 4)
         

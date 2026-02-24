@@ -1,0 +1,40 @@
+{
+	"header" : {
+		"version" : 		"1.2",
+		"name" : 			"BumpDesk Animated",
+		"author" : 			"BumpDesk Team",
+		"description" : 	"An immersive underwater scene with shimmering caustic effects.",
+		"schema" : 			"theme/1.0.3",
+        "animated":         true
+	},
+	"ui" : {
+		"icon" : {
+			"highlight" : {
+				"color" : {
+					"selection" : [ 0, 255, 255, 140 ],
+					"hover" : 	  [ 100, 200, 255, 200 ],
+					"freshness" : [ 255, 255, 255, 220 ]
+				}
+			},
+			"font" : {
+				"family" : 			["sans-serif", "Arial"],
+				"size" : 			11,
+				"color" : 		 	[255, 255, 255, 255]
+			}
+		}
+	},
+	"textures" : {
+		"floor" : {
+			"desktop" : 			"floor.svg"
+		},
+		"wall" : {
+			"top" : 				"wall.svg",
+			"right" : 				"wall.svg",
+			"bottom" : 				"wall.svg",
+			"left" : 				"wall.svg"
+		}
+	},
+    "shaders": {
+        "environment": "environment.frag"
+    }
+}

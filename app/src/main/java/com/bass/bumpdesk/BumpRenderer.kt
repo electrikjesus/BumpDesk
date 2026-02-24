@@ -29,7 +29,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
     val textureManager = TextureManager(context)
     val hapticManager = HapticManager(context)
     
-    private lateinit var shader: DefaultShader
+    private var shader: DefaultShader? = null
     private lateinit var roomRenderer: RoomRenderer
     private lateinit var overlayRenderer: OverlayRenderer
     private lateinit var lassoRenderer: LassoRenderer
@@ -150,7 +150,6 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         physicsEngine.defaultScale = scalePref + 0.2f
         physicsEngine.gridSpacingBase = (prefs.getInt("layout_grid_spacing", 60) / 100f) * 2.0f
         
-        // Update all existing items and piles to reflect the new global scale immediately
         sceneState.withWriteLock {
             sceneState.bumpItems.forEach { it.transform.scale = physicsEngine.defaultScale }
             sceneState.piles.forEach { p ->
@@ -420,6 +419,19 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 }
                 sceneState.widgetItems.forEach { it.textureId = -1 }
             }
+            
+            // Re-initialize shaders if theme has custom environment code
+            val envCode = ThemeManager.getShaderCode(context, "environment") ?: ""
+            
+            shader = DefaultShader(envCode)
+            roomRenderer = RoomRenderer(shader!!)
+            overlayRenderer = OverlayRenderer(shader!!)
+            
+            itemRenderer = ItemRenderer(context, shader!!, textureManager, sceneState)
+            widgetRenderer = WidgetRenderer(context, shader!!, textureManager)
+            pileRenderer = PileRenderer(context, shader!!, textureManager, itemRenderer, overlayRenderer, sceneState)
+            uiRenderer = UIRenderer(shader!!, overlayRenderer)
+
             loadThemeTextures() 
             glSurfaceView?.requestRender()
         }
@@ -437,17 +449,8 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         GLES20.glEnable(GLES20.GL_BLEND)
         GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
         
-        shader = DefaultShader()
-        roomRenderer = RoomRenderer(shader)
-        overlayRenderer = OverlayRenderer(shader)
+        reloadTheme()
         lassoRenderer = LassoRenderer(LassoShader())
-
-        itemRenderer = ItemRenderer(context, shader, textureManager, sceneState)
-        widgetRenderer = WidgetRenderer(context, shader, textureManager)
-        pileRenderer = PileRenderer(context, shader, textureManager, itemRenderer, overlayRenderer, sceneState)
-        uiRenderer = UIRenderer(shader, overlayRenderer)
-        
-        loadThemeTextures()
     }
 
     private fun loadThemeTextures() {
@@ -473,16 +476,23 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         Matrix.multiplyMM(vPMatrix, 0, projectionMatrix, 0, viewMatrix, 0)
         Matrix.invertM(interactionManager.invertedVPMatrix, 0, vPMatrix, 0)
         
-        roomRenderer.draw(vPMatrix, floorTextureId, wallTextureIds, lightPos, interactionManager.isInfiniteMode, ROOM_SIZE, ROOM_HEIGHT)
+        val isAnimatedTheme = ThemeManager.currentThemeName == "BumpDesk Animated"
+        roomRenderer.draw(vPMatrix, floorTextureId, wallTextureIds, lightPos, interactionManager.isInfiniteMode, ROOM_SIZE, ROOM_HEIGHT, frameCount.toFloat(), isAnimatedTheme)
         
         val onUpdateTexture: (Runnable) -> Unit = { event -> glSurfaceView?.queueEvent(event) }
 
-        itemRenderer.drawItems(vPMatrix, sceneState.bumpItems, lightPos, searchQuery, onUpdateTexture)
-        widgetRenderer.drawWidgets(vPMatrix, sceneState.widgetItems, sceneState.widgetViews, frameCount, sceneState.selectedWidget, onUpdateTexture)
-        pileRenderer.drawPiles(vPMatrix, sceneState.piles, lightPos, searchQuery, camera.currentViewMode, onUpdateTexture)
-        uiRenderer.drawOverlays(vPMatrix, sceneState, camera, uiAssets, lightPos, searchQuery, textureManager, ROOM_SIZE)
+        if (shader != null) {
+            itemRenderer.drawItems(vPMatrix, sceneState.bumpItems, lightPos, searchQuery, onUpdateTexture)
+            widgetRenderer.drawWidgets(vPMatrix, sceneState.widgetItems, sceneState.widgetViews, frameCount, sceneState.selectedWidget, onUpdateTexture)
+            pileRenderer.drawPiles(vPMatrix, sceneState.piles, lightPos, searchQuery, camera.currentViewMode, onUpdateTexture)
+            uiRenderer.drawOverlays(vPMatrix, sceneState, camera, uiAssets, lightPos, searchQuery, textureManager, ROOM_SIZE)
+        }
         
         if (interactionManager.lassoPoints.isNotEmpty()) lassoRenderer.draw(vPMatrix, interactionManager.lassoPoints)
+        
+        if (isAnimatedTheme) {
+            glSurfaceView?.requestRender()
+        }
     }
 
     fun handleTouchDown(x: Float, y: Float) {

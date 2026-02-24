@@ -1,0 +1,10 @@
+<svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+    <!-- Dark Pool Floor Base -->
+    <rect width="100%" height="100%" fill="#004c99" />
+    <defs>
+        <pattern id="floorTiles" width="64" height="64" patternUnits="userSpaceOnUse">
+            <rect width="63" height="63" fill="none" stroke="#FFFFFF" stroke-width="0.5" opacity="0.1" />
+        </pattern>
+    </defs>
+    <rect width="100%" height="100%" fill="url(#floorTiles)" />
+</svg>

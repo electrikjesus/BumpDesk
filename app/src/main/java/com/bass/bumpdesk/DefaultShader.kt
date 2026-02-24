@@ -3,7 +3,9 @@ package com.bass.bumpdesk
 import android.opengl.GLES20
 import java.nio.FloatBuffer
 
-class DefaultShader : BaseShader(
+class DefaultShader(
+    private val environmentCode: String = ""
+) : BaseShader(
     vertexShaderCode = """
         uniform mat4 uVPMatrix;
         uniform mat4 uModelMatrix;
@@ -17,7 +19,7 @@ class DefaultShader : BaseShader(
           vec4 worldPos = uModelMatrix * vPosition;
           gl_Position = uVPMatrix * worldPos;
           fTexCoord = vTexCoord;
-          fNormal = vec3(uModelMatrix * vec4(vNormal, 0.0));
+          fNormal = normalize(vec3(uModelMatrix * vec4(vNormal, 0.0)));
           fPosition = vec3(worldPos);
         }
     """.trimIndent(),
@@ -29,9 +31,16 @@ class DefaultShader : BaseShader(
         uniform bool uUseLighting;
         uniform vec3 uLightPos;
         uniform float uAmbient;
+        uniform float uTime;
+        uniform bool uAnimated;
+        
         varying vec2 fTexCoord;
         varying vec3 fNormal;
         varying vec3 fPosition;
+
+        // Custom environment code injected here
+        ${if (environmentCode.isNotEmpty()) environmentCode else "void applyEnvironment(inout vec4 color, vec3 pos, vec3 normal, float time) {}"}
+
         void main() {
           vec4 baseColor;
           if (uUseTexture) {
@@ -40,25 +49,46 @@ class DefaultShader : BaseShader(
             baseColor = vColor;
           }
           
-          // Discard fragments with very low alpha to prevent depth-buffer occlusion
           if (baseColor.a < 0.1) {
             discard;
+          }
+          
+          if (uAnimated) {
+            applyEnvironment(baseColor, fPosition, fNormal, uTime);
           }
           
           if (uUseLighting) {
             vec3 normal = normalize(fNormal);
             vec3 lightDir = normalize(uLightPos - fPosition);
             float diffuse = max(dot(normal, lightDir), 0.0);
-            gl_FragColor = vec4(baseColor.rgb * (uAmbient + diffuse), baseColor.a);
+            float shadow = mix(0.4, 1.0, diffuse);
+            
+            // Specular highlight for wet look
+            float specular = 0.0;
+            if (uAnimated) {
+                vec3 viewDir = normalize(-fPosition);
+                vec3 reflectDir = reflect(-lightDir, normal);
+                specular = pow(max(dot(viewDir, reflectDir), 0.0), 32.0) * 0.3;
+            }
+            
+            gl_FragColor = vec4(baseColor.rgb * (uAmbient + diffuse * shadow) + specular, baseColor.a);
           } else {
             gl_FragColor = baseColor;
           }
         }
     """.trimIndent()
 ) {
-    val posHandle = getAttrib("vPosition")
-    val normalHandle = getAttrib("vNormal")
-    val texCoordHandle = getAttrib("vTexCoord")
+    // Attributes
+    val vPositionHandle = getAttrib("vPosition")
+    val vNormalHandle = getAttrib("vNormal")
+    val vTexCoordHandle = getAttrib("vTexCoord")
+    
+    // Compatibility aliases
+    val posHandle = vPositionHandle
+    val normalHandle = vNormalHandle
+    val texCoordHandle = vTexCoordHandle
+
+    // Uniforms
     val vPMatrixHandle = getUniform("uVPMatrix")
     val modelMatrixHandle = getUniform("uModelMatrix")
     val colorHandle = getUniform("vColor")
@@ -67,6 +97,8 @@ class DefaultShader : BaseShader(
     val useLightingHandle = getUniform("uUseLighting")
     val lightPosHandle = getUniform("uLightPos")
     val ambientHandle = getUniform("uAmbient")
+    val timeHandle = getUniform("uTime")
+    val animatedHandle = getUniform("uAnimated")
 
     fun draw(
         vertexBuffer: FloatBuffer,
@@ -78,21 +110,24 @@ class DefaultShader : BaseShader(
         textureId: Int = -1,
         lightPos: FloatArray = floatArrayOf(0f, 10f, 0f),
         ambient: Float = 0.3f,
-        useLighting: Boolean = true
+        useLighting: Boolean = true,
+        time: Float = 0f,
+        isAnimated: Boolean = false
     ) {
+        if (program == 0) return
         use()
         
-        GLES20.glEnableVertexAttribArray(posHandle)
-        GLES20.glVertexAttribPointer(posHandle, 3, GLES20.GL_FLOAT, false, 0, vertexBuffer)
+        GLES20.glEnableVertexAttribArray(vPositionHandle)
+        GLES20.glVertexAttribPointer(vPositionHandle, 3, GLES20.GL_FLOAT, false, 0, vertexBuffer)
 
-        if (normalBuffer != null && normalHandle != -1) {
-            GLES20.glEnableVertexAttribArray(normalHandle)
-            GLES20.glVertexAttribPointer(normalHandle, 3, GLES20.GL_FLOAT, false, 0, normalBuffer)
+        if (normalBuffer != null && vNormalHandle != -1) {
+            GLES20.glEnableVertexAttribArray(vNormalHandle)
+            GLES20.glVertexAttribPointer(vNormalHandle, 3, GLES20.GL_FLOAT, false, 0, normalBuffer)
         }
 
-        if (texCoordBuffer != null && texCoordHandle != -1) {
-            GLES20.glEnableVertexAttribArray(texCoordHandle)
-            GLES20.glVertexAttribPointer(texCoordHandle, 2, GLES20.GL_FLOAT, false, 0, texCoordBuffer)
+        if (texCoordBuffer != null && vTexCoordHandle != -1) {
+            GLES20.glEnableVertexAttribArray(vTexCoordHandle)
+            GLES20.glVertexAttribPointer(vTexCoordHandle, 2, GLES20.GL_FLOAT, false, 0, texCoordBuffer)
         }
 
         GLES20.glUniformMatrix4fv(vPMatrixHandle, 1, false, vPMatrix, 0)
@@ -110,5 +145,12 @@ class DefaultShader : BaseShader(
         GLES20.glUniform1i(useLightingHandle, if (useLighting) 1 else 0)
         GLES20.glUniform3fv(lightPosHandle, 1, lightPos, 0)
         GLES20.glUniform1f(ambientHandle, ambient)
+        
+        GLES20.glUniform1f(timeHandle, time)
+        GLES20.glUniform1i(animatedHandle, if (isAnimated) 1 else 0)
+        
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_FAN, 0, 4)
+        
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
     }
 }
