@@ -168,16 +168,29 @@ class CameraManager {
         if (currentViewMode != ViewMode.DEFAULT && currentViewMode != ViewMode.FLOOR) return
         
         val tiltSpeed = 0.05f
-        targetPos[1] = (targetPos[1] + dy * tiltSpeed).coerceIn(2f, MAX_Y)
-        targetPos[2] = (targetPos[2] - dy * tiltSpeed).coerceIn(-MAX_Z, MAX_Z)
+        targetLookAt[1] = (targetLookAt[1] - dy * tiltSpeed).coerceIn(-10f, 20f)
     }
 
     fun handleLook(dx: Float) {
         if (currentViewMode != ViewMode.DEFAULT && currentViewMode != ViewMode.FLOOR) return
         
-        val lookSpeed = 0.05f
-        // Rotate lookAt point around Y axis passing through camera position
-        targetLookAt[0] -= dx * lookSpeed
+        val lookSpeed = 0.02f
+        val angle = -dx * lookSpeed
+
+        val cosAngle = cos(angle)
+        val sinAngle = sin(angle)
+
+        // Vector from camera to look-at point
+        val relX = targetLookAt[0] - currentPos[0]
+        val relZ = targetLookAt[2] - currentPos[2]
+
+        // Rotate this vector around the Y axis
+        val newRelX = relX * cosAngle + relZ * sinAngle
+        val newRelZ = -relX * sinAngle + relZ * cosAngle
+
+        // Calculate new look-at point
+        targetLookAt[0] = currentPos[0] + newRelX
+        targetLookAt[2] = currentPos[2] + newRelZ
     }
 
     fun focusOnWall(wall: CameraManager.ViewMode, pos: FloatArray, lookAt: FloatArray) {

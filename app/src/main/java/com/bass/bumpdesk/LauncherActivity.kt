@@ -252,7 +252,7 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
                         lastMidX = (0 until pointerCount).map { event.getX(it) }.average().toFloat()
                         lastMidY = (0 until pointerCount).map { event.getY(it) }.average().toFloat()
                         // Cancel any active single-finger dragging/lasso in the renderer
-                        glSurfaceView.queueEvent { renderer.handleTouchUp() }
+                        glSurfaceView.queueEvent { renderer.interactionManager.cancelPendingInteractions() }
                     }
                 }
                 MotionEvent.ACTION_MOVE -> {

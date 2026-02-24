@@ -83,7 +83,13 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         findViewById<Button>(R.id.btnClearCache).setOnClickListener {
-            prefs.edit().clear().apply()
+            // Only clear theme and state, not ALL preferences
+            prefs.edit().apply {
+                remove("onboarding_complete")
+                remove("selected_theme")
+                // Clear any other temporary state but keep settings
+                apply()
+            }
             Toast.makeText(this, "Cache cleared. Some changes require restart.", Toast.LENGTH_SHORT).show()
         }
 

@@ -119,10 +119,10 @@
 - [x] **Priority**: expand on our recents widget and add logging
 - [x] **Priority**: Fix LauncherActivity crash on destroy (Uninitialized renderer)
 - [x] **Priority**: Fix release APK compilation failure in CI (Keystore error)
-- [ ] **Priority**: Fix multi-finger touchscreen gestures
-    - [ ] 2-finger: Up/Down = Pan Forward/Backward, Left/Right = Pan Left/Right, Pinch = Zoom
-    - [ ] 3-finger: Up/Down = Tilt Up/Down, Left/Right = Look Left/Right
-    - [ ] Fix lasso triggering erroneously during multi-finger gestures
+- [x] **Priority**: Fix multi-finger touchscreen gestures
+    - [x] 2-finger: Up/Down = Pan Forward/Backward, Left/Right = Pan Left/Right, Pinch = Zoom
+    - [x] 3-finger: Up/Down = Tilt Up/Down, Left/Right = Look Left/Right
+    - [x] Fix lasso triggering erroneously during multi-finger gestures
 - [ ] **Priority**: Global UI and Persistence Sync
     - [ ] Update icon scale from Settings to affect desktop icons immediately
     - [ ] Fix icons showing too large in folder view when slider is high (scale them together)
@@ -155,5 +155,5 @@
 - **Logic Regression**: -250 pts.
 - **Rule Breach / Forgetting Step**: -250 pts.
 
-Current Points: 12090
+Current Points: 12390
 Status: Senior Architect

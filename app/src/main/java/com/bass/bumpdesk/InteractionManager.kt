@@ -110,18 +110,7 @@ class InteractionManager(
 
     fun handleTouchMove(x: Float, y: Float, sceneState: SceneState, pointerCount: Int): Boolean {
         if (pointerCount > 1) {
-            // Multi-touch transition: immediately clear single-finger states
-            isDragging = false
-            isLeafing = false
-            isResizingWidget = false
-            isLassoPending = false
-            lassoStartPoint = null
-            if (activeInteractingWidget != null) {
-                dispatchWidgetTouchEvent(MotionEvent.ACTION_CANCEL, x, y)
-                activeInteractingWidget = null
-                activeWidgetView = null
-            }
-            lassoPoints.clear()
+            cancelPendingInteractions()
             return false
         }
 
@@ -315,6 +304,20 @@ class InteractionManager(
         lassoPoints.clear()
         isLeafing = false
         isDragging = false
+    }
+
+    fun cancelPendingInteractions() {
+        isDragging = false
+        isLeafing = false
+        isResizingWidget = false
+        isLassoPending = false
+        lassoStartPoint = null
+        if (activeInteractingWidget != null) {
+            dispatchWidgetTouchEvent(MotionEvent.ACTION_CANCEL, lastTouchX, lastTouchY)
+            activeInteractingWidget = null
+            activeWidgetView = null
+        }
+        lassoPoints.clear()
     }
 
     private fun dispatchWidgetTouchEvent(action: Int, x: Float, y: Float) {
