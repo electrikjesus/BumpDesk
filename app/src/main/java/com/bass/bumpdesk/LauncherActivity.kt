@@ -149,6 +149,7 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
         super.onDestroy()
         val prefs = getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
         prefs.unregisterOnSharedPreferenceChangeListener(this)
+        renderer.onDestroy()
     }
 
     override fun onNewIntent(intent: Intent?) {

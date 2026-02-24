@@ -1,6 +1,7 @@
 package com.bass.bumpdesk
 
 import android.os.Bundle
+import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
 
 /**
@@ -10,9 +11,7 @@ import androidx.appcompat.app.AppCompatActivity
 class RecentsActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // This activity could either host its own GLSurfaceView 
-        // or tell the LauncherActivity to focus on the recents pile.
-        // For AOSP integration, we might want this to be a separate entry point.
+        Log.d("RecentsActivity", "Recents intent received, redirecting to 3D view")
         
         // For now, let's just launch LauncherActivity with a specific flag
         // or intent action that tells it to zoom into recents.

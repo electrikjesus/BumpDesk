@@ -140,8 +140,8 @@
 - [x] **Priority**: add long-click menu option to set default camera view as current view (and a settings option to reset camera defaults)
 - [x] **Priority**: add scale slider in settings for room size (also tie camera to this scale setting)
 - [x] **Priority**: fix CameraManagerTest > testZoomLogic FAILED
+- [x] **Context Improvement**: use the same signature to compile in Android Studio and GitHub actions
 - [x] **Priority**: expand on our recents widget and add logging for the activities each recents tile has (right now, they all don't work as expected)
-- [ ] **Context Improvement**: use the same signature to compile in Android Studio and GitHub actions
 
 ## Refactoring & Infrastructure (High Impact)
 
@@ -149,8 +149,18 @@
     - [x] Step 1: Define `Component` and `RenderComponent` interfaces.
     - [x] Step 2: Refactor `BumpItem` to use component map.
     - [x] Step 3: Update `ItemRenderer` to use components.
-- [ ] **Task**: Resource Lifecycle Audit (Leak Prevention)
-- [ ] **Task**: Automated Integration Testing (Headless GL verification)
+- [x] **Task**: Resource Lifecycle Audit (Leak Prevention)
+- [x] **Task**: Automated Integration Testing (Headless GL verification)
+
+## Next Priorities:
+- [ ] **Priority**: Fix input and gesture regressions
+    - [ ] Fix 2-finger pan/tilt/zoom gestures on touchscreen (Touchscreen only does pan/tilt, needs zoom)
+    - [ ] Fix lasso triggering erroneously with some 2-finger touchscreen gestures
+- [ ] **Priority**: Fix missing UI options
+    - [ ] Fix missing "set camera default" right-click/long-click menu option
+- [ ] **Performance**: Implement virtualized AppDrawer loading (paged bitmap generation).
+- [ ] **UX**: Improve complex widget horizontal/vertical scrolling in 3D projection.
+- [ ] **Tactile**: Advanced haptic feedback for room boundary collisions and item interactions.
 
 ## AI Workflow & Reward System
 
@@ -165,5 +175,5 @@
 - **Logic Regression**: -250 pts.
 - **Rule Breach / Forgetting Step**: -250 pts.
 
-Current Points: 9690
+Current Points: 10590
 Status: Senior Architect

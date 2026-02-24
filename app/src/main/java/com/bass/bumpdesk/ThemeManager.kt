@@ -1,5 +1,6 @@
 package com.bass.bumpdesk
 
+import android.annotation.SuppressLint
 import android.app.WallpaperManager
 import android.content.Context
 import android.graphics.Bitmap
@@ -51,6 +52,7 @@ object ThemeManager {
         }
     }
 
+    @SuppressLint("MissingPermission")
     fun getFloorTexture(context: Context, textureManager: TextureManager): Int {
         init(context)
         val prefs = context.getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)

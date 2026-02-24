@@ -129,6 +129,17 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         saveState()
     }
 
+    fun onDestroy() {
+        physicsThread?.stopPhysics()
+        physicsThread = null
+        soundPool?.release()
+        soundPool = null
+
+        glSurfaceView?.queueEvent {
+            textureManager.destroy()
+        }
+    }
+
     fun updateSettings() {
         val prefs = context.getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
         physicsEngine.friction = prefs.getInt("physics_friction", 94) / 100f
@@ -440,9 +451,9 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         
         // Ensure textures are non-zero/valid to fix white square issues
         uiAssets = UIRenderer.UIAssets(
-            closeBtn = textureManager.loadTextureFromBitmap(TextRenderer.createTextBitmap("X", 64, 64)),
-            arrowLeft = textureManager.loadTextureFromBitmap(TextRenderer.createTextBitmap(" < ", 64, 64)),
-            arrowRight = textureManager.loadTextureFromBitmap(TextRenderer.createTextBitmap(" > ", 64, 64)),
+            closeBtn = textureManager.loadTextureFromBitmap(TextRenderer.createTextBitmap("X", 64, 64), "ui_close"),
+            arrowLeft = textureManager.loadTextureFromBitmap(TextRenderer.createTextBitmap(" < ", 64, 64), "ui_arrow_left"),
+            arrowRight = textureManager.loadTextureFromBitmap(TextRenderer.createTextBitmap(" > ", 64, 64), "ui_arrow_right"),
             scrollUp = textureManager.loadTextureFromAsset("BumpTop/${ThemeManager.currentThemeName}/widgets/scrollUp.png"),
             scrollDown = textureManager.loadTextureFromAsset("BumpTop/${ThemeManager.currentThemeName}/widgets/scrollDown.png")
         )
