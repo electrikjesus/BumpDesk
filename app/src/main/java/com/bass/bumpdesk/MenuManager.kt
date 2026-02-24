@@ -176,6 +176,7 @@ class MenuManager(
         menuItems.add(RadialMenuItem("Settings", android.R.drawable.ic_menu_preferences) {
             context.startActivity(Intent(context, SettingsActivity::class.java))
         })
+        
         radialMenu.setItems(menuItems, x, y, { it.action?.invoke() }, {})
     }
 

@@ -110,6 +110,7 @@ class InteractionManager(
 
     fun handleTouchMove(x: Float, y: Float, sceneState: SceneState, pointerCount: Int): Boolean {
         if (pointerCount > 1) {
+            // Multi-touch transition: immediately clear single-finger states
             isDragging = false
             isLeafing = false
             isResizingWidget = false
@@ -145,8 +146,8 @@ class InteractionManager(
                 } else if (resizeWidget != null && isResizingWidget) {
                     // isResizingWidget is already set
                 } else {
-                    isDragging = true
                     if (isLassoPending && lassoStartPoint != null) {
+                        isDragging = true
                         lassoPoints.add(lassoStartPoint!!)
                         isLassoPending = false
                     }

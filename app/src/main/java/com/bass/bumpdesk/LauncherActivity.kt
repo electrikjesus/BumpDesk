@@ -119,7 +119,9 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
         menuManager = MenuManager(this, radialMenu, glSurfaceView, renderer, this)
         
         btnResetView.setOnClickListener {
-            glSurfaceView.queueEvent { renderer.resetView() }
+            if (::renderer.isInitialized) {
+                glSurfaceView.queueEvent { renderer.resetView() }
+            }
         }
 
         setupGestures()
@@ -128,12 +130,16 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
 
         appManager.setUpdateListener(object : AppManager.RecentsUpdateListener {
             override fun onRecentsUpdated(recents: List<AppInfo>) {
-                glSurfaceView.queueEvent { renderer.updateRecents(recents) }
+                if (::renderer.isInitialized) {
+                    glSurfaceView.queueEvent { renderer.updateRecents(recents) }
+                }
             }
         })
     }
 
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
+        if (!::renderer.isInitialized) return
+        
         if (key == "selected_theme" || key == "use_wallpaper_as_floor" || key == "show_recent_apps" || 
             key == "infinite_desktop_mode" || key?.startsWith("physics_") == true || key?.startsWith("layout_") == true) {
             ThemeManager.init(this, forceReload = true)
@@ -149,7 +155,14 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
         super.onDestroy()
         val prefs = getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
         prefs.unregisterOnSharedPreferenceChangeListener(this)
-        renderer.onDestroy()
+        
+        if (::renderer.isInitialized) {
+            renderer.onDestroy()
+        }
+        
+        if (::appWidgetHost.isInitialized) {
+            try { appWidgetHost.stopListening() } catch (e: Exception) {}
+        }
     }
 
     override fun onNewIntent(intent: Intent?) {
@@ -177,19 +190,19 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
     private fun setupGestures() {
         gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
             override fun onDoubleTap(e: MotionEvent): Boolean {
-                if (radialMenu.visibility == View.VISIBLE) return true
+                if (radialMenu.visibility == View.VISIBLE || !::renderer.isInitialized) return true
                 glSurfaceView.queueEvent { renderer.handleDoubleTap(e.x, e.y) }
                 return true
             }
 
             override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
-                if (radialMenu.visibility == View.VISIBLE) return true
+                if (radialMenu.visibility == View.VISIBLE || !::renderer.isInitialized) return true
                 glSurfaceView.queueEvent { renderer.handleSingleTap(e.x, e.y) }
                 return true
             }
 
             override fun onLongPress(e: MotionEvent) {
-                if (radialMenu.visibility == View.VISIBLE) return
+                if (radialMenu.visibility == View.VISIBLE || !::renderer.isInitialized) return
                 glSurfaceView.queueEvent { renderer.handleLongPress(e.x, e.y) }
             }
             
@@ -205,7 +218,7 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
                 return true
             }
             override fun onScale(detector: ScaleGestureDetector): Boolean {
-                if (radialMenu.visibility == View.VISIBLE) return true
+                if (radialMenu.visibility == View.VISIBLE || !::renderer.isInitialized) return true
                 glSurfaceView.queueEvent { renderer.handleZoom(detector.scaleFactor) }
                 return true
             }
@@ -215,6 +228,8 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
         })
 
         glSurfaceView.setOnTouchListener { _, event ->
+            if (!::renderer.isInitialized) return@setOnTouchListener false
+            
             if (radialMenu.visibility == View.VISIBLE) {
                 return@setOnTouchListener radialMenu.dispatchTouchEvent(event)
             }
@@ -223,7 +238,7 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
             val isRightButton = (event.buttonState and MotionEvent.BUTTON_SECONDARY) != 0
             val isMiddleButton = (event.buttonState and MotionEvent.BUTTON_TERTIARY) != 0
             
-            // Pass all events to the scale detector to ensure zoom works on all touch sources
+            // Pass all multi-touch events to scale detector
             scaleGestureDetector.onTouchEvent(event)
             
             if (!isScaling && !isMiddleDragging && !isRightButton) {
@@ -235,7 +250,7 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
                     if (pointerCount >= 2) {
                         lastMidX = (event.getX(0) + event.getX(1)) / 2f
                         lastMidY = (event.getY(0) + event.getY(1)) / 2f
-                        // Cancel any active single-finger dragging/lasso in the renderer
+                        // Trigger immediate touch up in renderer to cancel any pending single-finger lasso/drag
                         glSurfaceView.queueEvent { renderer.handleTouchMove(event.x, event.y, pointerCount) }
                     }
                 }
@@ -250,10 +265,11 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
                             if (!isMiddleButton) {
                                 isMiddleDragging = false
                             } else {
+                                // Middle Button Panning (standard L/R, F/B mapping)
                                 glSurfaceView.queueEvent { renderer.handlePan(dx, dy) }
                             }
                         } else {
-                            // Discriminate between Tilt and Pan based on vertical bias
+                            // Touchscreen 2-finger logic: vertical bias for tilt
                             if (abs(dy) > abs(dx) * 2.5f) {
                                 glSurfaceView.queueEvent { renderer.handleTilt(dy) }
                             } else {
@@ -285,14 +301,18 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
                     }
                     glSurfaceView.queueEvent { renderer.handleTouchDown(event.x, event.y) }
                 }
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                MotionEvent.ACTION_UP -> {
                     if (isMiddleDragging) {
                         isMiddleDragging = false
                         return@setOnTouchListener true
+                    } else if (isRightButton) {
+                        return@setOnTouchListener true
                     }
-                    if (event.actionMasked == MotionEvent.ACTION_CANCEL) {
-                        isScaling = false
-                    }
+                    glSurfaceView.queueEvent { renderer.handleTouchUp() }
+                }
+                MotionEvent.ACTION_CANCEL -> {
+                    isScaling = false
+                    isMiddleDragging = false
                     glSurfaceView.queueEvent { renderer.handleTouchUp() }
                 }
             }
@@ -302,10 +322,12 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
     }
 
     override fun onGenericMotionEvent(event: MotionEvent): Boolean {
+        if (!::renderer.isInitialized) return false
         if (event.action == MotionEvent.ACTION_SCROLL && event.isFromSource(InputDevice.SOURCE_MOUSE)) {
             val delta = event.getAxisValue(MotionEvent.AXIS_VSCROLL)
             if (delta != 0f) {
                 glSurfaceView.queueEvent {
+                    // Zoom in for positive delta, out for negative
                     val factor = if (delta > 0) 1.1f else 0.9f
                     renderer.handleZoom(factor)
                 }
@@ -342,6 +364,7 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
     fun saveLastTouchPosition(x: Float, y: Float) { initialTouchX = x; initialTouchY = y }
 
     fun createPileFromCaptured(capturedItems: List<BumpItem>) {
+        if (!::renderer.isInitialized) return
         renderer.sceneState.piles.forEach { it.items.removeAll(capturedItems) }
         renderer.sceneState.piles.removeAll { it.items.size < 2 && !it.isSystem }
         val pPos = Vector3(capturedItems.map { it.position.x }.average().toFloat(), 0.05f, capturedItems.map { it.position.z }.average().toFloat())
@@ -364,7 +387,11 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
 
     private fun loadApps() {
         val apps = appManager.loadAllApps()
-        glSurfaceView.queueEvent { renderer.setAllAppsList(apps) }
+        glSurfaceView.queueEvent { 
+            if (::renderer.isInitialized) {
+                renderer.setAllAppsList(apps) 
+            }
+        }
     }
 
     fun updateRecents() {
@@ -381,7 +408,9 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
                 REQUEST_CREATE_APPWIDGET -> data?.extras?.getInt(AppWidgetManager.EXTRA_APPWIDGET_ID, -1)?.let { if (it != -1) addWidgetToRenderer(it) }
                 REQUEST_PICK_IMAGE -> data?.data?.let { uri ->
                     try { contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (e: Exception) {}
-                    glSurfaceView.queueEvent { renderer.addPhotoFrame(uri.toString(), initialTouchX, initialTouchY) }
+                    if (::renderer.isInitialized) {
+                        glSurfaceView.queueEvent { renderer.addPhotoFrame(uri.toString(), initialTouchX, initialTouchY) }
+                    }
                 }
                 REQUEST_PICK_IMAGE_FOR_FRAME -> data?.data?.let { uri ->
                     try { contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (e: Exception) {}
@@ -399,12 +428,16 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
         val info = appWidgetManager.getAppWidgetInfo(id) ?: return
         val view = appWidgetHost.createView(ContextThemeWrapper(applicationContext, R.style.Theme_BumpDesk), id, info)
         widgetContainer.addView(view)
-        glSurfaceView.queueEvent { renderer.addWidgetAt(id, view, initialTouchX, initialTouchY) }
+        if (::renderer.isInitialized) {
+            glSurfaceView.queueEvent { renderer.addWidgetAt(id, view, initialTouchX, initialTouchY) }
+        }
     }
 
     override fun onStart() { 
         super.onStart()
-        appWidgetHost.startListening()
+        if (::appWidgetHost.isInitialized) {
+            appWidgetHost.startListening()
+        }
         val filter = IntentFilter(Intent.ACTION_CLOSE_SYSTEM_DIALOGS)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(recentsReceiver, filter, Context.RECEIVER_EXPORTED)
@@ -416,6 +449,13 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
         super.onStop()
         try { unregisterReceiver(recentsReceiver) } catch (e: Exception) {}
     }
-    override fun onResume() { super.onResume(); glSurfaceView.onResume(); updateRecents() }
-    override fun onPause() { super.onPause(); glSurfaceView.onPause() }
+    override fun onResume() { 
+        super.onResume()
+        glSurfaceView.onResume()
+        updateRecents()
+    }
+    override fun onPause() { 
+        super.onPause()
+        glSurfaceView.onPause()
+    }
 }
