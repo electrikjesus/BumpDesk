@@ -193,12 +193,12 @@ class CameraManager {
         targetLookAt[2] = currentPos[2] + newRelZ
     }
 
-    fun focusOnWall(wall: CameraManager.ViewMode, pos: FloatArray, lookAt: FloatArray) {
+    fun focusOnWall(wall: CameraManager.ViewMode, pos: FloatArray, lookAt: FloatArray, zoom: Float = 1.0f) {
         saveCurrentView()
         targetPos = pos.clone()
         targetLookAt = lookAt.clone()
         currentViewMode = wall
-        zoomLevel = 1.0f
+        zoomLevel = zoom
         fieldOfView = 60f
     }
 
@@ -213,10 +213,9 @@ class CameraManager {
 
     fun focusOnFolder(folderPos: FloatArray, scale: Float = 1.0f) {
         saveCurrentView()
-        // Focus camera closer to folder for 2/3 rule
-        // A 4x4 grid is about 8f wide. At D=10f, view height is ~11.5f. 8/11.5 is ~0.7.
-        val focusDist = 10f * scale
-        targetPos = floatArrayOf(folderPos[0], folderPos[1] + focusDist, folderPos[2] + focusDist * 0.4f)
+        // Pull back slightly to create gap
+        val focusDist = 12f * scale 
+        targetPos = floatArrayOf(folderPos[0], folderPos[1] + focusDist, folderPos[2] + focusDist * 0.5f)
         targetLookAt = floatArrayOf(folderPos[0], folderPos[1], folderPos[2])
         currentViewMode = ViewMode.FOLDER_EXPANDED
         zoomLevel = 1.0f

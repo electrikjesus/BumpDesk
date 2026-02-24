@@ -128,6 +128,7 @@
     - [x] Fix icons showing too large in folder view when slider is high (scale them together)
     - [x] Remember custom default camera positions across restarts (Persistence)
     - [x] **Task**: Fix item focus scaling (2/3 rule for widgets/folders)
+    - [ ] **Task**: Improve focus on Recents widget and add space in folder view
 - [x] **Priority**: Fix floor texture scaling (Incorrect quadrants mapping/stretching)
     - [x] **Task**: Fix floor texture tiling (should fill entire plane)
 - [ ] **Priority**: Fix missing "set camera default" right-click/long-click menu option in all context menus
@@ -157,5 +158,5 @@
 - **Logic Regression**: -250 pts.
 - **Rule Breach / Forgetting Step**: -250 pts.
 
-Current Points: 14290
+Current Points: 14590
 Status: Senior Architect

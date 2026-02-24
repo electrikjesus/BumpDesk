@@ -154,7 +154,6 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         sceneState.withWriteLock {
             sceneState.bumpItems.forEach { it.transform.scale = physicsEngine.defaultScale }
             sceneState.piles.forEach { p ->
-                // Piles also get scaled but remain relatively larger than individual icons
                 p.scale = (scalePref + 0.5f).coerceIn(0.5f, 2.5f)
                 p.items.forEach { it.transform.scale = physicsEngine.defaultScale }
             }
@@ -177,9 +176,8 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         physicsEngine.isInfiniteMode = prefs.getBoolean("infinite_desktop_mode", false)
         interactionManager.isInfiniteMode = physicsEngine.isInfiniteMode
 
-        // ROOM_SIZE slider integration (defaulting to 30f for now if not set)
         ROOM_SIZE = prefs.getInt("room_size_scale", 30).toFloat()
-        ROOM_HEIGHT = ROOM_SIZE // Keeping it cubic for simplicity unless separate slider added
+        ROOM_HEIGHT = ROOM_SIZE
 
         interactionManager.roomSize = ROOM_SIZE
         interactionManager.roomHeight = ROOM_HEIGHT
@@ -194,7 +192,6 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         camera.MIN_X = -ROOM_SIZE + 1f
         camera.MIN_Z = -ROOM_SIZE + 1f
         
-        // Load custom default camera view if it exists
         if (prefs.contains("cam_def_pos_x")) {
             camera.customDefaultPos[0] = prefs.getFloat("cam_def_pos_x", camera.ABSOLUTE_DEFAULT_POS[0])
             camera.customDefaultPos[1] = prefs.getFloat("cam_def_pos_y", camera.ABSOLUTE_DEFAULT_POS[1])
@@ -202,13 +199,12 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
             camera.customDefaultLookAt[0] = prefs.getFloat("cam_def_lat_x", camera.ABSOLUTE_DEFAULT_LOOKAT[0])
             camera.customDefaultLookAt[1] = prefs.getFloat("cam_def_lat_y", camera.ABSOLUTE_DEFAULT_LOOKAT[1])
             camera.customDefaultLookAt[2] = prefs.getFloat("cam_def_lat_z", camera.ABSOLUTE_DEFAULT_LOOKAT[2])
-            camera.reset() // Apply custom defaults
+            camera.reset()
         } else if (prefs.getBoolean("reset_camera_trigger", false)) {
             camera.resetToAbsoluteDefaults()
             prefs.edit().remove("reset_camera_trigger").apply()
         }
 
-        // Force immediate reload of theme textures to ensure floor updates when infinite mode changes
         if (oldInfinite != physicsEngine.isInfiniteMode) {
             reloadTheme()
         }
@@ -261,7 +257,6 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 sceneState.piles.clear()
                 sceneState.piles.addAll(piles)
                 
-                // Restore special pointers
                 sceneState.recentsPile = sceneState.piles.find { it.isSystem && it.name == "Recents" }
                 sceneState.appDrawerItem = sceneState.bumpItems.find { it.appearance.type == BumpItem.Type.APP_DRAWER }
             }
@@ -414,7 +409,6 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         saveState()
         val reloadTask = Runnable {
             textureManager.clearCache()
-            // Reset class texture state to force immediate refresh from ThemeManager
             floorTextureId = -1
             wallTextureIds = IntArray(4) { -1 }
             
@@ -460,7 +454,6 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         floorTextureId = ThemeManager.getFloorTexture(context, textureManager)
         wallTextureIds = ThemeManager.getWallTextures(context, textureManager)
         
-        // Ensure textures are non-zero/valid to fix white square issues
         uiAssets = UIRenderer.UIAssets(
             closeBtn = textureManager.loadTextureFromBitmap(TextRenderer.createTextBitmap("X", 64, 64)),
             arrowLeft = textureManager.loadTextureFromBitmap(TextRenderer.createTextBitmap(" < ", 64, 64)),
@@ -475,7 +468,6 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
         camera.update(); camera.setViewMatrix(viewMatrix)
         
-        // Update projection matrix if FOV has changed
         Matrix.perspectiveM(projectionMatrix, 0, camera.fieldOfView, surfaceWidth.toFloat() / surfaceHeight, 0.1f, 100f)
         
         Matrix.multiplyMM(vPMatrix, 0, projectionMatrix, 0, viewMatrix, 0)
@@ -556,12 +548,11 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         val rS = FloatArray(4); val rE = FloatArray(4); interactionManager.calculateRay(x, y, rS, rE)
         val expandedPile = sceneState.piles.find { it.isExpanded }
         if (expandedPile != null) {
-            // Support hit detection on Wall-mounted folders (Recents)
             val isWall = expandedPile.surface != BumpItem.Surface.FLOOR
             val t = if (isWall) {
                 (expandedPile.position.z - rS[2]) / (rE[2] - rS[2])
             } else {
-                (2.90f - rS[1]) / (rE[1] - rS[1]) // Matches OverlayRenderer floor plane height
+                (2.90f - rS[1]) / (rE[1] - rS[1])
             }
 
             if (t > 0) {
@@ -577,37 +568,30 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 if (isWall) {
                     val width = 6f * expandedPile.scale
                     val height = 4f * expandedPile.scale
-                    // Arrow Left
                     if (abs(hitX - (expandedPile.position.x - width + 0.5f)) < 0.5f && abs(hitY - expandedPile.position.y) < 0.5f) {
                         expandedPile.currentIndex = (expandedPile.currentIndex - 1).coerceAtLeast(0)
                         playSound(leafSoundId, 0.2f); hapticManager.tick(); return
                     }
-                    // Arrow Right
                     if (abs(hitX - (expandedPile.position.x + width - 0.5f)) < 0.5f && abs(hitY - expandedPile.position.y) < 0.5f) {
                         expandedPile.currentIndex = (expandedPile.currentIndex + 1).coerceAtMost(expandedPile.items.size - 1)
                         playSound(leafSoundId, 0.2f); hapticManager.tick(); return
                     }
-                    // Close check for Recents (usually top corner or clicking outside)
                     if (abs(hitX - expandedPile.position.x) > width || abs(hitY - expandedPile.position.y) > height) { dismissExpandedPile(); return }
                 } else {
                     val cbX = pos[0] + halfDimX - 0.3f * expandedPile.scale; val cbZ = pos[2] - halfDimZ + 0.3f * expandedPile.scale
                     if (abs(hitX - cbX) < 0.4f && abs(hitZ - cbZ) < 0.4f) { dismissExpandedPile(); return }
 
-                    // Pagination check
                     val totalPages = ceil(expandedPile.items.size.toFloat() / 16f).toInt().coerceAtLeast(1)
                     val pZ = pos[2] + halfDimZ - 0.5f * expandedPile.scale
                     
-                    // Left Arrow
                     if (expandedPile.scrollIndex > 0 && abs(hitX - (pos[0] - 1.5f * expandedPile.scale)) < 0.4f && abs(hitZ - pZ) < 0.4f) {
                         expandedPile.scrollIndex--
                         playSound(leafSoundId, 0.2f); hapticManager.tick(); return
                     }
-                    // Right Arrow
                     if (expandedPile.scrollIndex < totalPages - 1 && abs(hitX - (pos[0] + 1.5f * expandedPile.scale)) < 0.4f && abs(hitZ - pZ) < 0.4f) {
                         expandedPile.scrollIndex++
                         playSound(leafSoundId, 0.2f); hapticManager.tick(); return
                     }
-                    // Dots
                     val dotSpacing = 0.3f * expandedPile.scale
                     val startX = pos[0] - ((totalPages - 1) * dotSpacing) / 2f
                     for (i in 0 until totalPages) {
@@ -652,8 +636,9 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
             if (pile != null && !pile.isExpanded) {
                 playSound(expandSoundId, 0.3f)
                 hapticManager.selection()
-                if (pile.isSystem && pile == sceneState.recentsPile) camera.focusOnWall(CameraManager.ViewMode.BACK_WALL, floatArrayOf(0f, 4f, 2f), floatArrayOf(0f, 4f, -ROOM_SIZE))
-                else { 
+                if (pile.isSystem && pile == sceneState.recentsPile) {
+                    camera.focusOnWall(CameraManager.ViewMode.BACK_WALL, floatArrayOf(pile.position.x, pile.position.y, pile.position.z + 10f), floatArrayOf(pile.position.x, pile.position.y, pile.position.z), 0.6f)
+                } else {
                     sceneState.piles.forEach { it.isExpanded = false }
                     pile.isExpanded = true
                     camera.focusOnFolder(pile.position.toFloatArray(), pile.scale) 
