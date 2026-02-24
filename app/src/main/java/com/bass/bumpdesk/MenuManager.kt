@@ -68,6 +68,10 @@ class MenuManager(
                 context.startActivity(intent)
             })
         }
+
+        menuItems.add(RadialMenuItem("Set As Default View", android.R.drawable.ic_menu_camera) {
+            glSurfaceView.queueEvent { renderer.saveCustomCameraDefault() }
+        })
         
         menuItems.add(RadialMenuItem("Delete", android.R.drawable.ic_menu_delete) {
             glSurfaceView.queueEvent { renderer.sceneState.bumpItems.remove(item) }
@@ -99,6 +103,10 @@ class MenuManager(
             glSurfaceView.queueEvent { pile.scale = (pile.scale / 1.25f).coerceAtLeast(0.5f) }
         })
 
+        menuItems.add(RadialMenuItem("Set As Default View", android.R.drawable.ic_menu_camera) {
+            glSurfaceView.queueEvent { renderer.saveCustomCameraDefault() }
+        })
+
         menuItems.add(RadialMenuItem("Break Apart", android.R.drawable.ic_menu_delete) {
             glSurfaceView.queueEvent { onBreak() }
         })
@@ -110,6 +118,9 @@ class MenuManager(
         val menuItems = mutableListOf<RadialMenuItem>()
         menuItems.add(RadialMenuItem("Move", android.R.drawable.ic_menu_mylocation) {
             // Already handled by being the selectedWidget in InteractionManager
+        })
+        menuItems.add(RadialMenuItem("Set As Default View", android.R.drawable.ic_menu_camera) {
+            glSurfaceView.queueEvent { renderer.saveCustomCameraDefault() }
         })
         menuItems.add(RadialMenuItem("Remove", android.R.drawable.ic_menu_delete) {
             glSurfaceView.queueEvent { renderer.removeWidget(widget) }
@@ -127,12 +138,13 @@ class MenuManager(
             },
             RadialMenuItem("Reset View", android.R.drawable.ic_menu_revert) {
                 glSurfaceView.queueEvent { renderer.resetView() }
-            },
-            RadialMenuItem("Set As Default View", android.R.drawable.ic_menu_camera) {
-                glSurfaceView.queueEvent { renderer.saveCustomCameraDefault() }
             }
         )
         menuItems.add(RadialMenuItem("Organize", android.R.drawable.ic_menu_sort_by_size, subItems = organizeSubItems))
+
+        menuItems.add(RadialMenuItem("Set As Default View", android.R.drawable.ic_menu_camera) {
+            glSurfaceView.queueEvent { renderer.saveCustomCameraDefault() }
+        })
 
         menuItems.add(RadialMenuItem("Add Widget", android.R.drawable.ic_menu_add) {
             launcher.saveLastTouchPosition(x, y)

@@ -153,11 +153,10 @@
 - [x] **Task**: Automated Integration Testing (Headless GL verification)
 
 ## Next Priorities:
-- [ ] **Priority**: Fix input and gesture regressions
-    - [ ] Fix 2-finger pan/tilt/zoom gestures on touchscreen (Touchscreen only does pan/tilt, needs zoom)
-    - [ ] Fix lasso triggering erroneously with some 2-finger touchscreen gestures
-- [ ] **Priority**: Fix missing UI options
-    - [ ] Fix missing "set camera default" right-click/long-click menu option
+- [x] **Priority**: Fix release APK compilation failure in CI (Keystore error) and revert release signing for now
+- [x] **Priority**: Fix 2-finger pan/tilt/zoom gestures on touchscreen (Ensure zoom works on touchscreen)
+- [x] **Priority**: Fix lasso triggering erroneously with some 2-finger touchscreen gestures
+- [x] **Priority**: Fix missing "set camera default" right-click/long-click menu option in context menus
 - [ ] **Performance**: Implement virtualized AppDrawer loading (paged bitmap generation).
 - [ ] **UX**: Improve complex widget horizontal/vertical scrolling in 3D projection.
 - [ ] **Tactile**: Advanced haptic feedback for room boundary collisions and item interactions.
@@ -175,5 +174,5 @@
 - **Logic Regression**: -250 pts.
 - **Rule Breach / Forgetting Step**: -250 pts.
 
-Current Points: 10590
+Current Points: 10990
 Status: Senior Architect

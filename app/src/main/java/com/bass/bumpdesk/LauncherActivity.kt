@@ -201,12 +201,11 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
         
         scaleGestureDetector = ScaleGestureDetector(this, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
             override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
-                if (isMiddleDragging) return false
                 isScaling = true
                 return true
             }
             override fun onScale(detector: ScaleGestureDetector): Boolean {
-                if (radialMenu.visibility == View.VISIBLE || isMiddleDragging) return true
+                if (radialMenu.visibility == View.VISIBLE) return true
                 glSurfaceView.queueEvent { renderer.handleZoom(detector.scaleFactor) }
                 return true
             }
@@ -221,27 +220,27 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
             }
             
             val pointerCount = event.pointerCount
-            // Android Mouse Button Mapping:
-            // BUTTON_PRIMARY = 1 (Left)
-            // BUTTON_SECONDARY = 2 (Right)
-            // BUTTON_TERTIARY = 4 (Middle / Scroll Wheel)
-            val isRightButton = (event.buttonState and 2) != 0
-            val isMiddleButton = (event.buttonState and 4) != 0
+            val isRightButton = (event.buttonState and MotionEvent.BUTTON_SECONDARY) != 0
+            val isMiddleButton = (event.buttonState and MotionEvent.BUTTON_TERTIARY) != 0
             
-            if (!isMiddleButton && !isMiddleDragging && !isRightButton) {
-                scaleGestureDetector.onTouchEvent(event)
+            // Pass all events to the scale detector to ensure zoom works on all touch sources
+            scaleGestureDetector.onTouchEvent(event)
+            
+            if (!isScaling && !isMiddleDragging && !isRightButton) {
                 gestureDetector.onTouchEvent(event)
             }
             
             when (event.actionMasked) {
                 MotionEvent.ACTION_POINTER_DOWN -> {
-                    if (pointerCount == 2) {
+                    if (pointerCount >= 2) {
                         lastMidX = (event.getX(0) + event.getX(1)) / 2f
                         lastMidY = (event.getY(0) + event.getY(1)) / 2f
+                        // Cancel any active single-finger dragging/lasso in the renderer
+                        glSurfaceView.queueEvent { renderer.handleTouchMove(event.x, event.y, pointerCount) }
                     }
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    if (isMiddleDragging || (pointerCount == 2 && !isScaling)) {
+                    if (isMiddleDragging || (pointerCount >= 2 && !isScaling)) {
                         val currentX = if (isMiddleDragging) event.x else (event.getX(0) + event.getX(1)) / 2f
                         val currentY = if (isMiddleDragging) event.y else (event.getY(0) + event.getY(1)) / 2f
                         val dx = currentX - lastMidX
@@ -251,16 +250,11 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
                             if (!isMiddleButton) {
                                 isMiddleDragging = false
                             } else {
-                                // Middle Button Panning (standard L/R, F/B mapping)
                                 glSurfaceView.queueEvent { renderer.handlePan(dx, dy) }
                             }
                         } else {
-                            // Detection for Tilt vs Pan
-                            val dy0 = event.getY(0) - initialTouchY
-                            val dy1 = event.getY(1) - initialTouchY
-                            
-                            if (abs(dy) > abs(dx) * 2f && (dy0 * dy1 > 0)) {
-                                // Both fingers moving vertically in same direction
+                            // Discriminate between Tilt and Pan based on vertical bias
+                            if (abs(dy) > abs(dx) * 2.5f) {
                                 glSurfaceView.queueEvent { renderer.handleTilt(dy) }
                             } else {
                                 glSurfaceView.queueEvent { renderer.handlePan(dx, dy) }
@@ -286,18 +280,18 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
                         lastMidY = event.y
                         return@setOnTouchListener true
                     } else if (isRightButton) {
-                        // Right click maps to immediate long press
                         glSurfaceView.queueEvent { renderer.handleLongPress(event.x, event.y) }
                         return@setOnTouchListener true
                     }
                     glSurfaceView.queueEvent { renderer.handleTouchDown(event.x, event.y) }
                 }
-                MotionEvent.ACTION_UP -> {
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     if (isMiddleDragging) {
                         isMiddleDragging = false
                         return@setOnTouchListener true
-                    } else if (isRightButton) {
-                        return@setOnTouchListener true
+                    }
+                    if (event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                        isScaling = false
                     }
                     glSurfaceView.queueEvent { renderer.handleTouchUp() }
                 }
@@ -312,7 +306,6 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
             val delta = event.getAxisValue(MotionEvent.AXIS_VSCROLL)
             if (delta != 0f) {
                 glSurfaceView.queueEvent {
-                    // Zoom in for positive delta, out for negative
                     val factor = if (delta > 0) 1.1f else 0.9f
                     renderer.handleZoom(factor)
                 }
@@ -421,7 +414,6 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
     }
     override fun onStop() { 
         super.onStop()
-        appWidgetHost.stopListening()
         try { unregisterReceiver(recentsReceiver) } catch (e: Exception) {}
     }
     override fun onResume() { super.onResume(); glSurfaceView.onResume(); updateRecents() }
