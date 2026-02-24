@@ -131,35 +131,23 @@ class CameraManager {
         val s = 0.02f * zoomLevel
         
         when (currentViewMode) {
-            ViewMode.BACK_WALL -> {
-                targetPos[0] -= dx * s
-                targetPos[1] += dy * s
-                targetLookAt[0] -= dx * s
-                targetLookAt[1] += dy * s
+            ViewMode.BACK_WALL, ViewMode.LEFT_WALL, ViewMode.RIGHT_WALL -> {
+                // In wall modes, we pan relative to the wall plane
+                if (currentViewMode == ViewMode.BACK_WALL) {
+                    targetPos[0] -= dx * s; targetLookAt[0] -= dx * s
+                } else {
+                    targetPos[2] -= (if (currentViewMode == ViewMode.LEFT_WALL) dx else -dx) * s
+                    targetLookAt[2] -= (if (currentViewMode == ViewMode.LEFT_WALL) dx else -dx) * s
+                }
+                targetPos[1] += dy * s; targetLookAt[1] += dy * s
             }
-            ViewMode.LEFT_WALL -> {
-                targetPos[2] -= dx * s
-                targetPos[1] += dy * s
-                targetLookAt[2] -= dx * s
-                targetLookAt[1] += dy * s
-            }
-            ViewMode.RIGHT_WALL -> {
-                targetPos[2] += dx * s
-                targetPos[1] += dy * s
-                targetLookAt[2] += dx * s
-                targetLookAt[1] += dy * s
-            }
-            ViewMode.FLOOR -> {
-                targetPos[0] -= dx * s
-                targetPos[2] -= dy * s
-                targetLookAt[0] -= dx * s
-                targetLookAt[2] -= dy * s
+            ViewMode.FLOOR, ViewMode.FOLDER_EXPANDED -> {
+                targetPos[0] -= dx * s; targetLookAt[0] -= dx * s
+                targetPos[2] -= dy * s; targetLookAt[2] -= dy * s
             }
             else -> {
-                targetPos[0] -= dx * s
-                targetPos[2] -= dy * s
-                targetLookAt[0] -= dx * s
-                targetLookAt[2] -= dy * s
+                targetPos[0] -= dx * s; targetLookAt[0] -= dx * s
+                targetPos[2] -= dy * s; targetLookAt[2] -= dy * s
             }
         }
     }
@@ -180,15 +168,12 @@ class CameraManager {
         val cosAngle = cos(angle)
         val sinAngle = sin(angle)
 
-        // Vector from camera to look-at point
         val relX = targetLookAt[0] - currentPos[0]
         val relZ = targetLookAt[2] - currentPos[2]
 
-        // Rotate this vector around the Y axis
         val newRelX = relX * cosAngle + relZ * sinAngle
         val newRelZ = -relX * sinAngle + relZ * cosAngle
 
-        // Calculate new look-at point
         targetLookAt[0] = currentPos[0] + newRelX
         targetLookAt[2] = currentPos[2] + newRelZ
     }
@@ -213,8 +198,8 @@ class CameraManager {
 
     fun focusOnFolder(folderPos: FloatArray, scale: Float = 1.0f) {
         saveCurrentView()
-        // Pull back slightly to create gap
-        val focusDist = 12f * scale 
+        // 14f distance satisfies 2/3 rule and leaves enough gap above/below
+        val focusDist = 14f * scale 
         targetPos = floatArrayOf(folderPos[0], folderPos[1] + focusDist, folderPos[2] + focusDist * 0.5f)
         targetLookAt = floatArrayOf(folderPos[0], folderPos[1], folderPos[2])
         currentViewMode = ViewMode.FOLDER_EXPANDED
@@ -224,7 +209,6 @@ class CameraManager {
 
     fun focusOnWidget(widget: WidgetItem) {
         saveCurrentView()
-        // Determine distance based on widget size to satisfy 2/3 rule
         val maxDim = max(widget.size.x, widget.size.z)
         val dist = (maxDim * 2.5f).coerceIn(4f, 15f)
         
