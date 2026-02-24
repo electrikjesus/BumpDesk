@@ -61,21 +61,20 @@ class SettingsActivity : AppCompatActivity() {
                 .show()
         }
 
-        // Physics Tuning
-        setupSeekBar(R.id.sbFriction, "physics_friction", 94, 100)
-        setupSeekBar(R.id.sbBounciness, "physics_bounciness", 25, 100)
-        setupSeekBar(R.id.sbGravity, "physics_gravity", 10, 100)
+        // Physics Tuning with Real-time value updates
+        setupSeekBar(R.id.sbFriction, R.id.tvFrictionVal, "physics_friction", 94, 100, "%")
+        setupSeekBar(R.id.sbBounciness, R.id.tvBouncinessVal, "physics_bounciness", 25, 100, "%")
+        setupSeekBar(R.id.sbGravity, R.id.tvGravityVal, "physics_gravity", 10, 100, "%")
 
-        // Layout & Scaling
-        setupSeekBar(R.id.sbItemScale, "layout_item_scale", 50, 100)
-        setupSeekBar(R.id.sbGridSpacing, "layout_grid_spacing", 60, 100)
-        setupSeekBar(R.id.sbRoomSize, "room_size_scale", 30, 100)
+        // Layout & Scaling with Real-time value updates
+        setupSeekBar(R.id.sbItemScale, R.id.tvItemScaleVal, "layout_item_scale", 50, 100, "%")
+        setupSeekBar(R.id.sbGridSpacing, R.id.tvGridSpacingVal, "layout_grid_spacing", 60, 100, "%")
+        setupSeekBar(R.id.sbRoomSize, R.id.tvRoomSizeVal, "room_size_scale", 30, 100, "")
 
         findViewById<Button>(R.id.btnResetCamera).setOnClickListener {
             prefs.edit().apply {
                 remove("cam_def_pos_x"); remove("cam_def_pos_y"); remove("cam_def_pos_z")
                 remove("cam_def_lat_x"); remove("cam_def_lat_y"); remove("cam_def_lat_z")
-                // Trigger a change notification
                 putBoolean("reset_camera_trigger", true)
                 apply()
             }
@@ -83,11 +82,9 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         findViewById<Button>(R.id.btnClearCache).setOnClickListener {
-            // Only clear theme and state, not ALL preferences
             prefs.edit().apply {
                 remove("onboarding_complete")
                 remove("selected_theme")
-                // Clear any other temporary state but keep settings
                 apply()
             }
             Toast.makeText(this, "Cache cleared. Some changes require restart.", Toast.LENGTH_SHORT).show()
@@ -110,19 +107,23 @@ class SettingsActivity : AppCompatActivity() {
             recreate()
         }
 
-        // Apply and Exit
         findViewById<Button>(R.id.btnApplyChanges).setOnClickListener {
             finish()
         }
     }
 
-    private fun setupSeekBar(resId: Int, prefKey: String, defaultValue: Int, max: Int) {
+    private fun setupSeekBar(resId: Int, valResId: Int, prefKey: String, defaultValue: Int, max: Int, suffix: String) {
         val prefs = getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
+        val textView = findViewById<TextView>(valResId)
         findViewById<SeekBar>(resId).apply {
             this.max = max
-            progress = prefs.getInt(prefKey, defaultValue)
+            val currentVal = prefs.getInt(prefKey, defaultValue)
+            progress = currentVal
+            textView.text = "$currentVal$suffix"
+            
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    textView.text = "$progress$suffix"
                     if (fromUser) prefs.edit().putInt(prefKey, progress).apply()
                 }
                 override fun onStartTrackingTouch(seekBar: SeekBar?) {}

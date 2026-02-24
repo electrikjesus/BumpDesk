@@ -135,6 +135,12 @@
 - [x] **Priority**: Fix camera clipping through front wall
     - [x] Implement back-face culling for room walls
     - [x] Ensure front wall is invisible when camera is outside the room
+- [x] **UI/UX**: Material You Settings UI Overhaul
+    - [x] Add numeric value displays next to all sliders
+    - [x] Implement Expressive Material You styling (Large sliders, bold titles)
+- [x] **Visuals**: Create new Logo App Icon
+    - [x] Design stacked icon logo paying homage to BumpTop
+    - [x] Implement as Vector Drawable
 - [x] **Performance**: Implement virtualized AppDrawer loading (paged bitmap generation).
 - [x] **UX**: Improve complex widget horizontal/vertical scrolling in 3D projection.
 - [ ] **Tactile**: Advanced haptic feedback for room boundary collisions and item interactions.
@@ -158,5 +164,5 @@
 - **Logic Regression**: -250 pts.
 - **Rule Breach / Forgetting Step**: -250 pts.
 
-Current Points: 15190
+Current Points: 16690
 Status: Senior Architect
