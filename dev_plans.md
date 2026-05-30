@@ -192,6 +192,13 @@
     - [x] Request `READ_MEDIA_IMAGES` / legacy storage permission when enabling wallpaper
     - [x] Request photos/media permission during onboarding wizard
     - [x] Defer GL theme reload until launcher resumes (fixes black screen from shader compile without context)
+    - [x] Fix permission callback treating empty/dismissed results as granted (`permissionsGranted`)
+    - [x] Only persist wallpaper pref after verified bitmap load; revert checkbox on failure
+    - [x] AppOps check + permission status logging; help dialog → App Settings for “Allow all photos”
+    - [x] Retry wallpaper load after permission grant / onResume (300–400ms delay)
+    - [x] API 34+: PixelCopy window capture removed (captures app buffer, not wallpaper — always black)
+    - [x] Request READ_MEDIA_IMAGES + READ_EXTERNAL_STORAGE on API 33–34 for WallpaperManager binder
+    - [x] WallpaperColors gradient fallback when WallpaperManager blocked; reject blank bitmaps
     - [ ] Verify system wallpaper renders correctly on floor plane after granting permission
 
 - [ ] **Gestures**: 2-finger pan works but 2-finger pinch zoom does not

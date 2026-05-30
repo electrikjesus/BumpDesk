@@ -57,32 +57,99 @@ object TextureUtils {
     }
 
     fun loadSystemWallpaperBitmap(context: Context): Bitmap? {
-        val wm = WallpaperManager.getInstance(context)
+        loadCachedPickedWallpaper(context)?.let { return it }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && WallpaperPermissions.hasAccess(context)) {
-            loadWallpaperFromFile(wm)?.let { return it }
+        if (!WallpaperPermissions.canAttemptWallpaperRead(context)) {
+            if (WallpaperPermissions.needsLegacyStoragePrompt(context)) {
+                BumpDeskLog.w(
+                    BumpDeskLog.Tag.WALLPAPER,
+                    "loadSystemWallpaperBitmap",
+                    "READ_EXTERNAL_STORAGE required for WallpaperManager on this Android version"
+                )
+            } else if (!WallpaperPermissions.hasRuntimePermission(context)) {
+                BumpDeskLog.w(
+                    BumpDeskLog.Tag.WALLPAPER,
+                    "loadSystemWallpaperBitmap",
+                    "photos/media permission not granted"
+                )
+            }
+            return null
         }
+
+        val wm = WallpaperManager.getInstance(context)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             loadWallpaperFromManager(context, "getDrawable(FLAG_SYSTEM)") {
                 wm.getDrawable(WallpaperManager.FLAG_SYSTEM)
-            }?.let { return it }
+            }?.let { return validateWallpaperBitmap(it, "getDrawable") }
             loadWallpaperFromManager(context, "peekDrawable(FLAG_SYSTEM)") {
                 wm.peekDrawable(WallpaperManager.FLAG_SYSTEM)
-            }?.let { return it }
+            }?.let { return validateWallpaperBitmap(it, "peekDrawable") }
         }
 
-        loadWallpaperFromManager(context, "drawable") { wm.drawable }?.let { return it }
+        loadWallpaperFromManager(context, "drawable") { wm.drawable }
+            ?.let { return validateWallpaperBitmap(it, "drawable") }
 
-        if (!WallpaperPermissions.hasAccess(context)) {
-            BumpDeskLog.w(
-                BumpDeskLog.Tag.WALLPAPER,
-                "loadSystemWallpaperBitmap",
-                "all paths failed; grant photos/media permission for system wallpaper access"
-            )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            loadWallpaperFromFile(wm)?.let { return validateWallpaperBitmap(it, "getWallpaperFile") }
         }
 
+        BumpDeskLog.w(
+            BumpDeskLog.Tag.WALLPAPER,
+            "loadSystemWallpaperBitmap",
+            "WallpaperManager blocked; pick wallpaper image in Settings"
+        )
         return null
+    }
+
+    private fun loadCachedPickedWallpaper(context: Context): Bitmap? {
+        val file = java.io.File(context.filesDir, WallpaperFloorProvider.WALLPAPER_FLOOR_FILE)
+        if (!file.exists()) return null
+        return try {
+            BitmapFactory.decodeFile(file.absolutePath)?.let { decoded ->
+                validateWallpaperBitmap(prepareBitmapForGl(decoded), "picked_cache")?.also {
+                    BumpDeskLog.d(
+                        BumpDeskLog.Tag.WALLPAPER,
+                        "loadCachedPickedWallpaper",
+                        "loaded ${it.width}x${it.height}"
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            BumpDeskLog.w(BumpDeskLog.Tag.WALLPAPER, "loadCachedPickedWallpaper", "failed: ${e.message}")
+            null
+        }
+    }
+
+    private fun validateWallpaperBitmap(bitmap: Bitmap, source: String): Bitmap? {
+        if (isMostlyBlank(bitmap)) {
+            BumpDeskLog.w(BumpDeskLog.Tag.WALLPAPER, "loadSystemWallpaperBitmap", "$source returned blank bitmap")
+            bitmap.recycle()
+            return null
+        }
+        return bitmap
+    }
+
+    fun isMostlyBlank(bitmap: Bitmap): Boolean {
+        val stepX = (bitmap.width / 8).coerceAtLeast(1)
+        val stepY = (bitmap.height / 8).coerceAtLeast(1)
+        var darkPixels = 0
+        var total = 0
+        var y = 0
+        while (y < bitmap.height) {
+            var x = 0
+            while (x < bitmap.width) {
+                val pixel = bitmap.getPixel(x, y)
+                val luminance = (android.graphics.Color.red(pixel) +
+                    android.graphics.Color.green(pixel) +
+                    android.graphics.Color.blue(pixel)) / 3
+                if (luminance < 16) darkPixels++
+                total++
+                x += stepX
+            }
+            y += stepY
+        }
+        return total > 0 && darkPixels.toFloat() / total > 0.95f
     }
 
     private fun loadWallpaperFromManager(

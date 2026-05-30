@@ -94,6 +94,7 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
 
         requestWindowFeature(Window.FEATURE_NO_TITLE)
         WindowCompat.setDecorFitsSystemWindows(window, false)
+        window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
         setupSystemUi()
 
         setContentView(R.layout.activity_launcher)
@@ -179,15 +180,24 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
         if (!::renderer.isInitialized) return
         didReloadFloorThisResume = false
         if (pendingThemeReload) {
-            prepareWallpaperFloorIfNeeded(sharedPreferences)
-            renderer.reloadTheme()
-            pendingThemeReload = false
+            prepareWallpaperFloorIfNeeded(sharedPreferences) {
+                renderer.reloadTheme()
+                pendingThemeReload = false
+                finishPendingPreferenceUpdates(sharedPreferences)
+            }
         } else if (pendingFloorReload) {
-            prepareWallpaperFloorIfNeeded(sharedPreferences)
-            renderer.reloadFloorTexture()
-            pendingFloorReload = false
             didReloadFloorThisResume = true
+            prepareWallpaperFloorIfNeeded(sharedPreferences) {
+                renderer.reloadFloorTexture()
+                pendingFloorReload = false
+                finishPendingPreferenceUpdates(sharedPreferences)
+            }
+        } else {
+            finishPendingPreferenceUpdates(sharedPreferences)
         }
+    }
+
+    private fun finishPendingPreferenceUpdates(sharedPreferences: SharedPreferences?) {
         if (pendingSettingsUpdate) {
             renderer.updateSettings()
             pendingSettingsUpdate = false
@@ -197,21 +207,43 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
         }
     }
 
-    private fun prepareWallpaperFloorIfNeeded(sharedPreferences: SharedPreferences?) {
+    private fun prepareWallpaperFloorIfNeeded(
+        sharedPreferences: SharedPreferences?,
+        onReady: (() -> Unit)? = null
+    ) {
         val prefs = sharedPreferences ?: getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
-        if (prefs.getBoolean("use_wallpaper_as_floor", false)) {
-            if (WallpaperPermissions.hasAccess(this)) {
-                WallpaperFloorProvider.refresh(this)
-            } else {
-                WallpaperFloorProvider.clear()
+        if (!prefs.getBoolean("use_wallpaper_as_floor", false)) {
+            WallpaperFloorProvider.clear()
+            onReady?.invoke()
+            return
+        }
+        if (!WallpaperPermissions.canAttemptWallpaperRead(this)) {
+            WallpaperFloorProvider.clear()
+            BumpDeskLog.w(
+                BumpDeskLog.Tag.WALLPAPER,
+                "prepareWallpaperFloorIfNeeded",
+                when {
+                    WallpaperPermissions.needsLegacyStoragePrompt(this) ->
+                        "toggle on but READ_EXTERNAL_STORAGE not granted for WallpaperManager"
+                    else -> "toggle on but photos/media permission not granted"
+                }
+            )
+            onReady?.invoke()
+            return
+        }
+        if (WallpaperFloorProvider.hasBitmap()) {
+            onReady?.invoke()
+            return
+        }
+        WallpaperFloorProvider.refreshWithRetry(this) { loaded ->
+            if (!loaded) {
                 BumpDeskLog.w(
                     BumpDeskLog.Tag.WALLPAPER,
                     "prepareWallpaperFloorIfNeeded",
-                    "toggle on but photos/media permission not granted"
+                    "could not load system wallpaper for floor"
                 )
             }
-        } else {
-            WallpaperFloorProvider.clear()
+            onReady?.invoke()
         }
     }
 
@@ -520,8 +552,13 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
             val prefs = getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
             applyPendingPreferenceUpdates(prefs)
             if (prefs.getBoolean("use_wallpaper_as_floor", false) && !didReloadFloorThisResume) {
-                prepareWallpaperFloorIfNeeded(prefs)
-                renderer.reloadFloorTexture()
+                if (WallpaperFloorProvider.hasBitmap()) {
+                    renderer.reloadFloorTexture()
+                } else {
+                    prepareWallpaperFloorIfNeeded(prefs) {
+                        renderer.reloadFloorTexture()
+                    }
+                }
             }
         }
         updateRecents()

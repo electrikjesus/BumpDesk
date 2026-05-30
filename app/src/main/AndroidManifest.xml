@@ -13,11 +13,12 @@
     <!-- Standard permission for haptic feedback -->
     <uses-permission android:name="android.permission.VIBRATE" />
 
-    <!-- Read system wallpaper for floor texture (API 33+ / legacy storage) -->
+    <!-- Read system wallpaper for floor texture -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <!-- Some API 33–34 ROMs still gate WallpaperManager on legacy storage at the binder. -->
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
-        android:maxSdkVersion="32" />
+        android:maxSdkVersion="34" />
 
     <!-- Standard permission to reorder tasks (bring to front) -->
     <uses-permission android:name="android.permission.REORDER_TASKS" />
