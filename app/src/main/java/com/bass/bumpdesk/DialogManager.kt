@@ -12,10 +12,7 @@ class DialogManager(private val context: Context, private val glSurfaceView: GLS
             .setTitle("Add to Stack?")
             .setMessage("Do you want to add ${item.appInfo?.label ?: "this item"} to ${pile.name}?")
             .setPositiveButton("Yes") { _, _ ->
-                glSurfaceView.queueEvent {
-                    renderer.sceneState.bumpItems.remove(item)
-                    pile.items.add(item)
-                }
+                glSurfaceView.queueEvent { renderer.addItemToPile(item, pile) }
             }
             .setNegativeButton("No", null)
             .show()

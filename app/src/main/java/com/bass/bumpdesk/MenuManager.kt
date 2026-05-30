@@ -183,7 +183,10 @@ class MenuManager(
     fun showLassoMenu(x: Float, y: Float, selectedItems: List<BumpItem>) {
         val menuItems = mutableListOf<RadialMenuItem>()
         menuItems.add(RadialMenuItem("Create Pile", android.R.drawable.ic_menu_add) {
-            glSurfaceView.queueEvent { launcher.createPileFromCaptured(selectedItems) }
+            glSurfaceView.queueEvent {
+                BumpDeskLog.enter(BumpDeskLog.Tag.ICON_GROUP, "lassoCreatePile", "count=${selectedItems.size}")
+                launcher.createPileFromCaptured(selectedItems)
+            }
         })
         
         val gridSubItems = listOf(

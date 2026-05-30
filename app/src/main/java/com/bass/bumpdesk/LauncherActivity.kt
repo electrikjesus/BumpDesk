@@ -12,7 +12,6 @@ import android.opengl.GLSurfaceView
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
-import android.util.Log
 import android.view.*
 import android.widget.Button
 import android.widget.FrameLayout
@@ -143,12 +142,17 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
         
         if (key == "selected_theme" || key == "use_wallpaper_as_floor" || key == "show_recent_apps" || 
             key == "infinite_desktop_mode" || key?.startsWith("physics_") == true || key?.startsWith("layout_") == true) {
+            BumpDeskLog.enter(BumpDeskLog.Tag.CORE, "onSharedPreferenceChanged", "key=$key")
             ThemeManager.init(this, forceReload = true)
             renderer.reloadTheme()
             renderer.updateSettings()
             if (key == "show_recent_apps") {
+                BumpDeskLog.d(BumpDeskLog.Tag.RECENTS, "onSharedPreferenceChanged", "show_recent_apps=${
+                    sharedPreferences?.getBoolean("show_recent_apps", true)
+                }")
                 updateRecents()
             }
+            BumpDeskLog.exit(BumpDeskLog.Tag.CORE, "onSharedPreferenceChanged", "key=$key")
         }
     }
 
@@ -216,14 +220,17 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
         scaleGestureDetector = ScaleGestureDetector(this, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
             override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
                 isScaling = true
+                BumpDeskLog.d(BumpDeskLog.Tag.GESTURE, "pinch", "begin span=${detector.currentSpan}")
                 return true
             }
             override fun onScale(detector: ScaleGestureDetector): Boolean {
                 if (radialMenu.visibility == View.VISIBLE || !::renderer.isInitialized) return true
+                BumpDeskLog.d(BumpDeskLog.Tag.GESTURE, "pinch", "scale=${detector.scaleFactor}")
                 glSurfaceView.queueEvent { renderer.handleZoom(detector.scaleFactor) }
                 return true
             }
             override fun onScaleEnd(detector: ScaleGestureDetector) {
+                BumpDeskLog.d(BumpDeskLog.Tag.GESTURE, "pinch", "end")
                 glSurfaceView.postDelayed({ isScaling = false }, 100)
             }
         })
@@ -270,7 +277,7 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
                                 glSurfaceView.queueEvent { renderer.handlePan(dx, dy) }
                             }
                         } else if (pointerCount == 2) {
-                            // 2-finger panning: Up/Down = F/B, Left/Right = L/R
+                            BumpDeskLog.d(BumpDeskLog.Tag.GESTURE, "twoFingerPan", "dx=$dx dy=$dy")
                             glSurfaceView.queueEvent { renderer.handlePan(dx, dy) }
                         } else if (pointerCount == 3) {
                             // 3-finger: Up/Down = Tilt, Left/Right = Look
@@ -365,10 +372,7 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
 
     fun createPileFromCaptured(capturedItems: List<BumpItem>) {
         if (!::renderer.isInitialized) return
-        renderer.sceneState.piles.forEach { it.items.removeAll(capturedItems) }
-        renderer.sceneState.piles.removeAll { it.items.size < 2 && !it.isSystem }
-        val pPos = Vector3(capturedItems.map { it.position.x }.average().toFloat(), 0.05f, capturedItems.map { it.position.z }.average().toFloat())
-        renderer.sceneState.piles.add(Pile(capturedItems.toMutableList(), pPos))
+        glSurfaceView.queueEvent { renderer.createPileFromCaptured(capturedItems) }
     }
 
     fun launchApp(item: BumpItem, mode: Int = WINDOWING_MODE_UNDEFINED) {

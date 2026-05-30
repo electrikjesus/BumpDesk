@@ -261,26 +261,7 @@ class InteractionManager(
             dragStartSurface = null
 
             if (pile != null && pile.isExpanded) {
-                val dx = item.transform.position.x - pile.position.x
-                val dz = item.transform.position.z - pile.position.z
-                val side = ceil(sqrt(pile.items.size.toDouble())).toInt().coerceAtLeast(1)
-                val spacing = 1.2f
-                val halfDim = ((side * spacing) / 2f + 0.5f) * pile.scale
-                
-                if (abs(dx) > halfDim || abs(dz) > halfDim) {
-                    val appInfo = item.appData?.appInfo
-                    if (appInfo != null) {
-                        if (!sceneState.isAlreadyOnDesktop(appInfo)) {
-                            pile.items.remove(item)
-                            sceneState.bumpItems.add(item)
-                            if (item.transform.surface == BumpItem.Surface.FLOOR) item.transform.position = item.transform.position.copy(y = 0.05f)
-                        }
-                    } else {
-                        pile.items.remove(item)
-                        sceneState.bumpItems.add(item)
-                        if (item.transform.surface == BumpItem.Surface.FLOOR) item.transform.position = item.transform.position.copy(y = 0.05f)
-                    }
-                }
+                PileOperations.removeItemFromExpandedPile(sceneState, pile, item)
             } else if (pile == null && isDragging) {
                 val nearbyPile = sceneState.piles.find { p ->
                     if (p.isSystem) return@find false

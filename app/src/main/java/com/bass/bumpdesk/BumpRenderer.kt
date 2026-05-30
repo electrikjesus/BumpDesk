@@ -15,7 +15,6 @@ import android.media.SoundPool
 import android.net.Uri
 import android.content.Intent
 import android.provider.Settings
-import android.util.Log
 import kotlin.math.abs
 import kotlin.math.ceil
 
@@ -335,9 +334,11 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
     fun togglePin(item: BumpItem) { item.transform.isPinned = !item.transform.isPinned; saveState() }
 
     fun updateRecents(recents: List<AppInfo>) {
+        BumpDeskLog.enter(BumpDeskLog.Tag.RECENTS, "updateRecents", "count=${recents.size}")
         if (sceneState.recentsPile == null) {
             sceneState.recentsPile = Pile(mutableListOf(), Vector3(0f, 4f, -ROOM_SIZE + 0.6f), name = "Recents", layoutMode = Pile.LayoutMode.CAROUSEL, surface = BumpItem.Surface.BACK_WALL, isSystem = true)
             sceneState.piles.add(sceneState.recentsPile!!)
+            BumpDeskLog.d(BumpDeskLog.Tag.RECENTS, "updateRecents", "created system recents pile")
         }
         
         val oldItems = sceneState.recentsPile!!.items.toList()
@@ -364,17 +365,25 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         sceneState.recentsPile!!.items.clear()
         sceneState.recentsPile!!.items.addAll(newItems)
         
-        Log.d("RecentsWidget", "Updated recents: ${newItems.size} items")
+        BumpDeskLog.d(BumpDeskLog.Tag.RECENTS, "updateRecents", "tiles=${newItems.size}")
         newItems.forEach { item ->
-            Log.d("RecentsWidget", " Tile: ${item.appData?.appInfo?.packageName}, Activity: ${item.appData?.appInfo?.className}, TaskId: ${item.appData?.appInfo?.taskId}")
+            BumpDeskLog.d(
+                BumpDeskLog.Tag.RECENTS,
+                "updateRecents",
+                "tile pkg=${item.appData?.appInfo?.packageName} taskId=${item.appData?.appInfo?.taskId}"
+            )
         }
 
         glSurfaceView?.requestRender()
     }
 
     fun categorizeAllApps() {
+        BumpDeskLog.enter(BumpDeskLog.Tag.ICON_GROUP, "categorizeAllApps")
         val apps = sceneState.bumpItems.filter { it.appearance.type == BumpItem.Type.APP && it.appData?.appInfo != null }
-        if (apps.isEmpty()) return
+        if (apps.isEmpty()) {
+            BumpDeskLog.w(BumpDeskLog.Tag.ICON_GROUP, "categorizeAllApps", "skipped | no apps")
+            return
+        }
         
         val groups = apps.groupBy { it.appData?.appInfo?.category ?: AppInfo.Category.OTHER }
         
@@ -402,38 +411,48 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         playSound(expandSoundId, 0.5f)
         hapticManager.selection()
         saveState()
+        BumpDeskLog.exit(BumpDeskLog.Tag.ICON_GROUP, "categorizeAllApps", "piles=${sceneState.piles.size}")
     }
 
     fun reloadTheme() {
+        BumpDeskLog.enter(BumpDeskLog.Tag.THEME, "reloadTheme", "theme=${ThemeManager.currentThemeName}")
         saveState()
         val reloadTask = Runnable {
-            textureManager.clearCache()
-            floorTextureId = -1
-            wallTextureIds = IntArray(4) { -1 }
-            
-            sceneState.withReadLock {
-                sceneState.bumpItems.forEach { it.appearance.textureId = -1 }
-                sceneState.piles.forEach { p -> 
-                    p.items.forEach { it.appearance.textureId = -1 }
-                    p.nameTextureId = -1
+            try {
+                textureManager.clearCache()
+                floorTextureId = -1
+                wallTextureIds = IntArray(4) { -1 }
+                
+                sceneState.withReadLock {
+                    sceneState.bumpItems.forEach { it.appearance.textureId = -1 }
+                    sceneState.piles.forEach { p -> 
+                        p.items.forEach { it.appearance.textureId = -1 }
+                        p.nameTextureId = -1
+                    }
+                    sceneState.widgetItems.forEach { it.textureId = -1 }
                 }
-                sceneState.widgetItems.forEach { it.textureId = -1 }
-            }
-            
-            // Re-initialize shaders if theme has custom environment code
-            val envCode = ThemeManager.getShaderCode(context, "environment") ?: ""
-            
-            shader = DefaultShader(envCode)
-            roomRenderer = RoomRenderer(shader!!)
-            overlayRenderer = OverlayRenderer(shader!!)
-            
-            itemRenderer = ItemRenderer(context, shader!!, textureManager, sceneState)
-            widgetRenderer = WidgetRenderer(context, shader!!, textureManager)
-            pileRenderer = PileRenderer(context, shader!!, textureManager, itemRenderer, overlayRenderer, sceneState)
-            uiRenderer = UIRenderer(shader!!, overlayRenderer)
+                
+                val envCode = ThemeManager.getShaderCode(context, "environment") ?: ""
+                
+                shader = DefaultShader(envCode)
+                roomRenderer = RoomRenderer(shader!!)
+                overlayRenderer = OverlayRenderer(shader!!)
+                
+                itemRenderer = ItemRenderer(context, shader!!, textureManager, sceneState)
+                widgetRenderer = WidgetRenderer(context, shader!!, textureManager)
+                pileRenderer = PileRenderer(context, shader!!, textureManager, itemRenderer, overlayRenderer, sceneState)
+                uiRenderer = UIRenderer(shader!!, overlayRenderer)
 
-            loadThemeTextures() 
-            glSurfaceView?.requestRender()
+                loadThemeTextures()
+                BumpDeskLog.exit(
+                    BumpDeskLog.Tag.THEME,
+                    "reloadTheme",
+                    "floorTextureId=$floorTextureId walls=${wallTextureIds.joinToString()}"
+                )
+                glSurfaceView?.requestRender()
+            } catch (e: Exception) {
+                BumpDeskLog.fail(BumpDeskLog.Tag.THEME, "reloadTheme", "GL reload failed", e)
+            }
         }
 
         if (Thread.currentThread().name.contains("GLThread")) {
@@ -723,7 +742,21 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         camera.handleTilt(dy)
     }
 
-    private fun breakPile(pile: Pile) { if (pile.isSystem) return; sceneState.piles.remove(pile); pile.items.forEach { if (!sceneState.bumpItems.contains(it)) sceneState.bumpItems.add(it); it.transform.surface = BumpItem.Surface.FLOOR; it.transform.position = it.transform.position.copy(y = 0.05f, x = it.transform.position.x + (Math.random().toFloat() - 0.5f) * 2f, z = it.transform.position.z + (Math.random().toFloat() - 0.5f) * 2f) } }
+    fun createPileFromCaptured(capturedItems: List<BumpItem>) {
+        PileOperations.createPileFromCaptured(sceneState, capturedItems)
+        saveState()
+    }
+
+    fun addItemToPile(item: BumpItem, pile: Pile) {
+        if (PileOperations.addItemToPile(sceneState, item, pile)) {
+            saveState()
+        }
+    }
+
+    private fun breakPile(pile: Pile) {
+        PileOperations.breakPile(sceneState, pile)
+        saveState()
+    }
     fun resetView() { sceneState.piles.removeAll { it.isSystem && it.name == "All Apps" }; sceneState.piles.forEach { it.isExpanded = false }; camera.reset(); (context as? LauncherActivity)?.showResetButton(false) }
     fun dismissExpandedPile() { sceneState.piles.removeAll { it.isSystem && it.name == "All Apps" }; sceneState.piles.forEach { it.isExpanded = false }; camera.restorePreviousView(); (context as? LauncherActivity)?.showResetButton(camera.currentViewMode != CameraManager.ViewMode.DEFAULT) }
     fun handleZoom(sf: Float) { camera.zoomLevel = (camera.zoomLevel / sf).coerceIn(0.5f, 2.0f); if (camera.zoomLevel != 1.0f) (context as? LauncherActivity)?.showResetButton(true) }
