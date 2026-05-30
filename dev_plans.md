@@ -178,6 +178,8 @@
     - [x] Identify whether failure is texture load, GL context, or cache invalidation (GL reload ran before EGL context was current after Settings)
     - [x] Defer theme/floor reload until EGL context is current; keep pending flag until reload succeeds
     - [x] Fall back to `BumpDesk Animated` assets for incomplete themes (e.g. Bump Blue has theme.json only)
+    - [x] Map json-only themes to complete asset packs (Bump Blue → BumpDesk Blue, Bumped Next → BumpDesk Next)
+    - [x] Fix BumpDesk Next SVG defs order so floor/wall patterns render
     - [ ] Fix reload path without requiring app restart
 
 - [ ] **Wallpaper**: System wallpaper not showing on floor plane when selected from Settings
