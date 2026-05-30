@@ -150,6 +150,75 @@
     - [ ] Implement underwater scene with animated caustic SVG effects
 - [ ] **Tactile**: Advanced haptic feedback for room boundary collisions and item interactions.
 
+## Active Issues (Current Sprint)
+
+> Work one task at a time. Use standardized logcat tags (see first task) so crashes are searchable before fixing each area.
+
+### Foundation: Crash Tracking & Logging
+
+- [x] **Infrastructure**: Standardize searchable logcat tags across crash-prone areas
+    - [x] Define tag naming convention (e.g. `BumpDesk:IconGroup`, `BumpDesk:Theme`, `BumpDesk:Recents`, `BumpDesk:Gesture`, `BumpDesk:Wallpaper`)
+    - [x] Add structured logging at entry/exit and error paths in each area below
+    - [x] Document tag list in `docs/architecture.md` (or inline here) for logcat filtering
+
+### Priority Bugs & UX Fixes
+
+- [ ] **Icons/Groups**: Fix crashes when grouping, ungrouping, or adding icons to a group
+    - [x] Identify reproduction steps and add `BumpDesk:IconGroup` logging
+    - [x] Write or identify regression test for group create/add/remove flows (`PileOperationsTest`)
+    - [ ] Fix root cause and verify on device via logcat
+        - [x] Centralized pile mutations in `PileOperations` (removes desktop duplicates, persists state, prunes empty piles)
+        - [ ] Confirm on device with `adb logcat -s "BumpDesk:IconGroup"`
+
+- [ ] **Themes**: Fix black display when refreshing or updating themes
+    - [ ] Add `BumpDesk:Theme` logging around theme reload and texture refresh
+    - [ ] Identify whether failure is texture load, GL context, or cache invalidation
+    - [ ] Fix reload path without requiring app restart
+
+- [ ] **Wallpaper**: System wallpaper not showing on floor plane when selected from Settings
+    - [ ] Add `BumpDesk:Wallpaper` logging for Settings selection → floor texture pipeline
+    - [ ] Trace Settings preference → renderer floor texture update
+    - [ ] Verify system wallpaper renders correctly on floor plane
+
+- [ ] **Gestures**: 2-finger pan works but 2-finger pinch zoom does not
+    - [ ] Add `BumpDesk:Gesture` logging for multi-touch dispatch and pinch detection
+    - [ ] Confirm pinch events reach camera/zoom handler (may be regression vs. prior pinch fix)
+    - [ ] Restore pinch-to-zoom on all supported views
+
+- [ ] **Recents**: Background persists when recents widget is disabled in Settings
+    - [ ] Add `BumpDesk:Recents` logging for widget enable/disable lifecycle
+    - [ ] Ensure background surface/listener is torn down when widget is hidden
+    - [ ] Verify floor is clean after toggling recents off
+
+- [ ] **Recents**: Task tiles render outside widget bounds
+    - [ ] Add layout/bounds logging in recents widget renderer
+    - [ ] Fix clipping or layout math so tasks stay within widget frame
+    - [ ] Verify with multiple task counts and orientations
+
+- [ ] **Radial Menu**: Cramped sections are hard to read — expand affected arc segments
+    - [ ] Identify which menu contexts trigger cramped layout (item count, label length)
+    - [ ] Dynamically widen arc/radius or font scale for overcrowded sections
+    - [ ] Verify readability on small and large displays
+
+- [ ] **Launch/Context Menu**: "Open As > Freeform" does not open app as a freeform window
+    - [ ] Audit radial menu "Open As" actions (Fullscreen, Freeform, Pinned) in `MenuManager` and related floor quick-launch paths in `BumpRenderer`
+    - [ ] Review `ActionHandler.launchApp` windowing mode, launch bounds, intent flags, and task-reuse logic (freeform may be skipped when reusing an existing task)
+    - [ ] Add `BumpDesk:Launch` logging for each launch mode; verify Fullscreen, Freeform, and Pinned on device (requires freeform-capable Android build)
+
+### Infrastructure & Platform
+
+- [ ] **CI/Release**: Sign GitHub Actions release APKs/AABs with a dedicated key
+    - [ ] Generate release signing keystore (keep out of public repo)
+    - [ ] Store keystore + passwords as GitHub Actions secrets (`SIGNING_KEY`, etc.)
+    - [ ] Wire signing config into release workflow; verify signed artifact on a tagged build
+    - [ ] Document local vs. CI signing setup for maintainers (no secrets in docs)
+
+- [ ] **Responsive Layout**: App only works well on large landscape displays
+    - [ ] Audit layout/camera/room sizing for portrait and smaller screens
+    - [ ] Adapt room dimensions, UI scale, and gesture hit targets to screen size/orientation
+    - [ ] Add configuration-change handling so orientation switches do not break the scene
+    - [ ] Test on phone portrait, phone landscape, and tablet form factors
+
 ## Refactoring & Infrastructure (High Impact)
 
 - [x] **Complete**: Component-Based Architecture (Entity Component System Lite)
