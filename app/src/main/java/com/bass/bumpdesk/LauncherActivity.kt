@@ -350,7 +350,7 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
     fun showLassoMenu(x: Float, y: Float, selectedItems: List<BumpItem>) = runOnUiThread { menuManager.showLassoMenu(x, y, selectedItems) }
     fun showDesktopMenu(x: Float, y: Float) = runOnUiThread { menuManager.showDesktopMenu(x, y) }
 
-    fun showAddToPileMenu(item: BumpItem, pile: Pile) = dialogManager.showAddToPileMenu(item, pile)
+    fun showAddToPileMenu(item: BumpItem, pile: Pile) = runOnUiThread { dialogManager.showAddToPileMenu(item, pile) }
     fun promptAddStickyNote(x: Float, y: Float) = dialogManager.promptAddStickyNote(x, y)
     fun promptEditStickyNote(item: BumpItem) = dialogManager.promptEditStickyNote(item)
     fun promptAddWebWidget(x: Float, y: Float) = dialogManager.promptAddWebWidget(x, y)
