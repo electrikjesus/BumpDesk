@@ -174,13 +174,16 @@
         - [ ] Confirm on device with `adb logcat -s "BumpDesk:IconGroup"`
 
 - [ ] **Themes**: Fix black display when refreshing or updating themes
-    - [ ] Add `BumpDesk:Theme` logging around theme reload and texture refresh
-    - [ ] Identify whether failure is texture load, GL context, or cache invalidation
+    - [x] Add `BumpDesk:Theme` logging around theme reload and texture refresh
+    - [x] Identify whether failure is texture load, GL context, or cache invalidation (GL reload ran before EGL context was current after Settings)
+    - [x] Defer theme/floor reload until EGL context is current; keep pending flag until reload succeeds
+    - [x] Fall back to `BumpDesk Animated` assets for incomplete themes (e.g. Bump Blue has theme.json only)
     - [ ] Fix reload path without requiring app restart
 
 - [ ] **Wallpaper**: System wallpaper not showing on floor plane when selected from Settings
     - [x] Add `BumpDesk:Wallpaper` logging for Settings selection → floor texture pipeline
     - [x] Load wallpaper via `getWallpaperFile` / drawable rasterization with GL-safe bitmap prep
+    - [x] Prefer `WallpaperManager.drawable` (no storage permission) before `getWallpaperFile`
     - [x] Avoid full theme reload when only wallpaper pref changes (`reloadFloorTexture`)
     - [x] Request `READ_MEDIA_IMAGES` / legacy storage permission when enabling wallpaper
     - [x] Request photos/media permission during onboarding wizard
