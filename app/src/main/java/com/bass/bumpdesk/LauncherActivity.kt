@@ -6,6 +6,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.res.Configuration
 import android.content.SharedPreferences
 import android.graphics.Color
 import android.opengl.GLSurfaceView
@@ -28,7 +29,6 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
     private lateinit var glSurfaceView: GLSurfaceView
     private lateinit var renderer: BumpRenderer
     private lateinit var gestureDetector: GestureDetector
-    private lateinit var scaleGestureDetector: ScaleGestureDetector
     
     private lateinit var btnResetView: Button
     private lateinit var radialMenu: RadialMenuView
@@ -43,7 +43,14 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
     private lateinit var dialogManager: DialogManager
     private lateinit var actionHandler: ActionHandler
 
-    private var isScaling = false
+    private var isTwoFingerActive = false
+    private var lastTwoFingerSpan = 0f
+    private var twoFingerStartSpan = 0f
+    private var twoFingerPanAccum = 0f
+    private var twoFingerZoomFactorAccum = 1f
+    private var lastGestureDebugLogMs = 0L
+    private var lastMultiTouchPointerCount = 0
+    private var maxGesturePointerCount = 0
     private var isMiddleDragging = false
     private var initialTouchX = 0f
     private var initialTouchY = 0f
@@ -51,7 +58,7 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
     private var lastMidY = 0f
     private var selectedItemForPhoto: BumpItem? = null
     
-    private val TOUCH_SLOP = 25f // Threshold for ignoring micro-movements
+    private var touchSlop = 25f
 
     private val recentsReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -84,6 +91,8 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
         
         ThemeManager.init(this)
         val prefs = getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
+        ScreenMetrics.applyFirstLaunchDefaults(this, prefs)
+        touchSlop = ScreenMetrics.touchSlopPx(this)
         prefs.registerOnSharedPreferenceChangeListener(this)
 
         if (!prefs.getBoolean("onboarding_complete", false)) {
@@ -110,6 +119,8 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
         renderer = BumpRenderer(this)
         renderer.glSurfaceView = glSurfaceView
         glSurfaceView.setRenderer(renderer)
+        CameraDiagnostics.logProbe(this, "launcherReady")
+        CameraDiagnostics.log(renderer.camera, "launcherReady", "afterRendererInit")
 
         dialogManager = DialogManager(this, glSurfaceView, renderer)
         actionHandler = ActionHandler(this, glSurfaceView, renderer)
@@ -121,7 +132,11 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
         
         btnResetView.setOnClickListener {
             if (::renderer.isInitialized) {
-                glSurfaceView.queueEvent { renderer.resetView() }
+                CameraDiagnostics.log(renderer.camera, "resetViewRequested", "uiThread")
+                glSurfaceView.queueEvent {
+                    renderer.resetView()
+                    CameraDiagnostics.log(renderer.camera, "resetViewComplete", "glThread")
+                }
             }
         }
 
@@ -164,7 +179,10 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
                 }
             }
             else -> {
-                if (key?.startsWith("physics_") == true || key?.startsWith("layout_") == true) {
+                if (key == "room_size_scale" ||
+                    key?.startsWith("physics_") == true ||
+                    key?.startsWith("layout_") == true
+                ) {
                     pendingSettingsUpdate = true
                     if (lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) {
                         applyPendingPreferenceUpdates(sharedPreferences)
@@ -303,26 +321,8 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
             }
             
             override fun onScroll(e1: MotionEvent?, e2: MotionEvent, distanceX: Float, distanceY: Float): Boolean {
-                if (radialMenu.visibility == View.VISIBLE || isScaling || isMiddleDragging) return true
+                if (radialMenu.visibility == View.VISIBLE || isTwoFingerActive || isMiddleDragging) return true
                 return false
-            }
-        })
-        
-        scaleGestureDetector = ScaleGestureDetector(this, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
-            override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
-                isScaling = true
-                BumpDeskLog.d(BumpDeskLog.Tag.GESTURE, "pinch", "begin span=${detector.currentSpan}")
-                return true
-            }
-            override fun onScale(detector: ScaleGestureDetector): Boolean {
-                if (radialMenu.visibility == View.VISIBLE || !::renderer.isInitialized) return true
-                BumpDeskLog.d(BumpDeskLog.Tag.GESTURE, "pinch", "scale=${detector.scaleFactor}")
-                glSurfaceView.queueEvent { renderer.handleZoom(detector.scaleFactor) }
-                return true
-            }
-            override fun onScaleEnd(detector: ScaleGestureDetector) {
-                BumpDeskLog.d(BumpDeskLog.Tag.GESTURE, "pinch", "end")
-                glSurfaceView.postDelayed({ isScaling = false }, 100)
             }
         })
 
@@ -337,54 +337,37 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
             val isRightButton = (event.buttonState and MotionEvent.BUTTON_SECONDARY) != 0
             val isMiddleButton = (event.buttonState and MotionEvent.BUTTON_TERTIARY) != 0
             
-            // Handle Zoom (Pinch)
-            scaleGestureDetector.onTouchEvent(event)
-            
-            if (!isScaling && !isMiddleDragging && !isRightButton) {
+            if (!isTwoFingerActive && !isMiddleDragging && !isRightButton) {
                 gestureDetector.onTouchEvent(event)
             }
             
             when (event.actionMasked) {
                 MotionEvent.ACTION_POINTER_DOWN -> {
                     if (pointerCount >= 2) {
-                        lastMidX = (0 until pointerCount).map { event.getX(it) }.average().toFloat()
-                        lastMidY = (0 until pointerCount).map { event.getY(it) }.average().toFloat()
-                        // Cancel any active single-finger dragging/lasso in the renderer
+                        beginTwoFingerGesture(event)
                         glSurfaceView.queueEvent { renderer.interactionManager.cancelPendingInteractions() }
                     }
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    if (isMiddleDragging || (pointerCount >= 2 && !isScaling)) {
-                        val currentX = (0 until pointerCount).map { event.getX(it) }.average().toFloat()
-                        val currentY = (0 until pointerCount).map { event.getY(it) }.average().toFloat()
+                    if (pointerCount >= 2 && !isMiddleDragging) {
+                        handleTwoFingerMove(event)
+                        return@setOnTouchListener true
+                    } else if (isMiddleDragging) {
+                        val currentX = event.x
+                        val currentY = event.y
                         val dx = currentX - lastMidX
                         val dy = currentY - lastMidY
-                        
-                        if (isMiddleDragging) {
-                            if (!isMiddleButton) {
-                                isMiddleDragging = false
-                            } else {
-                                // Middle Button Panning
-                                glSurfaceView.queueEvent { renderer.handlePan(dx, dy) }
-                            }
-                        } else if (pointerCount == 2) {
-                            BumpDeskLog.d(BumpDeskLog.Tag.GESTURE, "twoFingerPan", "dx=$dx dy=$dy")
+                        if (!isMiddleButton) {
+                            isMiddleDragging = false
+                        } else {
                             glSurfaceView.queueEvent { renderer.handlePan(dx, dy) }
-                        } else if (pointerCount == 3) {
-                            // 3-finger: Up/Down = Tilt, Left/Right = Look
-                            if (abs(dy) > abs(dx)) {
-                                glSurfaceView.queueEvent { renderer.handleTilt(dy) }
-                            } else {
-                                glSurfaceView.queueEvent { renderer.camera.handleLook(dx) }
-                            }
                         }
-
                         lastMidX = currentX
                         lastMidY = currentY
-                        if (isMiddleDragging || pointerCount >= 2) return@setOnTouchListener true
-                    } else if (pointerCount == 1 && !isScaling && !isRightButton) {
+                        return@setOnTouchListener true
+                    } else if (pointerCount == 1 && !isTwoFingerActive && !isRightButton) {
                         val dist = hypot(event.x - initialTouchX, event.y - initialTouchY)
-                        if (dist > TOUCH_SLOP) {
+                        if (dist > touchSlop) {
                             glSurfaceView.queueEvent { renderer.handleTouchMove(event.x, event.y, pointerCount) }
                         }
                     }
@@ -403,19 +386,129 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
                     }
                     glSurfaceView.queueEvent { renderer.handleTouchDown(event.x, event.y) }
                 }
+                MotionEvent.ACTION_POINTER_UP -> {
+                    if (event.pointerCount < 2) {
+                        endTwoFingerGesture(event)
+                    }
+                }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    endTwoFingerGesture(event)
                     if (isMiddleDragging) {
                         isMiddleDragging = false
                         return@setOnTouchListener true
-                    }
-                    if (event.actionMasked == MotionEvent.ACTION_CANCEL) {
-                        isScaling = false
                     }
                     glSurfaceView.queueEvent { renderer.handleTouchUp() }
                 }
             }
 
             true
+        }
+    }
+
+    private fun twoFingerSpan(event: MotionEvent): Float {
+        if (event.pointerCount < 2) return 0f
+        return hypot(event.getX(0) - event.getX(1), event.getY(0) - event.getY(1))
+    }
+
+    private fun twoFingerMidpoint(event: MotionEvent): Pair<Float, Float> {
+        val x = (0 until event.pointerCount).map { event.getX(it) }.average().toFloat()
+        val y = (0 until event.pointerCount).map { event.getY(it) }.average().toFloat()
+        return x to y
+    }
+
+    private fun beginTwoFingerGesture(event: MotionEvent) {
+        val (midX, midY) = twoFingerMidpoint(event)
+        lastMidX = midX
+        lastMidY = midY
+        lastTwoFingerSpan = twoFingerSpan(event)
+        twoFingerStartSpan = lastTwoFingerSpan
+        twoFingerPanAccum = 0f
+        twoFingerZoomFactorAccum = 1f
+        isTwoFingerActive = true
+        lastMultiTouchPointerCount = 0
+        maxGesturePointerCount = event.pointerCount
+        BumpDeskLog.i(
+            BumpDeskLog.Tag.GESTURE,
+            "twoFingerStart",
+            "span=${"%.1f".format(lastTwoFingerSpan)} slop=${"%.1f".format(touchSlop)} pointers=${event.pointerCount}"
+        )
+    }
+
+    private fun handleTwoFingerMove(event: MotionEvent) {
+        val pointerCount = event.pointerCount
+        val (currentX, currentY) = twoFingerMidpoint(event)
+        val span = twoFingerSpan(event)
+        val midDx = currentX - lastMidX
+        val midDy = currentY - lastMidY
+        val panDistance = hypot(midDx, midDy)
+        twoFingerPanAccum += panDistance
+
+        if (lastTwoFingerSpan > 0f && pointerCount == 2) {
+            val factor = span / lastTwoFingerSpan
+            if (abs(factor - 1f) > 0.001f) {
+                twoFingerZoomFactorAccum *= factor
+                glSurfaceView.queueEvent { renderer.handleZoom(factor) }
+            }
+            glSurfaceView.queueEvent { renderer.handlePan(midDx, midDy) }
+        } else if (pointerCount == 3) {
+            // Skip the first move after a finger count change (midpoint jumps when a finger is added).
+            if (lastMultiTouchPointerCount == 3) {
+                glSurfaceView.queueEvent { renderer.handleOrbit(midDx, midDy) }
+            }
+        }
+
+        maybeLogMultiTouchDebug(pointerCount, span, panDistance, midDx, midDy)
+
+        lastMultiTouchPointerCount = pointerCount
+        maxGesturePointerCount = maxOf(maxGesturePointerCount, pointerCount)
+        lastTwoFingerSpan = span
+        lastMidX = currentX
+        lastMidY = currentY
+    }
+
+    private fun maybeLogMultiTouchDebug(
+        pointerCount: Int,
+        span: Float,
+        panDistance: Float,
+        midDx: Float,
+        midDy: Float,
+    ) {
+        val now = System.currentTimeMillis()
+        if (now - lastGestureDebugLogMs < 120L) return
+        lastGestureDebugLogMs = now
+        val spanDelta = abs(span - lastTwoFingerSpan)
+        val tag = if (pointerCount >= 3) "threeFingerMove" else "twoFingerMove"
+        BumpDeskLog.d(
+            BumpDeskLog.Tag.GESTURE,
+            tag,
+            "pointers=$pointerCount spanΔ=${"%.1f".format(spanDelta)} pan=${"%.1f".format(panDistance)} " +
+                "dx=${"%.1f".format(midDx)} dy=${"%.1f".format(midDy)} zoom=${"%.3f".format(renderer.camera.zoomLevel)}"
+        )
+    }
+
+    private fun endTwoFingerGesture(event: MotionEvent) {
+        if (!isTwoFingerActive) return
+        val endSpan = twoFingerSpan(event).takeIf { it > 0f } ?: lastTwoFingerSpan
+        val spanDelta = endSpan - twoFingerStartSpan
+        val panTotal = twoFingerPanAccum
+        val zoomProduct = twoFingerZoomFactorAccum
+        val wasOrbitGesture = maxGesturePointerCount >= 3
+        isTwoFingerActive = false
+        lastTwoFingerSpan = 0f
+        twoFingerStartSpan = 0f
+        twoFingerPanAccum = 0f
+        twoFingerZoomFactorAccum = 1f
+        lastMultiTouchPointerCount = 0
+        maxGesturePointerCount = 0
+        glSurfaceView.queueEvent {
+            renderer.persistOrientationCameraAnchor(spanDelta, panTotal, zoomProduct)
+            if (wasOrbitGesture) {
+                CameraDiagnostics.log(
+                    renderer.camera,
+                    "threeFingerEnd",
+                    "spanΔ=${"%.1f".format(spanDelta)} panTotal=${"%.0f".format(panTotal)}"
+                )
+            }
         }
     }
 
@@ -544,6 +637,20 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
         super.onStop()
         try { unregisterReceiver(recentsReceiver) } catch (e: Exception) {}
     }
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        touchSlop = ScreenMetrics.touchSlopPx(this)
+        CameraDiagnostics.logProbe(
+            this,
+            "configurationChanged ori=${newConfig.orientation} size=${newConfig.screenWidthDp}x${newConfig.screenHeightDp}"
+        )
+        if (::renderer.isInitialized) {
+            CameraDiagnostics.log(renderer.camera, "configurationChanged", "beforeProfileRefresh")
+            renderer.onDisplayProfileChanged()
+            CameraDiagnostics.log(renderer.camera, "configurationChanged", "afterProfileRefresh")
+        }
+    }
+
     override fun onResume() { 
         super.onResume()
         glSurfaceView.onResume()

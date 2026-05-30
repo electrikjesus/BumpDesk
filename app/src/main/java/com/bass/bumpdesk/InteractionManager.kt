@@ -16,7 +16,17 @@ class InteractionManager(
     var lastTouchX = 0f
     var lastTouchY = 0f
     var isDragging = false
-    private val TOUCH_THRESHOLD = 15f
+    private var touchThreshold = 15f
+    private var leafGestureThreshold = 80f
+
+    init {
+        context?.let { updateTouchMetrics(it) }
+    }
+
+    fun updateTouchMetrics(context: Context) {
+        touchThreshold = ScreenMetrics.touchThresholdPx(context)
+        leafGestureThreshold = ScreenMetrics.leafGestureThresholdPx(context)
+    }
 
     var screenWidth = 0
     var screenHeight = 0
@@ -122,7 +132,7 @@ class InteractionManager(
         val dxTouch = abs(x - lastTouchX)
         val dyTouch = abs(y - lastTouchY)
         
-        if (dxTouch > TOUCH_THRESHOLD || dyTouch > TOUCH_THRESHOLD) {
+        if (dxTouch > touchThreshold || dyTouch > touchThreshold) {
             if (!isDragging && !isLeafing && !isResizingWidget) {
                 val selectedItem = sceneState.selectedItem
                 if (selectedItem != null) {
@@ -162,7 +172,7 @@ class InteractionManager(
         }
 
         if (isLeafing) {
-            if (abs(y - leafStartY) > 80f) {
+            if (abs(y - leafStartY) > leafGestureThreshold) {
                 val item = sceneState.selectedItem!!
                 val pile = sceneState.getPileOf(item)
                 pile?.let {

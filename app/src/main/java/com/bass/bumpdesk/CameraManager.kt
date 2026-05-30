@@ -24,6 +24,8 @@ class CameraManager {
     var currentLookAt = customDefaultLookAt.clone()
     var zoomLevel = 1.0f
     var fieldOfView = 60f
+    var baseFieldOfView = 60f
+    var customDefaultZoomLevel = 1.0f
     var isInfiniteMode = false
 
     private var savedPos = customDefaultPos.clone()
@@ -46,23 +48,21 @@ class CameraManager {
             val totalOverflow = max(max(overflowZ, overflowY), overflowX)
             if (totalOverflow > 0) {
                 // Adjust FOV to fit more scene instead of moving camera back/out
-                fieldOfView = (60f + totalOverflow * 2.5f).coerceIn(60f, 120f)
+                fieldOfView = (baseFieldOfView + totalOverflow * 2.5f).coerceIn(baseFieldOfView, 120f)
                 
                 // Clamp physical position to stay inside walls
-                targetPos[2] = targetPos[2].coerceIn(-MAX_Z, MAX_Z)
-                targetPos[1] = targetPos[1].coerceIn(1f, MAX_Y)
-                targetPos[0] = targetPos[0].coerceIn(-MAX_X, MAX_X)
+                clampTargetToRoom()
 
                 if (!wasAtBoundary) {
                     onBoundaryHit?.invoke()
                     wasAtBoundary = true
                 }
             } else {
-                fieldOfView = 60f
+                fieldOfView = baseFieldOfView
                 wasAtBoundary = false
             }
         } else {
-            fieldOfView = 60f
+            fieldOfView = baseFieldOfView
             wasAtBoundary = false
         }
 
@@ -95,9 +95,49 @@ class CameraManager {
     fun reset() {
         targetPos = customDefaultPos.clone()
         targetLookAt = customDefaultLookAt.clone()
-        zoomLevel = 1.0f
-        fieldOfView = 60f
+        zoomLevel = customDefaultZoomLevel
+        fieldOfView = baseFieldOfView
         currentViewMode = ViewMode.DEFAULT
+        snapToTargets()
+    }
+
+    fun snapToTargets() {
+        clampTargetToRoom()
+        val relX = targetPos[0] - targetLookAt[0]
+        val relY = targetPos[1] - targetLookAt[1]
+        val relZ = targetPos[2] - targetLookAt[2]
+        currentPos[0] = targetLookAt[0] + relX * zoomLevel
+        currentPos[1] = targetLookAt[1] + relY * zoomLevel
+        currentPos[2] = targetLookAt[2] + relZ * zoomLevel
+        currentLookAt = targetLookAt.clone()
+    }
+
+    private fun clampTargetToRoom() {
+        if (isInfiniteMode) return
+        targetPos[2] = targetPos[2].coerceIn(-MAX_Z, MAX_Z)
+        targetPos[1] = targetPos[1].coerceIn(1f, MAX_Y)
+        targetPos[0] = targetPos[0].coerceIn(-MAX_X, MAX_X)
+    }
+
+    fun applyAnchor(anchor: OrientationCameraAnchor.Anchor) {
+        customDefaultPos = anchor.pos.clone()
+        customDefaultLookAt = anchor.lookAt.clone()
+        customDefaultZoomLevel = anchor.zoom
+        baseFieldOfView = anchor.fov
+        reset()
+    }
+
+    fun applyProfileDefaults(profile: ScreenMetrics.DisplayProfile) {
+        customDefaultPos = profile.defaultCameraPos.clone()
+        customDefaultLookAt = profile.defaultCameraLookAt.clone()
+        customDefaultZoomLevel = profile.defaultZoomLevel
+        baseFieldOfView = profile.defaultFieldOfView
+        reset()
+        CameraDiagnostics.log(
+            this,
+            "applyProfileDefaults",
+            "orientation=${profile.orientationKey} phone=${profile.isPhone} ${profile.widthPx}x${profile.heightPx}"
+        )
     }
 
     fun saveAsDefault() {
@@ -108,6 +148,8 @@ class CameraManager {
     fun resetToAbsoluteDefaults() {
         customDefaultPos = ABSOLUTE_DEFAULT_POS.clone()
         customDefaultLookAt = ABSOLUTE_DEFAULT_LOOKAT.clone()
+        customDefaultZoomLevel = 1.0f
+        baseFieldOfView = 60f
         reset()
     }
 
@@ -152,30 +194,38 @@ class CameraManager {
         }
     }
 
-    fun handleTilt(dy: Float) {
+    /** Full horizontal screen drag = one 360° yaw; full vertical drag = this much pitch (radians). */
+    private val orbitPitchRangeRad = (PI / 4).toFloat()
+
+    fun handleOrbit(screenDx: Float, screenDy: Float, screenWidth: Int, screenHeight: Int) {
         if (currentViewMode != ViewMode.DEFAULT && currentViewMode != ViewMode.FLOOR) return
-        
-        val tiltSpeed = 0.05f
-        targetLookAt[1] = (targetLookAt[1] - dy * tiltSpeed).coerceIn(-10f, 20f)
-    }
+        if (screenDx == 0f && screenDy == 0f) return
+        val width = screenWidth.coerceAtLeast(1).toFloat()
+        val height = screenHeight.coerceAtLeast(1).toFloat()
 
-    fun handleLook(dx: Float) {
-        if (currentViewMode != ViewMode.DEFAULT && currentViewMode != ViewMode.FLOOR) return
-        
-        val lookSpeed = 0.02f
-        val angle = -dx * lookSpeed
+        if (screenDx != 0f) {
+            val yaw = -(screenDx / width) * (2f * PI.toFloat())
+            val cosY = cos(yaw)
+            val sinY = sin(yaw)
+            val lx = targetPos[0] - targetLookAt[0]
+            val lz = targetPos[2] - targetLookAt[2]
+            targetPos[0] = targetLookAt[0] + lx * cosY + lz * sinY
+            targetPos[2] = targetLookAt[2] - lx * sinY + lz * cosY
+        }
 
-        val cosAngle = cos(angle)
-        val sinAngle = sin(angle)
-
-        val relX = targetLookAt[0] - currentPos[0]
-        val relZ = targetLookAt[2] - currentPos[2]
-
-        val newRelX = relX * cosAngle + relZ * sinAngle
-        val newRelZ = -relX * sinAngle + relZ * cosAngle
-
-        targetLookAt[0] = currentPos[0] + newRelX
-        targetLookAt[2] = currentPos[2] + newRelZ
+        if (screenDy != 0f) {
+            val pitch = -(screenDy / height) * orbitPitchRangeRad
+            val cosP = cos(pitch)
+            val sinP = sin(pitch)
+            val px = targetPos[0] - targetLookAt[0]
+            val py = targetPos[1] - targetLookAt[1]
+            val pz = targetPos[2] - targetLookAt[2]
+            val newPy = (py * cosP - pz * sinP).coerceAtLeast(1f)
+            val newPz = py * sinP + pz * cosP
+            targetPos[0] = targetLookAt[0] + px
+            targetPos[1] = targetLookAt[1] + newPy
+            targetPos[2] = targetLookAt[2] + newPz
+        }
     }
 
     fun focusOnWall(wall: CameraManager.ViewMode, pos: FloatArray, lookAt: FloatArray, zoom: Float = 1.0f) {

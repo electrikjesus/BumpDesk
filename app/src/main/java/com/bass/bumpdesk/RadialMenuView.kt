@@ -16,7 +16,6 @@ class RadialMenuView @JvmOverloads constructor(
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE
-        textSize = 22f
         textAlign = Paint.Align.CENTER
         typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
     }
@@ -27,6 +26,18 @@ class RadialMenuView @JvmOverloads constructor(
     private var innerRadius = 55f
     private var outerRadius = 145f
     private var secondaryOuterRadius = 235f
+
+    private fun scaledRadii(itemCount: Int): Triple<Float, Float, Float> {
+        val baseInner = ScreenMetrics.radialInnerRadiusPx(context)
+        val baseOuter = ScreenMetrics.radialOuterRadiusPx(context)
+        val (inner, outer) = if (itemCount > 4) {
+            val scaleFactor = 1f + (itemCount - 4) * 0.15f
+            baseInner * scaleFactor to baseOuter * scaleFactor
+        } else {
+            baseInner to baseOuter
+        }
+        return Triple(inner, outer, outer + ScreenMetrics.radialSecondaryOffsetPx(context))
+    }
     
     private var selectedIndex = -1
     private var selectedSubIndex = -1
@@ -44,20 +55,13 @@ class RadialMenuView @JvmOverloads constructor(
 
     fun setItems(items: List<RadialMenuItem>, x: Float, y: Float, onSelected: (RadialMenuItem) -> Unit, onDismiss: () -> Unit) {
         this.items = items
-        
+
         val count = items.size
-        val baseInnerRadius = 55f
-        val baseOuterRadius = 145f
-        
-        if (count > 4) {
-            val scaleFactor = 1f + (count - 4) * 0.15f
-            this.innerRadius = baseInnerRadius * scaleFactor
-            this.outerRadius = baseOuterRadius * scaleFactor
-        } else {
-            this.innerRadius = baseInnerRadius
-            this.outerRadius = baseOuterRadius
-        }
-        this.secondaryOuterRadius = this.outerRadius + 90f
+        val (inner, outer, secondary) = scaledRadii(count)
+        innerRadius = inner
+        outerRadius = outer
+        secondaryOuterRadius = secondary
+        textPaint.textSize = ScreenMetrics.dpToPx(context, 14f)
         
         this.centerX = x.coerceIn(secondaryOuterRadius, resources.displayMetrics.widthPixels - secondaryOuterRadius)
         this.centerY = y.coerceIn(secondaryOuterRadius, resources.displayMetrics.heightPixels - secondaryOuterRadius)

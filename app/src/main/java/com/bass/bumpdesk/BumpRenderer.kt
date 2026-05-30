@@ -66,6 +66,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
     private var searchQuery = ""
     private var surfaceWidth = 0
     private var surfaceHeight = 0
+    private var sessionProfileApplied = false
 
     var ROOM_SIZE = 30f
     var ROOM_HEIGHT = 30f
@@ -142,6 +143,9 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
 
     fun updateSettings() {
         val prefs = context.getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
+        ScreenMetrics.applyFirstLaunchDefaults(context, prefs)
+        val displayProfile = ScreenMetrics.from(context)
+        interactionManager.updateTouchMetrics(context)
         physicsEngine.friction = prefs.getInt("physics_friction", 94) / 100f
         physicsEngine.restitution = prefs.getInt("physics_bounciness", 25) / 100f
         physicsEngine.gravity = prefs.getInt("physics_gravity", 10) / 1000f
@@ -197,10 +201,38 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
             camera.customDefaultLookAt[0] = prefs.getFloat("cam_def_lat_x", camera.ABSOLUTE_DEFAULT_LOOKAT[0])
             camera.customDefaultLookAt[1] = prefs.getFloat("cam_def_lat_y", camera.ABSOLUTE_DEFAULT_LOOKAT[1])
             camera.customDefaultLookAt[2] = prefs.getFloat("cam_def_lat_z", camera.ABSOLUTE_DEFAULT_LOOKAT[2])
-            camera.reset()
+            if (!sessionProfileApplied) {
+                camera.reset()
+                sessionProfileApplied = true
+            }
+            CameraDiagnostics.log(
+                camera,
+                "updateSettings",
+                "source=savedCustomCamera latX=${camera.customDefaultLookAt[0]} posX=${camera.customDefaultPos[0]}"
+            )
         } else if (prefs.getBoolean("reset_camera_trigger", false)) {
             camera.resetToAbsoluteDefaults()
             prefs.edit().remove("reset_camera_trigger").apply()
+            sessionProfileApplied = true
+            CameraDiagnostics.log(camera, "updateSettings", "source=resetCameraTrigger")
+        } else {
+            camera.customDefaultPos = displayProfile.defaultCameraPos.clone()
+            camera.customDefaultLookAt = displayProfile.defaultCameraLookAt.clone()
+            camera.customDefaultZoomLevel = displayProfile.defaultZoomLevel
+            camera.baseFieldOfView = displayProfile.defaultFieldOfView
+            if (!sessionProfileApplied && camera.currentViewMode == CameraManager.ViewMode.DEFAULT) {
+                applyOrientationProfile(displayProfile, "updateSettings")
+                prefs.edit()
+                    .putString(ScreenMetrics.PREFS_LAST_ORIENTATION, displayProfile.orientationKey)
+                    .apply()
+                sessionProfileApplied = true
+            } else {
+                CameraDiagnostics.log(
+                    camera,
+                    "updateSettings",
+                    "source=displayProfile orientation=${displayProfile.orientationKey} defaultsOnly=true"
+                )
+            }
         }
 
         glSurfaceView?.requestRender()
@@ -789,8 +821,11 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         if (iHit != null) { val pile = sceneState.getPileOf(iHit); if (pile != null && !pile.isSystem) (context as? LauncherActivity)?.showPileMenu(x, y, pile) { breakPile(pile) } else (context as? LauncherActivity)?.showItemMenu(x, y, iHit) } else (context as? LauncherActivity)?.showDesktopMenu(x, y)
     }
 
-    fun handleTilt(dy: Float) {
-        camera.handleTilt(dy)
+    fun handleOrbit(dx: Float, dy: Float) {
+        val w = surfaceWidth.coerceAtLeast(1)
+        val h = surfaceHeight.coerceAtLeast(1)
+        camera.handleOrbit(dx, dy, w, h)
+        (context as? LauncherActivity)?.showResetButton(true)
     }
 
     fun createPileFromCaptured(capturedItems: List<BumpItem>) {
@@ -808,13 +843,92 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         PileOperations.breakPile(sceneState, pile)
         saveState()
     }
-    fun resetView() { sceneState.piles.removeAll { it.isSystem && it.name == "All Apps" }; sceneState.piles.forEach { it.isExpanded = false }; camera.reset(); (context as? LauncherActivity)?.showResetButton(false) }
+    fun resetView() {
+        sceneState.piles.removeAll { it.isSystem && it.name == "All Apps" }
+        sceneState.piles.forEach { it.isExpanded = false }
+        val profile = ScreenMetrics.from(context)
+        OrientationCameraAnchor.clear(context, profile.orientationKey)
+        camera.applyProfileDefaults(profile)
+        sessionProfileApplied = true
+        (context as? LauncherActivity)?.showResetButton(false)
+    }
     fun dismissExpandedPile() { sceneState.piles.removeAll { it.isSystem && it.name == "All Apps" }; sceneState.piles.forEach { it.isExpanded = false }; camera.restorePreviousView(); (context as? LauncherActivity)?.showResetButton(camera.currentViewMode != CameraManager.ViewMode.DEFAULT) }
-    fun handleZoom(sf: Float) { camera.zoomLevel = (camera.zoomLevel / sf).coerceIn(0.5f, 2.0f); if (camera.zoomLevel != 1.0f) (context as? LauncherActivity)?.showResetButton(true) }
+    fun onDisplayProfileChanged() {
+        val prefs = context.getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
+        interactionManager.updateTouchMetrics(context)
+        val profile = ScreenMetrics.from(context)
+        if (prefs.contains("cam_def_pos_x")) {
+            CameraDiagnostics.log(
+                camera,
+                "orientationChange",
+                "skipped=savedCustomCamera orientation=${profile.orientationKey} ${profile.widthPx}x${profile.heightPx}"
+            )
+            glSurfaceView?.requestRender()
+            return
+        }
+
+        val lastOrientation = prefs.getString(ScreenMetrics.PREFS_LAST_ORIENTATION, null)
+        if (lastOrientation != profile.orientationKey) {
+            prefs.edit()
+                .putString(ScreenMetrics.PREFS_LAST_ORIENTATION, profile.orientationKey)
+                .apply()
+            applyOrientationProfile(profile, "orientationChange")
+            sessionProfileApplied = true
+        } else if (!sessionProfileApplied && camera.currentViewMode == CameraManager.ViewMode.DEFAULT) {
+            applyOrientationProfile(profile, "orientationChange")
+            sessionProfileApplied = true
+        } else {
+            CameraDiagnostics.log(
+                camera,
+                "orientationChange",
+                "unchanged orientation=${profile.orientationKey} ${profile.widthPx}x${profile.heightPx}"
+            )
+        }
+        glSurfaceView?.requestRender()
+    }
+
+    fun handleZoom(sf: Float) {
+        camera.zoomLevel = (camera.zoomLevel / sf).coerceIn(0.5f, 2.5f)
+        if (abs(camera.zoomLevel - camera.customDefaultZoomLevel) > 0.05f) {
+            (context as? LauncherActivity)?.showResetButton(true)
+        }
+    }
     fun handlePan(dx: Float, dy: Float) { camera.handlePan(dx, dy); (context as? LauncherActivity)?.showResetButton(true) }
+
+    fun persistOrientationCameraAnchor(spanDelta: Float, panTotal: Float, zoomProduct: Float) {
+        if (camera.currentViewMode != CameraManager.ViewMode.DEFAULT) return
+        val profile = ScreenMetrics.from(context)
+        OrientationCameraAnchor.save(context, profile.orientationKey, camera)
+        camera.customDefaultPos = camera.targetPos.clone()
+        camera.customDefaultLookAt = camera.targetLookAt.clone()
+        camera.customDefaultZoomLevel = camera.zoomLevel
+        CameraDiagnostics.log(
+            camera,
+            "twoFingerEnd",
+            "spanΔ=${"%.1f".format(spanDelta)} panTotal=${"%.0f".format(panTotal)} " +
+                "zoomProduct=${"%.3f".format(zoomProduct)} orientation=${profile.orientationKey}"
+        )
+    }
+
+    private fun applyOrientationProfile(profile: ScreenMetrics.DisplayProfile, reason: String) {
+        val anchor = OrientationCameraAnchor.load(context, profile.orientationKey)
+        if (anchor != null) {
+            camera.applyAnchor(anchor)
+            CameraDiagnostics.log(
+                camera,
+                reason,
+                "source=userAnchor orientation=${profile.orientationKey} ${profile.widthPx}x${profile.heightPx}"
+            )
+        } else {
+            camera.applyProfileDefaults(profile)
+        }
+    }
+
     override fun onSurfaceChanged(unused: GL10, w: Int, h: Int) { 
         surfaceWidth = w; surfaceHeight = h
         GLES20.glViewport(0, 0, w, h); interactionManager.screenWidth = w; interactionManager.screenHeight = h;
-        Matrix.perspectiveM(projectionMatrix, 0, camera.fieldOfView, w.toFloat() / h, 0.1f, 100f) 
+        Matrix.perspectiveM(projectionMatrix, 0, camera.fieldOfView, w.toFloat() / h, 0.1f, 100f)
+        CameraDiagnostics.log(camera, "surfaceChanged", "surface=${w}x${h}")
+        onDisplayProfileChanged()
     }
 }

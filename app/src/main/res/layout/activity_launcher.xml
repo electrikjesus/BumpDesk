@@ -10,8 +10,8 @@
          Placed first so it's behind the GLSurfaceView. -->
     <FrameLayout
         android:id="@+id/widgetContainer"
-        android:layout_width="1024dp"
-        android:layout_height="1024dp"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
         android:visibility="visible"
         android:translationX="-2000dp" />
 

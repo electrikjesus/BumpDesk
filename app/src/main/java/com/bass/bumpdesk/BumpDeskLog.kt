@@ -18,6 +18,7 @@ object BumpDeskLog {
         const val THEME = "$PREFIX:Theme"
         const val RECENTS = "$PREFIX:Recents"
         const val GESTURE = "$PREFIX:Gesture"
+        const val CAMERA = "$PREFIX:Camera"
         const val WALLPAPER = "$PREFIX:Wallpaper"
         const val RADIAL_MENU = "$PREFIX:RadialMenu"
         const val CORE = "$PREFIX:Core"

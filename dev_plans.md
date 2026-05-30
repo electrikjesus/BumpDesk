@@ -202,9 +202,9 @@
     - [ ] Verify system wallpaper renders correctly on floor plane after granting permission
 
 - [ ] **Gestures**: 2-finger pan works but 2-finger pinch zoom does not
-    - [ ] Add `BumpDesk:Gesture` logging for multi-touch dispatch and pinch detection
-    - [ ] Confirm pinch events reach camera/zoom handler (may be regression vs. prior pinch fix)
-    - [ ] Restore pinch-to-zoom on all supported views
+    - [x] Add `BumpDesk:Gesture` logging for multi-touch dispatch and pinch detection
+    - [x] Confirm pinch events reach camera/zoom handler (span-based pinch disambiguated from two-finger pan)
+    - [ ] Restore pinch-to-zoom on all supported views (verify on device)
 
 - [ ] **Recents**: Background persists when recents widget is disabled in Settings
     - [ ] Add `BumpDesk:Recents` logging for widget enable/disable lifecycle
@@ -235,9 +235,9 @@
     - [ ] Document local vs. CI signing setup for maintainers (no secrets in docs)
 
 - [ ] **Responsive Layout**: App only works well on large landscape displays
-    - [ ] Audit layout/camera/room sizing for portrait and smaller screens
-    - [ ] Adapt room dimensions, UI scale, and gesture hit targets to screen size/orientation
-    - [ ] Add configuration-change handling so orientation switches do not break the scene
+    - [x] Audit layout/camera/room sizing for portrait and smaller screens
+    - [x] Adapt room dimensions, UI scale, and gesture hit targets to screen size/orientation (`ScreenMetrics`, profile camera defaults, dp-scaled touch/radial menu)
+    - [x] Add configuration-change handling so orientation switches do not break the scene (`configChanges` + `onConfigurationChanged`, preserve EGL context)
     - [ ] Test on phone portrait, phone landscape, and tablet form factors
 
 ## Refactoring & Infrastructure (High Impact)

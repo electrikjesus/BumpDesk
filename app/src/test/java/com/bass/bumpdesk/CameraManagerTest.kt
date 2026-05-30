@@ -3,6 +3,7 @@ package com.bass.bumpdesk
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.math.abs
 
 class CameraManagerTest {
     @Test
@@ -52,5 +53,45 @@ class CameraManagerTest {
         camera.restorePreviousView()
         assertEquals(CameraManager.ViewMode.BACK_WALL, camera.currentViewMode)
         assertEquals(0f, camera.targetPos[0], 0.01f)
+    }
+
+    @Test
+    fun orbitFullScreenWidthReturnsToStart() {
+        val camera = CameraManager()
+        camera.currentViewMode = CameraManager.ViewMode.DEFAULT
+        camera.targetPos = floatArrayOf(0f, 12f, 25f)
+        camera.targetLookAt = floatArrayOf(0f, 0f, 5f)
+        val before = camera.targetPos.clone()
+
+        camera.handleOrbit(-2160f, 0f, 2160, 1440)
+
+        assertEquals(before[0], camera.targetPos[0], 0.01f)
+        assertEquals(before[1], camera.targetPos[1], 0.01f)
+        assertEquals(before[2], camera.targetPos[2], 0.01f)
+    }
+
+    @Test
+    fun orbitHalfScreenWidthFlipsViewAcrossPivot() {
+        val camera = CameraManager()
+        camera.currentViewMode = CameraManager.ViewMode.DEFAULT
+        camera.targetPos = floatArrayOf(0f, 12f, 25f)
+        camera.targetLookAt = floatArrayOf(0f, 0f, 5f)
+
+        camera.handleOrbit(-1080f, 0f, 2160, 1440)
+
+        assertEquals(-15f, camera.targetPos[2], 0.01f)
+    }
+
+    @Test
+    fun orbitYawScalesWithScreenWidth() {
+        val camera = CameraManager()
+        camera.currentViewMode = CameraManager.ViewMode.DEFAULT
+        camera.targetPos = floatArrayOf(0f, 12f, 25f)
+        camera.targetLookAt = floatArrayOf(0f, 0f, 5f)
+
+        camera.handleOrbit(108f, 0f, 2160, 1440)
+
+        val (yaw, _) = CameraDiagnostics.yawPitchDeg(camera.targetPos, camera.targetLookAt)
+        assertEquals(18f, abs(yaw), 1f)
     }
 }
