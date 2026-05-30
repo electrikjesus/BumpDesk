@@ -45,3 +45,26 @@ Rendering logic is split from the main `BumpRenderer` to reduce file complexity:
 3.  **Physics**: `PhysicsThread` reads `SceneState`, applies forces, and updates velocities/positions.
 4.  **Render**: `BumpRenderer` reads `SceneState` every frame -> calls sub-renderers to draw via `DefaultShader`.
 5.  **Persistence**: `BumpRenderer` triggers `saveState` via `DeskRepository` on pause.
+
+## Logcat Tags (Crash Tracking)
+
+All diagnostic logs use the `BumpDeskLog` helper with searchable tags. Filter on device:
+
+```bash
+adb logcat -s "BumpDesk:IconGroup" "BumpDesk:Theme" "BumpDesk:Recents" "BumpDesk:Gesture" "BumpDesk:Wallpaper"
+```
+
+| Tag | Area | Key operations |
+|-----|------|----------------|
+| `BumpDesk:IconGroup` | Piles / folders | `createPileFromCaptured`, `addItemToPile`, `breakPile`, `removeItemFromExpandedPile`, `categorizeAllApps` |
+| `BumpDesk:Theme` | Theme reload | `init`, `loadThemeConfig`, `reloadTheme` |
+| `BumpDesk:Wallpaper` | Floor wallpaper | `getFloorTexture` (system wallpaper path) |
+| `BumpDesk:Recents` | Recents widget | `updateRecents`, preference toggles |
+| `BumpDesk:Gesture` | Multi-touch | `pinch`, `twoFingerPan` |
+| `BumpDesk:Launch` | App launch / Open As | `launchApp` (Fullscreen, Freeform, Pinned) |
+| `BumpDesk:RadialMenu` | Radial menus | (reserved for layout debugging) |
+| `BumpDesk:Core` | App lifecycle | `onSharedPreferenceChanged` |
+
+Log lines use the format `[operation] message` so you can grep by operation name, e.g. `adb logcat -s "BumpDesk:IconGroup" | grep createPileFromCaptured`.
+
+Pile mutations are centralized in `PileOperations` for testability and consistent logging.
