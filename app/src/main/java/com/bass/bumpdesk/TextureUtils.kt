@@ -64,13 +64,15 @@ object TextureUtils {
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            loadWallpaperFromDrawable(wm.getDrawable(WallpaperManager.FLAG_SYSTEM), context, "getDrawable(FLAG_SYSTEM)")
-                ?.let { return it }
-            loadWallpaperFromDrawable(wm.peekDrawable(WallpaperManager.FLAG_SYSTEM), context, "peekDrawable(FLAG_SYSTEM)")
-                ?.let { return it }
+            loadWallpaperFromManager(context, "getDrawable(FLAG_SYSTEM)") {
+                wm.getDrawable(WallpaperManager.FLAG_SYSTEM)
+            }?.let { return it }
+            loadWallpaperFromManager(context, "peekDrawable(FLAG_SYSTEM)") {
+                wm.peekDrawable(WallpaperManager.FLAG_SYSTEM)
+            }?.let { return it }
         }
 
-        loadWallpaperFromDrawable(wm.drawable, context, "drawable")?.let { return it }
+        loadWallpaperFromManager(context, "drawable") { wm.drawable }?.let { return it }
 
         if (!WallpaperPermissions.hasAccess(context)) {
             BumpDeskLog.w(
@@ -81,6 +83,19 @@ object TextureUtils {
         }
 
         return null
+    }
+
+    private fun loadWallpaperFromManager(
+        context: Context,
+        source: String,
+        drawableSupplier: () -> Drawable?
+    ): Bitmap? {
+        return try {
+            loadWallpaperFromDrawable(drawableSupplier(), context, source)
+        } catch (e: SecurityException) {
+            BumpDeskLog.w(BumpDeskLog.Tag.WALLPAPER, "loadSystemWallpaperBitmap", "$source permission denied")
+            null
+        }
     }
 
     private fun loadWallpaperFromFile(wm: WallpaperManager): Bitmap? {

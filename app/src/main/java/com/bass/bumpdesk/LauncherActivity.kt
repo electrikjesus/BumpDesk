@@ -200,7 +200,16 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
     private fun prepareWallpaperFloorIfNeeded(sharedPreferences: SharedPreferences?) {
         val prefs = sharedPreferences ?: getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
         if (prefs.getBoolean("use_wallpaper_as_floor", false)) {
-            WallpaperFloorProvider.refresh(this)
+            if (WallpaperPermissions.hasAccess(this)) {
+                WallpaperFloorProvider.refresh(this)
+            } else {
+                WallpaperFloorProvider.clear()
+                BumpDeskLog.w(
+                    BumpDeskLog.Tag.WALLPAPER,
+                    "prepareWallpaperFloorIfNeeded",
+                    "toggle on but photos/media permission not granted"
+                )
+            }
         } else {
             WallpaperFloorProvider.clear()
         }

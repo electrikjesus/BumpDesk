@@ -14,7 +14,12 @@ object WallpaperFloorProvider {
 
     fun refresh(context: Context) {
         val previous = cachedBitmap
-        cachedBitmap = TextureUtils.loadSystemWallpaperBitmap(context)
+        try {
+            cachedBitmap = TextureUtils.loadSystemWallpaperBitmap(context)
+        } catch (e: Exception) {
+            BumpDeskLog.fail(BumpDeskLog.Tag.WALLPAPER, "refresh", "wallpaper load failed", e)
+            cachedBitmap = null
+        }
         previous?.recycle()
         if (cachedBitmap != null) {
             BumpDeskLog.d(
