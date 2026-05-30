@@ -57,57 +57,75 @@ object TextureUtils {
     }
 
     fun loadSystemWallpaperBitmap(context: Context): Bitmap? {
-        val wm = WallpaperManager.getInstance(context.applicationContext)
-
-        loadWallpaperFromDrawable(context, wm)?.let { bitmap ->
-            BumpDeskLog.d(
-                BumpDeskLog.Tag.WALLPAPER,
-                "loadSystemWallpaperBitmap",
-                "loaded via drawable ${bitmap.width}x${bitmap.height}"
-            )
-            return bitmap
-        }
+        val wm = WallpaperManager.getInstance(context)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && WallpaperPermissions.hasAccess(context)) {
-            try {
-                wm.getWallpaperFile(WallpaperManager.FLAG_SYSTEM)?.use { pfd ->
-                    BitmapFactory.decodeFileDescriptor(pfd.fileDescriptor)?.let { decoded ->
-                        BumpDeskLog.d(
-                            BumpDeskLog.Tag.WALLPAPER,
-                            "loadSystemWallpaperBitmap",
-                            "loaded via getWallpaperFile ${decoded.width}x${decoded.height}"
-                        )
-                        return prepareBitmapForGl(decoded)
-                    }
-                }
-            } catch (e: SecurityException) {
-                BumpDeskLog.w(BumpDeskLog.Tag.WALLPAPER, "loadSystemWallpaperBitmap", "getWallpaperFile permission denied")
-            } catch (e: Exception) {
-                BumpDeskLog.w(BumpDeskLog.Tag.WALLPAPER, "loadSystemWallpaperBitmap", "getWallpaperFile failed: ${e.message}")
-            }
-        } else if (!WallpaperPermissions.hasAccess(context)) {
+            loadWallpaperFromFile(wm)?.let { return it }
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            loadWallpaperFromDrawable(wm.getDrawable(WallpaperManager.FLAG_SYSTEM), context, "getDrawable(FLAG_SYSTEM)")
+                ?.let { return it }
+            loadWallpaperFromDrawable(wm.peekDrawable(WallpaperManager.FLAG_SYSTEM), context, "peekDrawable(FLAG_SYSTEM)")
+                ?.let { return it }
+        }
+
+        loadWallpaperFromDrawable(wm.drawable, context, "drawable")?.let { return it }
+
+        if (!WallpaperPermissions.hasAccess(context)) {
             BumpDeskLog.w(
                 BumpDeskLog.Tag.WALLPAPER,
                 "loadSystemWallpaperBitmap",
-                "drawable unavailable; storage permission not granted for getWallpaperFile"
+                "all paths failed; grant photos/media permission for system wallpaper access"
             )
         }
 
         return null
     }
 
-    private fun loadWallpaperFromDrawable(context: Context, wm: WallpaperManager): Bitmap? {
+    private fun loadWallpaperFromFile(wm: WallpaperManager): Bitmap? {
         return try {
-            val drawable = wm.drawable ?: return null
-            if (drawable is BitmapDrawable && drawable.bitmap != null) {
+            wm.getWallpaperFile(WallpaperManager.FLAG_SYSTEM)?.use { pfd ->
+                BitmapFactory.decodeFileDescriptor(pfd.fileDescriptor)?.let { decoded ->
+                    BumpDeskLog.d(
+                        BumpDeskLog.Tag.WALLPAPER,
+                        "loadSystemWallpaperBitmap",
+                        "loaded via getWallpaperFile ${decoded.width}x${decoded.height}"
+                    )
+                    prepareBitmapForGl(decoded)
+                }
+            }
+        } catch (e: SecurityException) {
+            BumpDeskLog.w(BumpDeskLog.Tag.WALLPAPER, "loadSystemWallpaperBitmap", "getWallpaperFile permission denied")
+            null
+        } catch (e: Exception) {
+            BumpDeskLog.w(BumpDeskLog.Tag.WALLPAPER, "loadSystemWallpaperBitmap", "getWallpaperFile failed: ${e.message}")
+            null
+        }
+    }
+
+    private fun loadWallpaperFromDrawable(
+        drawable: Drawable?,
+        context: Context,
+        source: String
+    ): Bitmap? {
+        if (drawable == null) return null
+        return try {
+            val bitmap = if (drawable is BitmapDrawable && drawable.bitmap != null) {
                 prepareBitmapForGl(drawable.bitmap)
             } else {
                 val dm = context.resources.displayMetrics
                 val target = maxOf(dm.widthPixels, dm.heightPixels).coerceIn(512, 2048)
                 prepareBitmapForGl(getBitmapFromDrawable(drawable, target))
             }
+            BumpDeskLog.d(
+                BumpDeskLog.Tag.WALLPAPER,
+                "loadSystemWallpaperBitmap",
+                "loaded via $source ${bitmap.width}x${bitmap.height}"
+            )
+            bitmap
         } catch (e: SecurityException) {
-            BumpDeskLog.w(BumpDeskLog.Tag.WALLPAPER, "loadWallpaperFromDrawable", "getDrawable permission denied")
+            BumpDeskLog.w(BumpDeskLog.Tag.WALLPAPER, "loadSystemWallpaperBitmap", "$source permission denied")
             null
         }
     }

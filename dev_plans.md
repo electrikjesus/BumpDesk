@@ -186,6 +186,8 @@
     - [x] Add `BumpDesk:Wallpaper` logging for Settings selection → floor texture pipeline
     - [x] Load wallpaper via `getWallpaperFile` / drawable rasterization with GL-safe bitmap prep
     - [x] Prefer `WallpaperManager.drawable` (no storage permission) before `getWallpaperFile`
+    - [x] Load wallpaper on main thread via `WallpaperFloorProvider` (GL thread gets SecurityException)
+    - [x] Defer pref write until photos permission granted; reload floor on resume after grant
     - [x] Avoid full theme reload when only wallpaper pref changes (`reloadFloorTexture`)
     - [x] Request `READ_MEDIA_IMAGES` / legacy storage permission when enabling wallpaper
     - [x] Request photos/media permission during onboarding wizard

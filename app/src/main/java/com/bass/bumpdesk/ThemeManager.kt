@@ -68,7 +68,7 @@ object ThemeManager {
         if (prefs.getBoolean("use_wallpaper_as_floor", false)) {
             BumpDeskLog.enter(BumpDeskLog.Tag.WALLPAPER, "getFloorTexture", "source=system_wallpaper")
             try {
-                val wallpaperBitmap = TextureUtils.loadSystemWallpaperBitmap(context)
+                val wallpaperBitmap = WallpaperFloorProvider.createBitmapForGl()
                 if (wallpaperBitmap != null) {
                     val tex = textureManager.loadTextureFromBitmap(wallpaperBitmap, "wallpaper:floor")
                     val sizeLabel = "${wallpaperBitmap.width}x${wallpaperBitmap.height}"

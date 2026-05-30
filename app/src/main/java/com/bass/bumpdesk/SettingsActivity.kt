@@ -17,15 +17,18 @@ class SettingsActivity : AppCompatActivity() {
     ) { results ->
         val granted = results.values.all { it }
         val checkbox = findViewById<CheckBox>(R.id.cbUseWallpaperAsFloor)
+        val prefs = getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
         if (!granted) {
             checkbox.isChecked = false
-            getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
-                .edit().putBoolean("use_wallpaper_as_floor", false).apply()
+            prefs.edit().putBoolean("use_wallpaper_as_floor", false).apply()
             Toast.makeText(
                 this,
                 "Photos/media permission is required to use the system wallpaper on the floor.",
                 Toast.LENGTH_LONG
             ).show()
+        } else {
+            prefs.edit().putBoolean("use_wallpaper_as_floor", true).apply()
+            Toast.makeText(this, "Wallpaper floor enabled.", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -64,10 +67,15 @@ class SettingsActivity : AppCompatActivity() {
         findViewById<CheckBox>(R.id.cbUseWallpaperAsFloor).apply {
             isChecked = prefs.getBoolean("use_wallpaper_as_floor", false)
             setOnCheckedChangeListener { _, isChecked ->
-                if (isChecked && !WallpaperPermissions.hasAccess(this@SettingsActivity)) {
-                    wallpaperPermissionLauncher.launch(WallpaperPermissions.requiredPermissions())
+                if (!isChecked) {
+                    prefs.edit().putBoolean("use_wallpaper_as_floor", false).apply()
+                    return@setOnCheckedChangeListener
                 }
-                prefs.edit().putBoolean("use_wallpaper_as_floor", isChecked).apply()
+                if (!WallpaperPermissions.hasAccess(this@SettingsActivity)) {
+                    wallpaperPermissionLauncher.launch(WallpaperPermissions.requiredPermissions())
+                    return@setOnCheckedChangeListener
+                }
+                prefs.edit().putBoolean("use_wallpaper_as_floor", true).apply()
             }
         }
 

@@ -173,14 +173,20 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
         }
     }
 
+    private var didReloadFloorThisResume = false
+
     private fun applyPendingPreferenceUpdates(sharedPreferences: SharedPreferences?) {
         if (!::renderer.isInitialized) return
+        didReloadFloorThisResume = false
         if (pendingThemeReload) {
+            prepareWallpaperFloorIfNeeded(sharedPreferences)
             renderer.reloadTheme()
             pendingThemeReload = false
         } else if (pendingFloorReload) {
+            prepareWallpaperFloorIfNeeded(sharedPreferences)
             renderer.reloadFloorTexture()
             pendingFloorReload = false
+            didReloadFloorThisResume = true
         }
         if (pendingSettingsUpdate) {
             renderer.updateSettings()
@@ -188,6 +194,15 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
         }
         if (sharedPreferences?.getBoolean("show_recent_apps", true) == true) {
             updateRecents()
+        }
+    }
+
+    private fun prepareWallpaperFloorIfNeeded(sharedPreferences: SharedPreferences?) {
+        val prefs = sharedPreferences ?: getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
+        if (prefs.getBoolean("use_wallpaper_as_floor", false)) {
+            WallpaperFloorProvider.refresh(this)
+        } else {
+            WallpaperFloorProvider.clear()
         }
     }
 
@@ -495,6 +510,10 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
             renderer.onResume()
             val prefs = getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
             applyPendingPreferenceUpdates(prefs)
+            if (prefs.getBoolean("use_wallpaper_as_floor", false) && !didReloadFloorThisResume) {
+                prepareWallpaperFloorIfNeeded(prefs)
+                renderer.reloadFloorTexture()
+            }
         }
         updateRecents()
     }
