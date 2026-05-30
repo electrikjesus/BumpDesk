@@ -2,9 +2,14 @@ package com.bass.bumpdesk
 
 import android.content.Context
 import android.graphics.*
+import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
+import android.os.Build
+import android.app.WallpaperManager
 import android.opengl.GLES20
 import android.opengl.GLUtils
+import kotlin.math.max
+import android.graphics.BitmapFactory
 import com.caverock.androidsvg.PreserveAspectRatio
 import com.caverock.androidsvg.SVG
 import java.io.InputStream
@@ -24,6 +29,73 @@ object TextureUtils {
         drawable.setBounds(0, 0, width, height)
         drawable.draw(canvas)
         return bitmap
+    }
+
+    fun prepareBitmapForGl(source: Bitmap): Bitmap {
+        var bitmap = source
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && bitmap.config == Bitmap.Config.HARDWARE) {
+            bitmap = bitmap.copy(Bitmap.Config.ARGB_8888, false)
+        } else if (bitmap.config != Bitmap.Config.ARGB_8888) {
+            bitmap = bitmap.copy(Bitmap.Config.ARGB_8888, false)
+        }
+
+        val maxDim = 2048
+        if (bitmap.width > maxDim || bitmap.height > maxDim) {
+            val scale = maxDim.toFloat() / max(bitmap.width, bitmap.height)
+            val scaled = Bitmap.createScaledBitmap(
+                bitmap,
+                (bitmap.width * scale).toInt().coerceAtLeast(1),
+                (bitmap.height * scale).toInt().coerceAtLeast(1),
+                true
+            )
+            if (scaled !== bitmap) {
+                bitmap.recycle()
+            }
+            bitmap = scaled
+        }
+        return bitmap
+    }
+
+    fun loadSystemWallpaperBitmap(context: Context): Bitmap? {
+        if (!WallpaperPermissions.hasAccess(context)) {
+            BumpDeskLog.w(
+                BumpDeskLog.Tag.WALLPAPER,
+                "loadSystemWallpaperBitmap",
+                "missing storage permission (${WallpaperPermissions.requiredPermissions().joinToString()})"
+            )
+            return null
+        }
+
+        val wm = WallpaperManager.getInstance(context.applicationContext)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            try {
+                wm.getWallpaperFile(WallpaperManager.FLAG_SYSTEM)?.use { pfd ->
+                    BitmapFactory.decodeFileDescriptor(pfd.fileDescriptor)?.let { decoded ->
+                        return prepareBitmapForGl(decoded)
+                    }
+                }
+            } catch (e: SecurityException) {
+                BumpDeskLog.fail(BumpDeskLog.Tag.WALLPAPER, "loadSystemWallpaperBitmap", "getWallpaperFile permission denied", e)
+                return null
+            } catch (e: Exception) {
+                BumpDeskLog.w(BumpDeskLog.Tag.WALLPAPER, "loadSystemWallpaperBitmap", "getWallpaperFile failed: ${e.message}")
+            }
+        }
+
+        return try {
+            val drawable = wm.drawable ?: return null
+            if (drawable is BitmapDrawable && drawable.bitmap != null) {
+                prepareBitmapForGl(drawable.bitmap)
+            } else {
+                val dm = context.resources.displayMetrics
+                val target = maxOf(dm.widthPixels, dm.heightPixels).coerceIn(512, 2048)
+                prepareBitmapForGl(getBitmapFromDrawable(drawable, target))
+            }
+        } catch (e: SecurityException) {
+            BumpDeskLog.fail(BumpDeskLog.Tag.WALLPAPER, "loadSystemWallpaperBitmap", "getDrawable permission denied", e)
+            null
+        }
     }
 
     /**

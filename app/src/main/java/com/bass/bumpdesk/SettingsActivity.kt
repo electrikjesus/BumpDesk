@@ -5,10 +5,29 @@ import android.content.Intent
 import android.os.Bundle
 import android.provider.Settings
 import android.widget.*
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 
 class SettingsActivity : AppCompatActivity() {
     private lateinit var appManager: AppManager
+
+    private val wallpaperPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { results ->
+        val granted = results.values.all { it }
+        val checkbox = findViewById<CheckBox>(R.id.cbUseWallpaperAsFloor)
+        if (!granted) {
+            checkbox.isChecked = false
+            getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
+                .edit().putBoolean("use_wallpaper_as_floor", false).apply()
+            Toast.makeText(
+                this,
+                "Photos/media permission is required to use the system wallpaper on the floor.",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -44,7 +63,12 @@ class SettingsActivity : AppCompatActivity() {
 
         findViewById<CheckBox>(R.id.cbUseWallpaperAsFloor).apply {
             isChecked = prefs.getBoolean("use_wallpaper_as_floor", false)
-            setOnCheckedChangeListener { _, isChecked -> prefs.edit().putBoolean("use_wallpaper_as_floor", isChecked).apply() }
+            setOnCheckedChangeListener { _, isChecked ->
+                if (isChecked && !WallpaperPermissions.hasAccess(this@SettingsActivity)) {
+                    wallpaperPermissionLauncher.launch(WallpaperPermissions.requiredPermissions())
+                }
+                prefs.edit().putBoolean("use_wallpaper_as_floor", isChecked).apply()
+            }
         }
 
         // Theme Selection

@@ -63,10 +63,10 @@ class TextureManager(private val context: Context) {
             
             // Task: Use REPEAT for room surfaces, but default to CLAMP for icons
             // We can determine if it's a room surface by checking the key
-            val wrapMode = if (key?.contains("desktop") == true || key?.contains("wall") == true || key?.contains("floor") == true) {
-                GLES20.GL_REPEAT
-            } else {
-                GLES20.GL_CLAMP_TO_EDGE
+            val wrapMode = when {
+                key?.contains("wallpaper") == true -> GLES20.GL_CLAMP_TO_EDGE
+                key?.contains("desktop") == true || key?.contains("wall") == true || key?.contains("floor") == true -> GLES20.GL_REPEAT
+                else -> GLES20.GL_CLAMP_TO_EDGE
             }
             
             GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, wrapMode)

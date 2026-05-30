@@ -1,12 +1,10 @@
 package com.bass.bumpdesk
 
 import android.annotation.SuppressLint
-import android.app.WallpaperManager
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Typeface
-import android.graphics.drawable.BitmapDrawable
 import org.json.JSONObject
 
 object ThemeManager {
@@ -60,25 +58,27 @@ object ThemeManager {
         if (prefs.getBoolean("use_wallpaper_as_floor", false)) {
             BumpDeskLog.enter(BumpDeskLog.Tag.WALLPAPER, "getFloorTexture", "source=system_wallpaper")
             try {
-                val wm = WallpaperManager.getInstance(context)
-                val drawable = wm.drawable
-                if (drawable is BitmapDrawable) {
-                    val tex = textureManager.loadTextureFromBitmap(drawable.bitmap, "desktop:wallpaper_floor")
+                val wallpaperBitmap = TextureUtils.loadSystemWallpaperBitmap(context)
+                if (wallpaperBitmap != null) {
+                    val tex = textureManager.loadTextureFromBitmap(wallpaperBitmap, "wallpaper:floor")
+                    val sizeLabel = "${wallpaperBitmap.width}x${wallpaperBitmap.height}"
+                    wallpaperBitmap.recycle()
                     if (tex != -1) {
-                        BumpDeskLog.exit(BumpDeskLog.Tag.WALLPAPER, "getFloorTexture", "textureId=$tex")
+                        BumpDeskLog.exit(
+                            BumpDeskLog.Tag.WALLPAPER,
+                            "getFloorTexture",
+                            "textureId=$tex size=$sizeLabel"
+                        )
                         return tex
                     }
-                    BumpDeskLog.w(BumpDeskLog.Tag.WALLPAPER, "getFloorTexture", "bitmap drawable loaded but texture id=-1")
+                    BumpDeskLog.w(BumpDeskLog.Tag.WALLPAPER, "getFloorTexture", "wallpaper bitmap loaded but texture id=-1")
                 } else {
-                    BumpDeskLog.w(
-                        BumpDeskLog.Tag.WALLPAPER,
-                        "getFloorTexture",
-                        "wallpaper drawable is ${drawable?.javaClass?.simpleName ?: "null"}, expected BitmapDrawable"
-                    )
+                    BumpDeskLog.w(BumpDeskLog.Tag.WALLPAPER, "getFloorTexture", "could not decode system wallpaper")
                 }
             } catch (e: Exception) {
                 BumpDeskLog.fail(BumpDeskLog.Tag.WALLPAPER, "getFloorTexture", "system wallpaper failed", e)
             }
+            BumpDeskLog.d(BumpDeskLog.Tag.WALLPAPER, "getFloorTexture", "falling back to theme floor texture")
         }
 
         val themePathBase = "BumpTop/$currentThemeName/desktop/"
@@ -90,7 +90,9 @@ object ThemeManager {
             textureId = loadTextureWithFallback(context, textureManager, "$themePathBase$relativePath", 1024, 1024)
         }
 
-        if (textureId == -1) textureId = loadTextureWithFallback(context, textureManager, "floor.png", 1024, 1024)
+        if (textureId == -1) {
+            textureId = loadTextureWithFallback(context, textureManager, "${themePathBase}floor.svg", 1024, 1024)
+        }
         return textureId
     }
 
@@ -116,12 +118,24 @@ object ThemeManager {
         ids[3] = loadTextureWithFallback(context, textureManager, "$themePathBase$topPath", 1024, 1024)
 
         for (i in ids.indices) {
-            if (ids[i] == -1) ids[i] = textureManager.loadTextureFromAsset("wall.png")
+            if (ids[i] == -1) {
+                ids[i] = loadTextureWithFallback(context, textureManager, "$themePathBase$backPath", wW, wH)
+            }
         }
         return ids
     }
 
-    private fun loadTextureWithFallback(context: Context, textureManager: TextureManager, assetPath: String, width: Int = 512, height: Int = 512): Int {
+    fun loadOptionalWidgetTexture(context: Context, textureManager: TextureManager, assetName: String): Int {
+        init(context)
+        val themePath = "BumpTop/$currentThemeName/widgets/$assetName"
+        var textureId = loadTextureWithFallback(context, textureManager, "$themePath.svg", 64, 64)
+        if (textureId == -1) {
+            textureId = textureManager.loadTextureFromAsset("$themePath.png")
+        }
+        return textureId
+    }
+
+    internal fun loadTextureWithFallback(context: Context, textureManager: TextureManager, assetPath: String, width: Int = 512, height: Int = 512): Int {
         if (assetPath.endsWith(".svg")) {
             try {
                 val inputStream = context.assets.open(assetPath)

@@ -170,7 +170,6 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
             sceneState.appDrawerItem = null
         }
         
-        val oldInfinite = physicsEngine.isInfiniteMode
         physicsEngine.isInfiniteMode = prefs.getBoolean("infinite_desktop_mode", false)
         interactionManager.isInfiniteMode = physicsEngine.isInfiniteMode
 
@@ -203,10 +202,6 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
             prefs.edit().remove("reset_camera_trigger").apply()
         }
 
-        if (oldInfinite != physicsEngine.isInfiniteMode) {
-            reloadTheme()
-        }
-        
         glSurfaceView?.requestRender()
     }
 
@@ -414,51 +409,89 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         BumpDeskLog.exit(BumpDeskLog.Tag.ICON_GROUP, "categorizeAllApps", "piles=${sceneState.piles.size}")
     }
 
+    @Volatile
+    private var pendingThemeReload = false
+    @Volatile
+    private var pendingFloorReload = false
+
+    fun reloadFloorTexture() {
+        pendingFloorReload = true
+        scheduleGlReload()
+    }
+
     fun reloadTheme() {
-        BumpDeskLog.enter(BumpDeskLog.Tag.THEME, "reloadTheme", "theme=${ThemeManager.currentThemeName}")
+        pendingThemeReload = true
+        scheduleGlReload()
+    }
+
+    private fun scheduleGlReload() {
         saveState()
-        val reloadTask = Runnable {
-            try {
-                textureManager.clearCache()
-                floorTextureId = -1
-                wallTextureIds = IntArray(4) { -1 }
-                
-                sceneState.withReadLock {
-                    sceneState.bumpItems.forEach { it.appearance.textureId = -1 }
-                    sceneState.piles.forEach { p -> 
-                        p.items.forEach { it.appearance.textureId = -1 }
-                        p.nameTextureId = -1
-                    }
-                    sceneState.widgetItems.forEach { it.textureId = -1 }
-                }
-                
-                val envCode = ThemeManager.getShaderCode(context, "environment") ?: ""
-                
-                shader = DefaultShader(envCode)
-                roomRenderer = RoomRenderer(shader!!)
-                overlayRenderer = OverlayRenderer(shader!!)
-                
-                itemRenderer = ItemRenderer(context, shader!!, textureManager, sceneState)
-                widgetRenderer = WidgetRenderer(context, shader!!, textureManager)
-                pileRenderer = PileRenderer(context, shader!!, textureManager, itemRenderer, overlayRenderer, sceneState)
-                uiRenderer = UIRenderer(shader!!, overlayRenderer)
+        glSurfaceView?.queueEvent { applyPendingGlReloads() }
+        glSurfaceView?.requestRender()
+    }
 
-                loadThemeTextures()
-                BumpDeskLog.exit(
-                    BumpDeskLog.Tag.THEME,
-                    "reloadTheme",
-                    "floorTextureId=$floorTextureId walls=${wallTextureIds.joinToString()}"
-                )
-                glSurfaceView?.requestRender()
-            } catch (e: Exception) {
-                BumpDeskLog.fail(BumpDeskLog.Tag.THEME, "reloadTheme", "GL reload failed", e)
-            }
+    fun applyPendingGlReloads() {
+        if (pendingThemeReload) {
+            pendingThemeReload = false
+            performThemeReload()
+            return
         }
+        if (pendingFloorReload) {
+            pendingFloorReload = false
+            performFloorReload()
+        }
+    }
 
-        if (Thread.currentThread().name.contains("GLThread")) {
-            reloadTask.run()
-        } else {
-            glSurfaceView?.queueEvent(reloadTask)
+    private fun performFloorReload() {
+        BumpDeskLog.enter(BumpDeskLog.Tag.WALLPAPER, "reloadFloorTexture")
+        floorTextureId = ThemeManager.getFloorTexture(context, textureManager)
+        BumpDeskLog.exit(BumpDeskLog.Tag.WALLPAPER, "reloadFloorTexture", "floorTextureId=$floorTextureId")
+        glSurfaceView?.requestRender()
+    }
+
+    private fun performThemeReload() {
+        BumpDeskLog.enter(BumpDeskLog.Tag.THEME, "reloadTheme", "theme=${ThemeManager.currentThemeName}")
+        try {
+            val envCode = ThemeManager.getShaderCode(context, "environment") ?: ""
+            val newShader = DefaultShader(envCode)
+            if (!newShader.isValid()) {
+                BumpDeskLog.fail(BumpDeskLog.Tag.THEME, "reloadTheme", "shader compile/link failed, keeping previous resources")
+                pendingThemeReload = true
+                return
+            }
+
+            textureManager.clearCache()
+            floorTextureId = -1
+            wallTextureIds = IntArray(4) { -1 }
+
+            sceneState.withReadLock {
+                sceneState.bumpItems.forEach { it.appearance.textureId = -1 }
+                sceneState.piles.forEach { p ->
+                    p.items.forEach { it.appearance.textureId = -1 }
+                    p.nameTextureId = -1
+                }
+                sceneState.widgetItems.forEach { it.textureId = -1 }
+            }
+
+            shader = newShader
+            roomRenderer = RoomRenderer(shader!!)
+            overlayRenderer = OverlayRenderer(shader!!)
+
+            itemRenderer = ItemRenderer(context, shader!!, textureManager, sceneState)
+            widgetRenderer = WidgetRenderer(context, shader!!, textureManager)
+            pileRenderer = PileRenderer(context, shader!!, textureManager, itemRenderer, overlayRenderer, sceneState)
+            uiRenderer = UIRenderer(shader!!, overlayRenderer)
+
+            loadThemeTextures()
+            BumpDeskLog.exit(
+                BumpDeskLog.Tag.THEME,
+                "reloadTheme",
+                "floorTextureId=$floorTextureId walls=${wallTextureIds.joinToString()}"
+            )
+            glSurfaceView?.requestRender()
+        } catch (e: Exception) {
+            BumpDeskLog.fail(BumpDeskLog.Tag.THEME, "reloadTheme", "GL reload failed", e)
+            pendingThemeReload = true
         }
     }
 
@@ -468,7 +501,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         GLES20.glEnable(GLES20.GL_BLEND)
         GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
         
-        reloadTheme()
+        performThemeReload()
         lassoRenderer = LassoRenderer(LassoShader())
     }
 
@@ -480,12 +513,20 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
             closeBtn = textureManager.loadTextureFromBitmap(TextRenderer.createTextBitmap("X", 64, 64)),
             arrowLeft = textureManager.loadTextureFromBitmap(TextRenderer.createTextBitmap(" < ", 64, 64)),
             arrowRight = textureManager.loadTextureFromBitmap(TextRenderer.createTextBitmap(" > ", 64, 64)),
-            scrollUp = textureManager.loadTextureFromAsset("BumpTop/${ThemeManager.currentThemeName}/widgets/scrollUp.png"),
-            scrollDown = textureManager.loadTextureFromAsset("BumpTop/${ThemeManager.currentThemeName}/widgets/scrollDown.png")
+            scrollUp = ThemeManager.loadOptionalWidgetTexture(context, textureManager, "scrollUp"),
+            scrollDown = ThemeManager.loadOptionalWidgetTexture(context, textureManager, "scrollDown")
         )
     }
 
     override fun onDrawFrame(unused: GL10) {
+        if (pendingThemeReload || pendingFloorReload) {
+            applyPendingGlReloads()
+        }
+        if (shader == null || shader?.isValid() != true) {
+            glSurfaceView?.requestRender()
+            return
+        }
+
         frameCount++
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
         camera.update(); camera.setViewMatrix(viewMatrix)

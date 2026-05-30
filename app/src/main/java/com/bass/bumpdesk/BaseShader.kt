@@ -42,7 +42,10 @@ abstract class BaseShader(
         }
     }
 
+    fun isValid(): Boolean = program != 0
+
     fun use() {
+        if (program == 0) return
         GLES20.glUseProgram(program)
     }
 

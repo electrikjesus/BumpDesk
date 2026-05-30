@@ -137,22 +137,57 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
         })
     }
 
+    private var pendingThemeReload = false
+    private var pendingFloorReload = false
+    private var pendingSettingsUpdate = false
+
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
         if (!::renderer.isInitialized) return
-        
-        if (key == "selected_theme" || key == "use_wallpaper_as_floor" || key == "show_recent_apps" || 
-            key == "infinite_desktop_mode" || key?.startsWith("physics_") == true || key?.startsWith("layout_") == true) {
-            BumpDeskLog.enter(BumpDeskLog.Tag.CORE, "onSharedPreferenceChanged", "key=$key")
-            ThemeManager.init(this, forceReload = true)
-            renderer.reloadTheme()
-            renderer.updateSettings()
-            if (key == "show_recent_apps") {
-                BumpDeskLog.d(BumpDeskLog.Tag.RECENTS, "onSharedPreferenceChanged", "show_recent_apps=${
-                    sharedPreferences?.getBoolean("show_recent_apps", true)
-                }")
-                updateRecents()
+
+        when (key) {
+            "use_wallpaper_as_floor" -> {
+                BumpDeskLog.enter(BumpDeskLog.Tag.CORE, "onSharedPreferenceChanged", "key=$key")
+                pendingFloorReload = true
+                BumpDeskLog.exit(BumpDeskLog.Tag.CORE, "onSharedPreferenceChanged", "key=$key deferred")
             }
-            BumpDeskLog.exit(BumpDeskLog.Tag.CORE, "onSharedPreferenceChanged", "key=$key")
+            "selected_theme", "infinite_desktop_mode" -> {
+                BumpDeskLog.enter(BumpDeskLog.Tag.CORE, "onSharedPreferenceChanged", "key=$key")
+                ThemeManager.init(this, forceReload = true)
+                pendingThemeReload = true
+                BumpDeskLog.exit(BumpDeskLog.Tag.CORE, "onSharedPreferenceChanged", "key=$key deferred")
+            }
+            "show_recent_apps" -> {
+                pendingSettingsUpdate = true
+                if (lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) {
+                    applyPendingPreferenceUpdates(sharedPreferences)
+                }
+            }
+            else -> {
+                if (key?.startsWith("physics_") == true || key?.startsWith("layout_") == true) {
+                    pendingSettingsUpdate = true
+                    if (lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) {
+                        applyPendingPreferenceUpdates(sharedPreferences)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun applyPendingPreferenceUpdates(sharedPreferences: SharedPreferences?) {
+        if (!::renderer.isInitialized) return
+        if (pendingThemeReload) {
+            renderer.reloadTheme()
+            pendingThemeReload = false
+        } else if (pendingFloorReload) {
+            renderer.reloadFloorTexture()
+            pendingFloorReload = false
+        }
+        if (pendingSettingsUpdate) {
+            renderer.updateSettings()
+            pendingSettingsUpdate = false
+        }
+        if (sharedPreferences?.getBoolean("show_recent_apps", true) == true) {
+            updateRecents()
         }
     }
 
@@ -456,6 +491,11 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
     override fun onResume() { 
         super.onResume()
         glSurfaceView.onResume()
+        if (::renderer.isInitialized) {
+            renderer.onResume()
+            val prefs = getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
+            applyPendingPreferenceUpdates(prefs)
+        }
         updateRecents()
     }
     override fun onPause() { 
