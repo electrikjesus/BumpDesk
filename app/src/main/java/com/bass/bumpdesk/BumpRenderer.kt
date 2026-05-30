@@ -1,6 +1,7 @@
 package com.bass.bumpdesk
 
 import android.content.Context
+import android.opengl.EGL14
 import android.opengl.GLES20
 import android.opengl.GLSurfaceView
 import android.opengl.Matrix
@@ -431,16 +432,24 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
     }
 
     fun applyPendingGlReloads() {
+        if (!isGlContextCurrent()) {
+            BumpDeskLog.d(BumpDeskLog.Tag.THEME, "applyPendingGlReloads", "deferred | no GL context")
+            return
+        }
         if (pendingThemeReload) {
-            pendingThemeReload = false
-            performThemeReload()
+            if (performThemeReload()) {
+                pendingThemeReload = false
+            }
             return
         }
         if (pendingFloorReload) {
-            pendingFloorReload = false
             performFloorReload()
+            pendingFloorReload = false
         }
     }
+
+    private fun isGlContextCurrent(): Boolean =
+        EGL14.eglGetCurrentContext() != EGL14.EGL_NO_CONTEXT
 
     private fun performFloorReload() {
         BumpDeskLog.enter(BumpDeskLog.Tag.WALLPAPER, "reloadFloorTexture")
@@ -449,15 +458,14 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         glSurfaceView?.requestRender()
     }
 
-    private fun performThemeReload() {
+    private fun performThemeReload(): Boolean {
         BumpDeskLog.enter(BumpDeskLog.Tag.THEME, "reloadTheme", "theme=${ThemeManager.currentThemeName}")
         try {
             val envCode = ThemeManager.getShaderCode(context, "environment") ?: ""
             val newShader = DefaultShader(envCode)
             if (!newShader.isValid()) {
                 BumpDeskLog.fail(BumpDeskLog.Tag.THEME, "reloadTheme", "shader compile/link failed, keeping previous resources")
-                pendingThemeReload = true
-                return
+                return false
             }
 
             textureManager.clearCache()
@@ -489,9 +497,10 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 "floorTextureId=$floorTextureId walls=${wallTextureIds.joinToString()}"
             )
             glSurfaceView?.requestRender()
+            return true
         } catch (e: Exception) {
             BumpDeskLog.fail(BumpDeskLog.Tag.THEME, "reloadTheme", "GL reload failed", e)
-            pendingThemeReload = true
+            return false
         }
     }
 
