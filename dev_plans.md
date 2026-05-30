@@ -8,6 +8,7 @@
 - **Granular Steps**: Break complex tasks into 3-4 smaller, verifiable sub-tasks to maintain context and avoid timeouts.
 - **Build-After-Edit**: Execute `gradle build` or a specific task-related build/test after *every* edit.
 - **Verification**: Only mark a task as complete [x] after the build succeeds AND the verification test passes.
+- **Commit After Verify**: After each verified task (successful build and tests), create a focused git commit before starting the next task.
 - **Autonomous Progress**: Work independently until a blocker or feedback is required.
 - **Accountability Checklist**: Every summary MUST include:
     1. [x] **Code Compiled?** (Actual successful `gradle build` output)
@@ -168,6 +169,8 @@
     - [x] Write or identify regression test for group create/add/remove flows (`PileOperationsTest`)
     - [ ] Fix root cause and verify on device via logcat
         - [x] Centralized pile mutations in `PileOperations` (removes desktop duplicates, persists state, prunes empty piles)
+        - [x] Fix PhysicsThread ConcurrentModificationException during pile mutations (SceneState read/write locks)
+        - [x] Fix add-to-pile dialog crash on GL thread (runOnUiThread)
         - [ ] Confirm on device with `adb logcat -s "BumpDesk:IconGroup"`
 
 - [ ] **Themes**: Fix black display when refreshing or updating themes
@@ -176,9 +179,13 @@
     - [ ] Fix reload path without requiring app restart
 
 - [ ] **Wallpaper**: System wallpaper not showing on floor plane when selected from Settings
-    - [ ] Add `BumpDesk:Wallpaper` logging for Settings selection → floor texture pipeline
-    - [ ] Trace Settings preference → renderer floor texture update
-    - [ ] Verify system wallpaper renders correctly on floor plane
+    - [x] Add `BumpDesk:Wallpaper` logging for Settings selection → floor texture pipeline
+    - [x] Load wallpaper via `getWallpaperFile` / drawable rasterization with GL-safe bitmap prep
+    - [x] Avoid full theme reload when only wallpaper pref changes (`reloadFloorTexture`)
+    - [x] Request `READ_MEDIA_IMAGES` / legacy storage permission when enabling wallpaper
+    - [x] Request photos/media permission during onboarding wizard
+    - [x] Defer GL theme reload until launcher resumes (fixes black screen from shader compile without context)
+    - [ ] Verify system wallpaper renders correctly on floor plane after granting permission
 
 - [ ] **Gestures**: 2-finger pan works but 2-finger pinch zoom does not
     - [ ] Add `BumpDesk:Gesture` logging for multi-touch dispatch and pinch detection
