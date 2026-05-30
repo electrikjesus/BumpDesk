@@ -453,6 +453,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
 
     private fun performFloorReload() {
         BumpDeskLog.enter(BumpDeskLog.Tag.WALLPAPER, "reloadFloorTexture")
+        textureManager.evictCachedTexture("wallpaper:floor")
         floorTextureId = ThemeManager.getFloorTexture(context, textureManager)
         BumpDeskLog.exit(BumpDeskLog.Tag.WALLPAPER, "reloadFloorTexture", "floorTextureId=$floorTextureId")
         glSurfaceView?.requestRender()

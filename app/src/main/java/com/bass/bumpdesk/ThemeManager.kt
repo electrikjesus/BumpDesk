@@ -10,6 +10,14 @@ import org.json.JSONObject
 object ThemeManager {
     private const val FALLBACK_THEME = "BumpDesk Animated"
 
+    /** Maps json-only theme packs to the nearest complete asset bundle. */
+    private val THEME_ASSET_SOURCES = mapOf(
+        "Bump Blue" to "BumpDesk Blue",
+        "Bumped Next" to "BumpDesk Next",
+        "BumpTop Classic" to "BumpDesk Blue",
+        "BumpTop Test" to "BumpDesk Animated"
+    )
+
     var currentThemeName: String = "BumpDesk Animated"
         internal set
         
@@ -84,18 +92,29 @@ object ThemeManager {
         }
 
         val themePathBase = "BumpTop/$currentThemeName/desktop/"
-        
-        var textureId = loadTextureWithFallback(context, textureManager, "${themePathBase}floor.svg", 1024, 1024)
-        
-        if (textureId == -1) {
-            val relativePath = themeConfig?.optJSONObject("textures")?.optJSONObject("floor")?.optString("desktop", "floor_desktop.jpg") ?: "floor_desktop.jpg"
-            textureId = loadTextureWithFallback(context, textureManager, "$themePathBase$relativePath", 1024, 1024)
+        val configuredDesktop = themeConfig?.optJSONObject("textures")
+            ?.optJSONObject("floor")
+            ?.optString("desktop")
+            ?.takeIf { it.isNotBlank() }
+
+        val candidates = buildList {
+            configuredDesktop?.let { add("$themePathBase$it") }
+            add("${themePathBase}floor.svg")
+            add("${themePathBase}floor_desktop.jpg")
+            add("${themePathBase}floor.png")
+            add("${themePathBase}floor_infinite.png")
+        }.distinct()
+
+        for (path in candidates) {
+            val textureId = loadTextureWithFallback(context, textureManager, path, 1024, 1024)
+            if (textureId != -1) {
+                BumpDeskLog.d(BumpDeskLog.Tag.THEME, "getFloorTexture", "loaded $path textureId=$textureId")
+                return textureId
+            }
         }
 
-        if (textureId == -1) {
-            textureId = loadTextureWithFallback(context, textureManager, "${themePathBase}floor.svg", 1024, 1024)
-        }
-        return textureId
+        BumpDeskLog.w(BumpDeskLog.Tag.THEME, "getFloorTexture", "no floor asset for theme=$currentThemeName")
+        return -1
     }
 
     fun getWallTextures(context: Context, textureManager: TextureManager): IntArray {
@@ -103,10 +122,10 @@ object ThemeManager {
         val walls = themeConfig?.optJSONObject("textures")?.optJSONObject("wall")
         val ids = IntArray(4) { -1 }
         
-        val backPath = walls?.optString("bottom", "wall.png") ?: "wall.png"
-        val leftPath = walls?.optString("left", "wall.png") ?: "wall.png"
-        val rightPath = walls?.optString("right", "wall.png") ?: "wall.png"
-        val topPath = walls?.optString("top", "wall.png") ?: "wall.png"
+        val backPath = walls?.optString("bottom")?.takeIf { it.isNotBlank() } ?: "wall.svg"
+        val leftPath = walls?.optString("left")?.takeIf { it.isNotBlank() } ?: backPath
+        val rightPath = walls?.optString("right")?.takeIf { it.isNotBlank() } ?: backPath
+        val topPath = walls?.optString("top")?.takeIf { it.isNotBlank() } ?: backPath
 
         val themePathBase = "BumpTop/$currentThemeName/desktop/"
         
@@ -126,6 +145,13 @@ object ThemeManager {
         }
         return ids
     }
+
+    private fun relativeThemePath(assetPath: String): String? {
+        val prefix = "BumpTop/$currentThemeName/"
+        return if (assetPath.startsWith(prefix)) assetPath.removePrefix(prefix) else null
+    }
+
+    private fun themeAssetSource(themeName: String): String? = THEME_ASSET_SOURCES[themeName]
 
     fun loadOptionalWidgetTexture(context: Context, textureManager: TextureManager, assetName: String): Int {
         init(context)
@@ -165,9 +191,16 @@ object ThemeManager {
     ): Int {
         loadTextureAtPath(context, textureManager, assetPath, width, height, silent)?.let { return it }
 
-        val themePrefix = "BumpTop/$currentThemeName/"
-        if (assetPath.startsWith(themePrefix)) {
-            val relativePath = assetPath.removePrefix(themePrefix)
+        val relativePath = relativeThemePath(assetPath) ?: return -1
+
+        themeAssetSource(currentThemeName)?.let { sourceTheme ->
+            if (sourceTheme != currentThemeName) {
+                val sourcePath = "BumpTop/$sourceTheme/$relativePath"
+                loadTextureAtPath(context, textureManager, sourcePath, width, height, silent)?.let { return it }
+            }
+        }
+
+        if (currentThemeName != FALLBACK_THEME) {
             val fallbackPath = "BumpTop/$FALLBACK_THEME/$relativePath"
             loadTextureAtPath(context, textureManager, fallbackPath, width, height, silent)?.let { return it }
         }

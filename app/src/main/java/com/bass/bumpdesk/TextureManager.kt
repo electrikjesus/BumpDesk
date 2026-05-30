@@ -93,6 +93,10 @@ class TextureManager(private val context: Context) {
         GLES20.glGenerateMipmap(GLES20.GL_TEXTURE_2D)
     }
 
+    fun evictCachedTexture(key: String) {
+        textureCache.remove(key)
+    }
+
     fun clearCache() {
         textureCache.evictAll() // This will trigger entryRemoved for all cached items
         // Delete any textures that were loaded without a key and thus not in the LruCache
