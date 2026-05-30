@@ -7,8 +7,6 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Typeface
 import android.graphics.drawable.BitmapDrawable
-import android.util.Log
-import java.io.InputStream
 import org.json.JSONObject
 
 object ThemeManager {
@@ -21,10 +19,12 @@ object ThemeManager {
 
     fun init(context: Context, forceReload: Boolean = false) {
         if (isInitialized && !forceReload) return
+        BumpDeskLog.enter(BumpDeskLog.Tag.THEME, "init", "forceReload=$forceReload")
         val prefs = context.getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
         currentThemeName = prefs.getString("selected_theme", "BumpDesk Animated") ?: "BumpDesk Animated"
         loadThemeConfig(context)
         isInitialized = true
+        BumpDeskLog.exit(BumpDeskLog.Tag.THEME, "init", "theme=$currentThemeName")
     }
 
     private fun loadThemeConfig(context: Context) {
@@ -33,7 +33,7 @@ object ThemeManager {
             val cleanJson = jsonString.replace(Regex("(?<!:)//.*"), "")
             themeConfig = JSONObject(cleanJson)
         } catch (e: Exception) {
-            Log.e("ThemeManager", "Error loading theme.json for $currentThemeName", e)
+            BumpDeskLog.fail(BumpDeskLog.Tag.THEME, "loadThemeConfig", "theme=$currentThemeName", e)
             themeConfig = null
         }
     }
@@ -58,15 +58,26 @@ object ThemeManager {
         val prefs = context.getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
         
         if (prefs.getBoolean("use_wallpaper_as_floor", false)) {
+            BumpDeskLog.enter(BumpDeskLog.Tag.WALLPAPER, "getFloorTexture", "source=system_wallpaper")
             try {
                 val wm = WallpaperManager.getInstance(context)
                 val drawable = wm.drawable
                 if (drawable is BitmapDrawable) {
                     val tex = textureManager.loadTextureFromBitmap(drawable.bitmap, "desktop:wallpaper_floor")
-                    if (tex != -1) return tex
+                    if (tex != -1) {
+                        BumpDeskLog.exit(BumpDeskLog.Tag.WALLPAPER, "getFloorTexture", "textureId=$tex")
+                        return tex
+                    }
+                    BumpDeskLog.w(BumpDeskLog.Tag.WALLPAPER, "getFloorTexture", "bitmap drawable loaded but texture id=-1")
+                } else {
+                    BumpDeskLog.w(
+                        BumpDeskLog.Tag.WALLPAPER,
+                        "getFloorTexture",
+                        "wallpaper drawable is ${drawable?.javaClass?.simpleName ?: "null"}, expected BitmapDrawable"
+                    )
                 }
             } catch (e: Exception) {
-                Log.e("ThemeManager", "Error getting wallpaper", e)
+                BumpDeskLog.fail(BumpDeskLog.Tag.WALLPAPER, "getFloorTexture", "system wallpaper failed", e)
             }
         }
 

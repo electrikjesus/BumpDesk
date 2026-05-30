@@ -10,7 +10,6 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.os.Build
 import android.os.Process
-import android.util.Log
 
 class AppManager(private val context: Context) {
     private val packageManager: PackageManager = context.packageManager
@@ -85,7 +84,10 @@ class AppManager(private val context: Context) {
     fun getRecentApps(limit: Int = 12): List<AppInfo> {
         val prefs = context.getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
         val showRecents = prefs.getBoolean("show_recent_apps", true)
-        if (!showRecents) return emptyList()
+        if (!showRecents) {
+            BumpDeskLog.d(BumpDeskLog.Tag.RECENTS, "getRecentApps", "skipped | show_recent_apps=false")
+            return emptyList()
+        }
 
         val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
         val recentApps = mutableListOf<AppInfo>()
@@ -100,7 +102,7 @@ class AppManager(private val context: Context) {
                 val pkgName = component?.packageName ?: baseIntent.`package` ?: ""
                 if (pkgName.isEmpty() || pkgName == context.packageName) return@forEach
 
-                Log.d("AppManager", "Recent Task: id=${task.persistentId}, pkg=$pkgName, intent=$baseIntent")
+                BumpDeskLog.d(BumpDeskLog.Tag.RECENTS, "getRecentApps", "task id=${task.persistentId} pkg=$pkgName intent=$baseIntent")
 
                 try {
                     val label: String
@@ -130,15 +132,15 @@ class AppManager(private val context: Context) {
                     appInfo.snapshot = getTaskSnapshot(task.persistentId)
                     recentApps.add(appInfo)
                 } catch (e: Exception) {
-                    Log.e("AppManager", "Error processing recent task: $pkgName", e)
+                    BumpDeskLog.fail(BumpDeskLog.Tag.RECENTS, "getRecentApps", "processing task pkg=$pkgName", e)
                 }
             }
         } catch (e: Exception) {
-            Log.e("AppManager", "Error getting recent tasks", e)
+            BumpDeskLog.fail(BumpDeskLog.Tag.RECENTS, "getRecentApps", "query recent tasks failed", e)
         }
 
         if (recentApps.isEmpty() && hasUsageStatsPermission()) {
-            Log.d("AppManager", "Recent tasks list empty, falling back to usage stats")
+            BumpDeskLog.d(BumpDeskLog.Tag.RECENTS, "getRecentApps", "falling back to usage stats")
             recentApps.addAll(getRecentAppsViaUsageStats(limit))
         }
 
