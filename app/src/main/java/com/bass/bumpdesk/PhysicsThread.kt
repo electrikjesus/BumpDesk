@@ -16,12 +16,14 @@ class PhysicsThread(
     private val updateRunnable = object : Runnable {
         override fun run() {
             if (isRunning) {
-                physicsEngine.update(
-                    sceneState.bumpItems,
-                    sceneState.piles,
-                    sceneState.selectedItem,
-                    onBump
-                )
+                sceneState.withReadLock {
+                    physicsEngine.update(
+                        sceneState.bumpItems,
+                        sceneState.piles,
+                        sceneState.selectedItem,
+                        onBump
+                    )
+                }
                 handler?.postDelayed(this, frameTimeMs)
             }
         }

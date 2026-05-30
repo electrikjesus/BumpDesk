@@ -5,6 +5,7 @@ import kotlin.math.sqrt
 
 /**
  * Pure pile/group mutations shared by LauncherActivity, DialogManager, and BumpRenderer.
+ * All list mutations run under SceneState write lock to avoid PhysicsThread CMEs.
  */
 object PileOperations {
 
@@ -15,28 +16,30 @@ object PileOperations {
             return null
         }
 
-        sceneState.bumpItems.removeAll(capturedItems)
-        sceneState.piles.forEach { pile -> pile.items.removeAll(capturedItems) }
-        pruneEmptyPiles(sceneState)
+        return sceneState.withWriteLockResult {
+            sceneState.bumpItems.removeAll(capturedItems)
+            sceneState.piles.forEach { pile -> pile.items.removeAll(capturedItems) }
+            pruneEmptyPilesUnlocked(sceneState)
 
-        val centerX = capturedItems.map { it.transform.position.x }.average().toFloat()
-        val centerZ = capturedItems.map { it.transform.position.z }.average().toFloat()
-        val pile = Pile(
-            items = capturedItems.toMutableList(),
-            position = Vector3(centerX, 0.05f, centerZ)
-        )
-        capturedItems.forEach { item ->
-            item.transform.surface = BumpItem.Surface.FLOOR
-            item.transform.position = item.transform.position.copy(y = 0.05f)
+            val centerX = capturedItems.map { it.transform.position.x }.average().toFloat()
+            val centerZ = capturedItems.map { it.transform.position.z }.average().toFloat()
+            val pile = Pile(
+                items = capturedItems.toMutableList(),
+                position = Vector3(centerX, 0.05f, centerZ)
+            )
+            capturedItems.forEach { item ->
+                item.transform.surface = BumpItem.Surface.FLOOR
+                item.transform.position = item.transform.position.copy(y = 0.05f)
+            }
+            sceneState.piles.add(pile)
+
+            BumpDeskLog.exit(
+                BumpDeskLog.Tag.ICON_GROUP,
+                "createPileFromCaptured",
+                "pile=${pile.name} items=${pile.items.size} piles=${sceneState.piles.size}"
+            )
+            pile
         }
-        sceneState.piles.add(pile)
-
-        BumpDeskLog.exit(
-            BumpDeskLog.Tag.ICON_GROUP,
-            "createPileFromCaptured",
-            "pile=${pile.name} items=${pile.items.size} piles=${sceneState.piles.size}"
-        )
-        return pile
     }
 
     fun addItemToPile(sceneState: SceneState, item: BumpItem, pile: Pile): Boolean {
@@ -49,21 +52,24 @@ object PileOperations {
             BumpDeskLog.w(BumpDeskLog.Tag.ICON_GROUP, "addItemToPile", "skipped | system pile")
             return false
         }
-        if (pile.items.contains(item)) {
-            BumpDeskLog.w(BumpDeskLog.Tag.ICON_GROUP, "addItemToPile", "skipped | already in pile")
-            return false
-        }
 
-        sceneState.bumpItems.remove(item)
-        sceneState.piles.forEach { other ->
-            if (other !== pile) other.items.remove(item)
-        }
-        pile.items.add(item)
-        item.transform.surface = pile.surface
-        item.transform.position = pile.position.copy(y = item.transform.position.y)
+        return sceneState.withWriteLockResult {
+            if (pile.items.contains(item)) {
+                BumpDeskLog.w(BumpDeskLog.Tag.ICON_GROUP, "addItemToPile", "skipped | already in pile")
+                return@withWriteLockResult false
+            }
 
-        BumpDeskLog.exit(BumpDeskLog.Tag.ICON_GROUP, "addItemToPile", "pileSize=${pile.items.size}")
-        return true
+            sceneState.bumpItems.remove(item)
+            sceneState.piles.forEach { other ->
+                if (other !== pile) other.items.remove(item)
+            }
+            pile.items.add(item)
+            item.transform.surface = pile.surface
+            item.transform.position = pile.position.copy(y = item.transform.position.y)
+
+            BumpDeskLog.exit(BumpDeskLog.Tag.ICON_GROUP, "addItemToPile", "pileSize=${pile.items.size}")
+            true
+        }
     }
 
     fun breakPile(sceneState: SceneState, pile: Pile): Int {
@@ -73,24 +79,26 @@ object PileOperations {
             return 0
         }
 
-        val items = pile.items.toList()
-        sceneState.piles.remove(pile)
-        pile.isExpanded = false
+        return sceneState.withWriteLockResult {
+            val items = pile.items.toList()
+            sceneState.piles.remove(pile)
+            pile.isExpanded = false
 
-        items.forEach { item ->
-            if (!sceneState.bumpItems.contains(item)) {
-                sceneState.bumpItems.add(item)
+            items.forEach { item ->
+                if (!sceneState.bumpItems.contains(item)) {
+                    sceneState.bumpItems.add(item)
+                }
+                item.transform.surface = BumpItem.Surface.FLOOR
+                item.transform.position = item.transform.position.copy(
+                    y = 0.05f,
+                    x = item.transform.position.x + (Math.random().toFloat() - 0.5f) * 2f,
+                    z = item.transform.position.z + (Math.random().toFloat() - 0.5f) * 2f
+                )
             }
-            item.transform.surface = BumpItem.Surface.FLOOR
-            item.transform.position = item.transform.position.copy(
-                y = 0.05f,
-                x = item.transform.position.x + (Math.random().toFloat() - 0.5f) * 2f,
-                z = item.transform.position.z + (Math.random().toFloat() - 0.5f) * 2f
-            )
-        }
 
-        BumpDeskLog.exit(BumpDeskLog.Tag.ICON_GROUP, "breakPile", "released=${items.size}")
-        return items.size
+            BumpDeskLog.exit(BumpDeskLog.Tag.ICON_GROUP, "breakPile", "released=${items.size}")
+            items.size
+        }
     }
 
     fun removeItemFromExpandedPile(sceneState: SceneState, pile: Pile, item: BumpItem): Boolean {
@@ -99,46 +107,55 @@ object PileOperations {
             "removeItemFromExpandedPile",
             "pile=${pile.name} item=${item.appInfo?.label ?: item.appearance.type}"
         )
-        if (!pile.isExpanded || !pile.items.contains(item)) {
-            BumpDeskLog.d(BumpDeskLog.Tag.ICON_GROUP, "removeItemFromExpandedPile", "skipped | not expanded or not in pile")
-            return false
-        }
 
-        val dx = item.transform.position.x - pile.position.x
-        val dz = item.transform.position.z - pile.position.z
-        val side = ceil(sqrt(pile.items.size.toDouble())).toInt().coerceAtLeast(1)
-        val spacing = 1.2f
-        val halfDim = ((side * spacing) / 2f + 0.5f) * pile.scale
+        return sceneState.withWriteLockResult {
+            if (!pile.isExpanded || !pile.items.contains(item)) {
+                BumpDeskLog.d(BumpDeskLog.Tag.ICON_GROUP, "removeItemFromExpandedPile", "skipped | not expanded or not in pile")
+                return@withWriteLockResult false
+            }
 
-        if (kotlin.math.abs(dx) <= halfDim && kotlin.math.abs(dz) <= halfDim) {
-            BumpDeskLog.d(BumpDeskLog.Tag.ICON_GROUP, "removeItemFromExpandedPile", "skipped | still inside bounds")
-            return false
-        }
+            val dx = item.transform.position.x - pile.position.x
+            val dz = item.transform.position.z - pile.position.z
+            val side = ceil(sqrt(pile.items.size.toDouble())).toInt().coerceAtLeast(1)
+            val spacing = 1.2f
+            val halfDim = ((side * spacing) / 2f + 0.5f) * pile.scale
 
-        val appInfo = item.appData?.appInfo
-        if (appInfo != null && sceneState.isAlreadyOnDesktop(appInfo)) {
-            BumpDeskLog.w(BumpDeskLog.Tag.ICON_GROUP, "removeItemFromExpandedPile", "skipped | duplicate app on desktop")
-            return false
-        }
+            if (kotlin.math.abs(dx) <= halfDim && kotlin.math.abs(dz) <= halfDim) {
+                BumpDeskLog.d(BumpDeskLog.Tag.ICON_GROUP, "removeItemFromExpandedPile", "skipped | still inside bounds")
+                return@withWriteLockResult false
+            }
 
-        pile.items.remove(item)
-        if (!sceneState.bumpItems.contains(item)) {
-            sceneState.bumpItems.add(item)
-        }
-        if (item.transform.surface == BumpItem.Surface.FLOOR) {
-            item.transform.position = item.transform.position.copy(y = 0.05f)
-        }
-        pruneEmptyPiles(sceneState)
+            val appInfo = item.appData?.appInfo
+            if (appInfo != null && sceneState.isAlreadyOnDesktop(appInfo)) {
+                BumpDeskLog.w(BumpDeskLog.Tag.ICON_GROUP, "removeItemFromExpandedPile", "skipped | duplicate app on desktop")
+                return@withWriteLockResult false
+            }
 
-        BumpDeskLog.exit(
-            BumpDeskLog.Tag.ICON_GROUP,
-            "removeItemFromExpandedPile",
-            "pileSize=${pile.items.size} bumpItems=${sceneState.bumpItems.size}"
-        )
-        return true
+            pile.items.remove(item)
+            if (!sceneState.bumpItems.contains(item)) {
+                sceneState.bumpItems.add(item)
+            }
+            if (item.transform.surface == BumpItem.Surface.FLOOR) {
+                item.transform.position = item.transform.position.copy(y = 0.05f)
+            }
+            pruneEmptyPilesUnlocked(sceneState)
+
+            BumpDeskLog.exit(
+                BumpDeskLog.Tag.ICON_GROUP,
+                "removeItemFromExpandedPile",
+                "pileSize=${pile.items.size} bumpItems=${sceneState.bumpItems.size}"
+            )
+            true
+        }
     }
 
     fun pruneEmptyPiles(sceneState: SceneState) {
+        sceneState.withWriteLock {
+            pruneEmptyPilesUnlocked(sceneState)
+        }
+    }
+
+    private fun pruneEmptyPilesUnlocked(sceneState: SceneState) {
         val removed = sceneState.piles.removeAll { it.items.size < 2 && !it.isSystem }
         if (removed) {
             BumpDeskLog.d(BumpDeskLog.Tag.ICON_GROUP, "pruneEmptyPiles", "removed empty non-system piles")

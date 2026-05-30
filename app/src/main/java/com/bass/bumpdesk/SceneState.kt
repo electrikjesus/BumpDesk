@@ -34,6 +34,7 @@ class SceneState {
     fun withReadLock(action: () -> Unit) = lock.read { action() }
     fun <T> withReadLockResult(action: () -> T): T = lock.read { action() }
     fun withWriteLock(action: () -> Unit) = lock.write { action() }
+    fun <T> withWriteLockResult(action: () -> T): T = lock.write { action() }
 
     fun getPileOf(item: BumpItem): Pile? = lock.read {
         return _piles.find { it.items.contains(item) }
