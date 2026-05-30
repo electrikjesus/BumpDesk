@@ -8,6 +8,8 @@ import android.graphics.Typeface
 import org.json.JSONObject
 
 object ThemeManager {
+    private const val FALLBACK_THEME = "BumpDesk Animated"
+
     var currentThemeName: String = "BumpDesk Animated"
         internal set
         
@@ -127,34 +129,116 @@ object ThemeManager {
 
     fun loadOptionalWidgetTexture(context: Context, textureManager: TextureManager, assetName: String): Int {
         init(context)
-        val themePath = "BumpTop/$currentThemeName/widgets/$assetName"
-        var textureId = loadTextureWithFallback(context, textureManager, "$themePath.svg", 64, 64)
-        if (textureId == -1) {
-            textureId = textureManager.loadTextureFromAsset("$themePath.png")
+        val scrollConfig = themeConfig?.optJSONObject("textures")
+            ?.optJSONObject("widget")
+            ?.optJSONObject("scroll")
+        val configuredName = when (assetName) {
+            "scrollUp" -> scrollConfig?.optString("up", "scrollUp.png")
+            "scrollDown" -> scrollConfig?.optString("down", "scrollDown.png")
+            else -> null
         }
-        return textureId
+
+        val candidates = buildList {
+            configuredName?.let { add("BumpTop/$currentThemeName/widgets/$it") }
+            add("BumpTop/$currentThemeName/widgets/$assetName.svg")
+            add("BumpTop/$currentThemeName/widgets/$assetName.png")
+            add("BumpTop/$FALLBACK_THEME/widgets/$assetName.svg")
+            add("BumpTop/$FALLBACK_THEME/widgets/$assetName.png")
+        }.distinct()
+
+        for (path in candidates) {
+            val textureId = loadTextureWithFallback(context, textureManager, path, 64, 64, silent = true)
+            if (textureId != -1) {
+                return textureId
+            }
+        }
+        return -1
     }
 
-    internal fun loadTextureWithFallback(context: Context, textureManager: TextureManager, assetPath: String, width: Int = 512, height: Int = 512): Int {
+    internal fun loadTextureWithFallback(
+        context: Context,
+        textureManager: TextureManager,
+        assetPath: String,
+        width: Int = 512,
+        height: Int = 512,
+        silent: Boolean = false
+    ): Int {
+        loadTextureAtPath(context, textureManager, assetPath, width, height, silent)?.let { return it }
+
+        val themePrefix = "BumpTop/$currentThemeName/"
+        if (assetPath.startsWith(themePrefix)) {
+            val relativePath = assetPath.removePrefix(themePrefix)
+            val fallbackPath = "BumpTop/$FALLBACK_THEME/$relativePath"
+            loadTextureAtPath(context, textureManager, fallbackPath, width, height, silent)?.let { return it }
+        }
+        return -1
+    }
+
+    private fun loadTextureAtPath(
+        context: Context,
+        textureManager: TextureManager,
+        assetPath: String,
+        width: Int,
+        height: Int,
+        silent: Boolean
+    ): Int? {
+        if (!assetExists(context, assetPath)) {
+            return null
+        }
+
         if (assetPath.endsWith(".svg")) {
             try {
-                val inputStream = context.assets.open(assetPath)
-                val bitmap = TextureUtils.getBitmapFromSvg(inputStream, width, height)
-                if (bitmap != null) {
-                    val id = textureManager.loadTextureFromBitmap(bitmap, assetPath)
-                    bitmap.recycle()
-                    return id
+                context.assets.open(assetPath).use { inputStream ->
+                    val bitmap = TextureUtils.getBitmapFromSvg(inputStream, width, height)
+                    if (bitmap != null) {
+                        val id = textureManager.loadTextureFromBitmap(bitmap, assetPath)
+                        bitmap.recycle()
+                        return id
+                    }
                 }
-            } catch (e: Exception) {}
+            } catch (e: Exception) {
+                if (!silent) {
+                    BumpDeskLog.w(BumpDeskLog.Tag.THEME, "loadTextureAtPath", "svg failed: $assetPath")
+                }
+            }
         }
-        
-        return textureManager.loadTextureFromAsset(assetPath)
+
+        val textureId = textureManager.loadTextureFromAsset(assetPath, silent)
+        return textureId.takeIf { it != -1 }
+    }
+
+    private fun assetExists(context: Context, assetPath: String): Boolean {
+        return try {
+            context.assets.open(assetPath).close()
+            true
+        } catch (e: Exception) {
+            false
+        }
     }
     
     fun getShaderCode(context: Context, type: String): String? {
-        val fileName = themeConfig?.optJSONObject("shaders")?.optString(type) ?: return null
+        val fileName = themeConfig?.optJSONObject("shaders")?.optString(type)
+            ?: loadFallbackThemeConfig(context)?.optJSONObject("shaders")?.optString(type)
+            ?: return null
+        return readShaderAsset(context, currentThemeName, fileName)
+            ?: readShaderAsset(context, FALLBACK_THEME, fileName)
+    }
+
+    private fun loadFallbackThemeConfig(context: Context): JSONObject? {
+        if (currentThemeName == FALLBACK_THEME) return null
         return try {
-            context.assets.open("BumpTop/$currentThemeName/$fileName").bufferedReader().use { it.readText() }
+            val jsonString = context.assets.open("BumpTop/$FALLBACK_THEME/theme.json").bufferedReader().use { it.readText() }
+            JSONObject(jsonString.replace(Regex("(?<!:)//.*"), ""))
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun readShaderAsset(context: Context, themeName: String, fileName: String): String? {
+        val path = "BumpTop/$themeName/$fileName"
+        if (!assetExists(context, path)) return null
+        return try {
+            context.assets.open(path).bufferedReader().use { it.readText() }
         } catch (e: Exception) {
             null
         }

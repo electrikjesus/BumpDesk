@@ -31,7 +31,7 @@ class TextureManager(private val context: Context) {
         }
     }
 
-    fun loadTextureFromAsset(fileName: String): Int {
+    fun loadTextureFromAsset(fileName: String, silent: Boolean = false): Int {
         textureCache.get(fileName)?.let { return it }
 
         return try {
@@ -41,7 +41,9 @@ class TextureManager(private val context: Context) {
             bitmap.recycle()
             textureId
         } catch (e: Exception) {
-            Log.e("TextureManager", "Error loading texture $fileName", e)
+            if (!silent) {
+                Log.e("TextureManager", "Error loading texture $fileName", e)
+            }
             -1
         }
     }
