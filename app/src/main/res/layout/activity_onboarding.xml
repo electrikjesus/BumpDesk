@@ -54,7 +54,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:layout_marginBottom="32dp">
+        android:layout_marginBottom="16dp">
         <ImageView
             android:layout_width="24dp"
             android:layout_height="24dp"
@@ -64,6 +64,24 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Usage Stats: To provide the Recents Pile feature."
+            android:textColor="#FFFFFF"
+            android:layout_marginStart="16dp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginBottom="32dp">
+        <ImageView
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@android:drawable/ic_menu_gallery"
+            android:tint="#448AFF" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Photos Access: To use your system wallpaper as the floor."
             android:textColor="#FFFFFF"
             android:layout_marginStart="16dp" />
     </LinearLayout>

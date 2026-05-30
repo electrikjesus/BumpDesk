@@ -6,9 +6,23 @@ import android.os.Bundle
 import android.provider.Settings
 import android.widget.Button
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 
 class OnboardingActivity : AppCompatActivity() {
+
+    private val usageAccessLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        requestWallpaperPermissionIfNeeded()
+    }
+
+    private val wallpaperPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) {
+        completeOnboarding()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_onboarding)
@@ -17,7 +31,6 @@ class OnboardingActivity : AppCompatActivity() {
             try {
                 startActivity(Intent(Settings.ACTION_HOME_SETTINGS))
             } catch (e: Exception) {
-                // Fallback for older Android versions or custom ROMs
                 try {
                     startActivity(Intent(Settings.ACTION_SETTINGS))
                     Toast.makeText(this, "Go to 'Apps' -> 'Default Apps' to set BumpDesk as Home", Toast.LENGTH_LONG).show()
@@ -28,40 +41,58 @@ class OnboardingActivity : AppCompatActivity() {
         }
 
         findViewById<Button>(R.id.btnGetStarted).setOnClickListener {
-            val appManager = AppManager(this)
-            
-            if (!appManager.hasUsageStatsPermission()) {
-                showPermissionPrompt()
-            } else {
-                completeOnboarding()
-            }
+            beginSetup()
         }
     }
 
-    private fun showPermissionPrompt() {
+    private fun beginSetup() {
+        val appManager = AppManager(this)
+        if (!appManager.hasUsageStatsPermission()) {
+            showUsageStatsPrompt()
+        } else {
+            requestWallpaperPermissionIfNeeded()
+        }
+    }
+
+    private fun showUsageStatsPrompt() {
         androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("Permission Required")
-            .setMessage("BumpDesk requires 'Usage Access' to provide the Recents Pile and other desktop features. Please enable it in the next screen.")
+            .setTitle("Usage Access")
+            .setMessage("BumpDesk needs Usage Access to show recent apps in the Recents pile. You can enable this on the next screen.")
             .setPositiveButton("Open Settings") { _, _ ->
                 try {
-                    startActivityForResult(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS), 1001)
+                    usageAccessLauncher.launch(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
                 } catch (e: Exception) {
                     Toast.makeText(this, "Could not open settings", Toast.LENGTH_SHORT).show()
-                    completeOnboarding()
+                    requestWallpaperPermissionIfNeeded()
                 }
+            }
+            .setNegativeButton("Skip") { _, _ ->
+                requestWallpaperPermissionIfNeeded()
+            }
+            .setCancelable(false)
+            .show()
+    }
+
+    private fun requestWallpaperPermissionIfNeeded() {
+        if (WallpaperPermissions.hasAccess(this)) {
+            completeOnboarding()
+            return
+        }
+
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Photos Access")
+            .setMessage(
+                "BumpDesk can use your system wallpaper as the floor texture. " +
+                    "Allow photos/media access so that option works from Settings."
+            )
+            .setPositiveButton("Allow") { _, _ ->
+                wallpaperPermissionLauncher.launch(WallpaperPermissions.requiredPermissions())
             }
             .setNegativeButton("Skip") { _, _ ->
                 completeOnboarding()
             }
             .setCancelable(false)
             .show()
-    }
-
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == 1001) {
-            completeOnboarding()
-        }
     }
 
     private fun completeOnboarding() {
