@@ -109,13 +109,26 @@ class ActionHandler(private val context: Context, private val glSurfaceView: GLS
         }
     }
 
+    fun minimizeTask(taskId: Int) {
+        if (taskId == -1) return
+        val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        try {
+            val moveTaskToBack = am.javaClass.getMethod(
+                "moveTaskToBack",
+                Int::class.javaPrimitiveType,
+                Boolean::class.javaPrimitiveType,
+            )
+            moveTaskToBack.invoke(am, taskId, false)
+            Log.d("ActionHandler", "Minimized task: $taskId")
+        } catch (e: Exception) {
+            Log.w("ActionHandler", "Failed to minimize task $taskId: ${e.message}")
+        }
+    }
+
     fun handleIntent(intent: Intent, onShowResetButton: (Boolean) -> Unit) {
         if (intent.action == LauncherActivity.ACTION_RECENTS) {
             glSurfaceView.queueEvent {
-                renderer.sceneState.recentsPile?.let {
-                    renderer.camera.focusOnWall(CameraManager.ViewMode.BACK_WALL, floatArrayOf(0f, 4f, 2f), floatArrayOf(0f, 4f, -renderer.ROOM_SIZE))
-                    onShowResetButton(true)
-                }
+                renderer.focusRecentsPile(onShowResetButton)
             }
         }
     }

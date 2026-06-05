@@ -152,6 +152,7 @@ class AppManager(private val context: Context) {
             recentApps.addAll(getRecentAppsViaUsageStats(limit))
         }
 
+        RecentsSnapshotCapability.updateFromRecents(recentApps)
         return recentApps
     }
 

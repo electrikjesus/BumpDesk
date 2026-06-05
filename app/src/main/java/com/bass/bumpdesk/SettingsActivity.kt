@@ -69,7 +69,7 @@ class SettingsActivity : AppCompatActivity() {
             adapter = ArrayAdapter(
                 this@SettingsActivity,
                 android.R.layout.simple_spinner_dropdown_item,
-                listOf("Icon grid", "Task cards with controls"),
+                listOf("Icon grid (default)", "Task cards (experimental)"),
             )
             setSelection(
                 if (prefs.getString(RecentsPreferences.PREF_VIEW_MODE, RecentsPreferences.VIEW_ICONS) ==
@@ -100,6 +100,7 @@ class SettingsActivity : AppCompatActivity() {
                 override fun onNothingSelected(parent: AdapterView<*>?) = Unit
             }
         }
+        updateRecentsSnapshotStatus()
 
         findViewById<CheckBox>(R.id.cbShowAppDrawerIcon).apply {
             isChecked = prefs.getBoolean("show_app_drawer_icon", true)
@@ -322,5 +323,15 @@ class SettingsActivity : AppCompatActivity() {
                 findViewById<CheckBox>(R.id.cbShowRecentApps).isChecked = false
             }
             .show()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        updateRecentsSnapshotStatus()
+    }
+
+    private fun updateRecentsSnapshotStatus() {
+        findViewById<TextView>(R.id.tvRecentsSnapshotStatus)?.text =
+            RecentsSnapshotCapability.settingsLabel(this)
     }
 }
