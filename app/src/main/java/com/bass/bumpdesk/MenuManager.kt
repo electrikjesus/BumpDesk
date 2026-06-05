@@ -114,10 +114,75 @@ class MenuManager(
         radialMenu.setItems(menuItems, x, y, { it.action?.invoke() }, {})
     }
 
+    fun showRecentsMenu(x: Float, y: Float, pile: Pile) {
+        glSurfaceView.queueEvent {
+            pile.reconcilePinnedOpenState()
+            glSurfaceView.requestRender()
+        }
+        val menuItems = mutableListOf<RadialMenuItem>()
+
+        val pinText = if (pile.isPinnedOpen) "Unpin Open" else "Pin Open"
+        menuItems.add(RadialMenuItem(pinText, android.R.drawable.ic_menu_mylocation) {
+            glSurfaceView.queueEvent { renderer.toggleRecentsPinnedOpen() }
+        })
+
+        val viewText = if (pile.recentsViewMode == Pile.RecentsViewMode.TASK_CARDS) {
+            "Show Icons"
+        } else {
+            "Show Task Cards"
+        }
+        menuItems.add(RadialMenuItem(viewText, android.R.drawable.ic_menu_gallery) {
+            glSurfaceView.queueEvent {
+                RecentsPreferences.toggleViewMode(pile, context)
+                if (pile.isPinnedOpen) {
+                    pile.isExpanded = true
+                }
+                glSurfaceView.requestRender()
+            }
+        })
+
+        if (pile.layoutAsExpandedDrawer()) {
+            menuItems.add(RadialMenuItem("Collapse", android.R.drawable.ic_menu_close_clear_cancel) {
+                glSurfaceView.queueEvent { renderer.collapseRecentsDrawer() }
+            })
+        } else {
+            menuItems.add(RadialMenuItem("Expand", android.R.drawable.ic_menu_view) {
+                glSurfaceView.queueEvent { renderer.handleSingleTap(x, y) }
+            })
+        }
+
+        menuItems.add(RadialMenuItem("Grow", android.R.drawable.ic_input_add) {
+            glSurfaceView.queueEvent {
+                pile.scale = (pile.scale * 1.25f).coerceAtMost(3.0f)
+                RecentsPreferences.saveFromPile(pile, context.getSharedPreferences("bump_prefs", Context.MODE_PRIVATE))
+                glSurfaceView.requestRender()
+            }
+        })
+        menuItems.add(RadialMenuItem("Shrink", android.R.drawable.ic_input_delete) {
+            glSurfaceView.queueEvent {
+                pile.scale = (pile.scale / 1.25f).coerceAtLeast(0.5f)
+                RecentsPreferences.saveFromPile(pile, context.getSharedPreferences("bump_prefs", Context.MODE_PRIVATE))
+                glSurfaceView.requestRender()
+            }
+        })
+
+        radialMenu.setItems(menuItems, x, y, { it.action?.invoke() }, {})
+    }
+
     fun showWidgetMenu(x: Float, y: Float, widget: WidgetItem) {
         val menuItems = mutableListOf<RadialMenuItem>()
         menuItems.add(RadialMenuItem("Move", android.R.drawable.ic_menu_mylocation) {
             // Already handled by being the selectedWidget in InteractionManager
+        })
+        menuItems.add(RadialMenuItem("Scale Up", android.R.drawable.ic_input_add) {
+            glSurfaceView.queueEvent {
+                renderer.scaleWidget(widget, 1.25f)
+            }
+        })
+        menuItems.add(RadialMenuItem("Scale Down", android.R.drawable.ic_input_delete) {
+            glSurfaceView.queueEvent {
+                renderer.scaleWidget(widget, 1f / 1.25f)
+            }
         })
         menuItems.add(RadialMenuItem("Set As Default View", android.R.drawable.ic_menu_camera) {
             glSurfaceView.queueEvent { renderer.saveCustomCameraDefault() }

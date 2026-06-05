@@ -92,7 +92,7 @@ class OverlayRenderer(private val shader: DefaultShader) {
         roomHalfZ: Float,
     ) {
         val data = FolderDrawerStyle.layout(pile, roomHalfX, roomHalfZ)
-        val totalPages = FolderDrawerStyle.totalPages(pile.items.size)
+        val totalPages = FolderDrawerStyle.totalPages(pile)
         val currentPage = pile.scrollIndex
         val material = FolderDrawerStyle.usesMaterialChrome(pile)
         val buttonSize = FolderDrawerStyle.touchButtonSize(data.halfDimX, pile.scale)

@@ -94,13 +94,21 @@ class AppManager(private val context: Context) {
 
         try {
             @Suppress("DEPRECATION")
-            val tasks = am.getRecentTasks(limit, ActivityManager.RECENT_IGNORE_UNAVAILABLE)
+            val tasks = am.getRecentTasks(limit * 4, ActivityManager.RECENT_IGNORE_UNAVAILABLE)
             tasks.forEach { task ->
                 val baseIntent = task.baseIntent
                 val component = baseIntent.component
-                
+
                 val pkgName = component?.packageName ?: baseIntent.`package` ?: ""
-                if (pkgName.isEmpty() || pkgName == context.packageName) return@forEach
+                if (!RecentTasksFilter.shouldIncludeTask(context, baseIntent, pkgName, context.packageName)) {
+                    BumpDeskLog.d(
+                        BumpDeskLog.Tag.RECENTS,
+                        "getRecentApps",
+                        "filtered task id=${task.persistentId} pkg=$pkgName",
+                    )
+                    return@forEach
+                }
+                if (recentApps.size >= limit) return@forEach
 
                 BumpDeskLog.d(BumpDeskLog.Tag.RECENTS, "getRecentApps", "task id=${task.persistentId} pkg=$pkgName intent=$baseIntent")
 
@@ -165,7 +173,9 @@ class AppManager(private val context: Context) {
             for (usageStat in sortedStats) {
                 if (recentApps.size >= limit) break
                 val pkgName = usageStat.packageName
-                if (pkgName == context.packageName) continue
+                if (!RecentTasksFilter.shouldIncludeUsagePackage(context, pkgName, context.packageName)) {
+                    continue
+                }
                 
                 try {
                     val appInfoObj = packageManager.getApplicationInfo(pkgName, 0)

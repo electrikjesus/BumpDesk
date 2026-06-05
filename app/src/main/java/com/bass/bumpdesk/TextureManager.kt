@@ -87,10 +87,16 @@ class TextureManager(private val context: Context) {
     }
 
     fun updateTextureFromBitmap(textureId: Int, bitmap: Bitmap) {
-        if (textureId <= 0) return
+        if (textureId <= 0 || bitmap.isRecycled) return
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureId)
         GLUtils.texSubImage2D(GLES20.GL_TEXTURE_2D, 0, 0, 0, bitmap)
         GLES20.glGenerateMipmap(GLES20.GL_TEXTURE_2D)
+    }
+
+    fun deleteTexture(textureId: Int) {
+        if (textureId <= 0) return
+        GLES20.glDeleteTextures(1, intArrayOf(textureId), 0)
+        allTextures.remove(textureId)
     }
 
     fun evictCachedTexture(key: String) {

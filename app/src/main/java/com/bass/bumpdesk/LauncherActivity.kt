@@ -1,6 +1,7 @@
 package com.bass.bumpdesk
 
 import android.appwidget.AppWidgetHost
+import android.appwidget.AppWidgetHostView
 import android.appwidget.AppWidgetManager
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -35,7 +36,7 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
     private lateinit var widgetContainer: FrameLayout
     
     private lateinit var appWidgetManager: AppWidgetManager
-    private lateinit var appWidgetHost: AppWidgetHost
+    private lateinit var appWidgetHost: BumpAppWidgetHost
     
     private lateinit var appManager: AppManager
     private lateinit var menuManager: MenuManager
@@ -109,7 +110,6 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
         setContentView(R.layout.activity_launcher)
 
         appWidgetManager = AppWidgetManager.getInstance(this)
-        appWidgetHost = AppWidgetHost(this, APPWIDGET_HOST_ID)
         appManager = AppManager(this)
 
         glSurfaceView = findViewById(R.id.glSurfaceView)
@@ -119,6 +119,16 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
         renderer = BumpRenderer(this)
         renderer.glSurfaceView = glSurfaceView
         glSurfaceView.setRenderer(renderer)
+
+        appWidgetHost = BumpAppWidgetHost(this, APPWIDGET_HOST_ID) { appWidgetId ->
+            if (!::renderer.isInitialized || !::glSurfaceView.isInitialized) return@BumpAppWidgetHost
+            glSurfaceView.queueEvent {
+                renderer.sceneState.widgetItems.find { it.appWidgetId == appWidgetId }?.let { widget ->
+                    widget.textureId = -1
+                }
+                glSurfaceView.requestRender()
+            }
+        }
         CameraDiagnostics.logProbe(this, "launcherReady")
         CameraDiagnostics.log(renderer.camera, "launcherReady", "afterRendererInit")
 
@@ -181,6 +191,12 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
                 BumpDeskLog.exit(BumpDeskLog.Tag.CORE, "onSharedPreferenceChanged", "key=$key deferred")
             }
             "show_recent_apps" -> {
+                pendingSettingsUpdate = true
+                if (lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) {
+                    applyPendingPreferenceUpdates(sharedPreferences)
+                }
+            }
+            RecentsPreferences.PREF_VIEW_MODE, RecentsPreferences.PREF_PINNED_OPEN -> {
                 pendingSettingsUpdate = true
                 if (lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) {
                     applyPendingPreferenceUpdates(sharedPreferences)
@@ -526,6 +542,7 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
 
     fun showItemMenu(x: Float, y: Float, item: BumpItem) = runOnUiThread { menuManager.showItemMenu(x, y, item) }
     fun showPileMenu(x: Float, y: Float, pile: Pile, onBreak: () -> Unit) = runOnUiThread { menuManager.showPileMenu(x, y, pile, onBreak) }
+    fun showRecentsMenu(x: Float, y: Float, pile: Pile) = runOnUiThread { menuManager.showRecentsMenu(x, y, pile) }
     fun showWidgetMenu(x: Float, y: Float, widget: WidgetItem) = runOnUiThread { menuManager.showWidgetMenu(x, y, widget) }
     fun showLassoMenu(x: Float, y: Float, selectedItems: List<BumpItem>) = runOnUiThread { menuManager.showLassoMenu(x, y, selectedItems) }
     fun showDesktopMenu(x: Float, y: Float) = runOnUiThread { menuManager.showDesktopMenu(x, y) }
@@ -610,11 +627,96 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
         else addWidgetToRenderer(id)
     }
     private fun addWidgetToRenderer(id: Int) {
-        val info = appWidgetManager.getAppWidgetInfo(id) ?: return
+        val info = appWidgetManager.getAppWidgetInfo(id) ?: run {
+            BumpDeskLog.w(BumpDeskLog.Tag.WIDGET, "addWidgetToRenderer", "no provider info id=$id")
+            return
+        }
         val view = appWidgetHost.createView(ContextThemeWrapper(applicationContext, R.style.Theme_BumpDesk), id, info)
         widgetContainer.addView(view)
+        BumpDeskLog.d(BumpDeskLog.Tag.WIDGET, "addWidgetToRenderer", "id=$id provider=${info.provider.className}")
         if (::renderer.isInitialized) {
-            glSurfaceView.queueEvent { renderer.addWidgetAt(id, view, initialTouchX, initialTouchY) }
+            glSurfaceView.queueEvent {
+                renderer.addWidgetAt(id, view, initialTouchX, initialTouchY)
+                glSurfaceView.post { configureWidgetHostView(id) }
+            }
+        }
+    }
+
+    fun configureWidgetHostView(appWidgetId: Int, invalidateTexture: Boolean = true) {
+        if (!::renderer.isInitialized) return
+        val view = renderer.sceneState.widgetViews[appWidgetId] ?: return
+        val widget = renderer.sceneState.widgetItems.find { it.appWidgetId == appWidgetId } ?: return
+        val info = appWidgetManager.getAppWidgetInfo(appWidgetId) ?: return
+        widget.size = WidgetUtils.normalizeGridSize(info, widget.size)
+        WidgetUtils.configureHostView(view, this, info, widget)
+        if (invalidateTexture) {
+            widget.textureId = -1
+        }
+        glSurfaceView.requestRender()
+    }
+
+    fun onWidgetResizeFinished(widget: WidgetItem) {
+        if (!::renderer.isInitialized) return
+        glSurfaceView.queueEvent {
+            renderer.refreshWidgetAfterResize(widget)
+        }
+    }
+
+    fun releaseWidgetHost(appWidgetId: Int, view: AppWidgetHostView?) {
+        view?.let { widgetContainer.removeView(it) }
+        WidgetCaptureCoordinator.clear(appWidgetId)
+        appWidgetHost.deleteAppWidgetId(appWidgetId)
+    }
+
+    fun restoreSavedWidgets() {
+        if (!::renderer.isInitialized || !::appWidgetHost.isInitialized) return
+        glSurfaceView.queueEvent {
+            val widgetIds = renderer.sceneState.widgetItems.map { it.appWidgetId }.toList()
+            glSurfaceView.post {
+                widgetIds.forEach { restoreSavedWidget(it) }
+            }
+        }
+    }
+
+    private fun restoreSavedWidget(id: Int) {
+        if (renderer.sceneState.widgetViews.containsKey(id)) return
+        val info = appWidgetManager.getAppWidgetInfo(id)
+        if (info == null) {
+            BumpDeskLog.w(BumpDeskLog.Tag.WIDGET, "restoreSavedWidget", "missing provider info id=$id")
+            return
+        }
+        try {
+            val view = appWidgetHost.createView(
+                ContextThemeWrapper(applicationContext, R.style.Theme_BumpDesk),
+                id,
+                info,
+            )
+            widgetContainer.addView(view)
+            glSurfaceView.queueEvent {
+                renderer.sceneState.widgetViews[id] = view
+                renderer.sceneState.widgetItems.find { it.appWidgetId == id }?.let { widget ->
+                    if (widget.aspectRatio <= 0.01f) {
+                        widget.aspectRatio = WidgetUtils.aspectRatioFromProvider(info)
+                    }
+                    if (widget.size.x <= 0.01f || widget.size.z <= 0.01f ||
+                        WidgetUtils.needsAspectCorrection(info, widget.size)
+                    ) {
+                        widget.size = WidgetUtils.defaultWorldSize(info)
+                    } else {
+                        widget.size = WidgetUtils.normalizeGridSize(info, widget.size)
+                    }
+                    widget.textureId = -1
+                }
+                glSurfaceView.requestRender()
+                BumpDeskLog.d(
+                    BumpDeskLog.Tag.WIDGET,
+                    "restoreSavedWidget",
+                    "id=$id provider=${info.provider.className}",
+                )
+                glSurfaceView.post { configureWidgetHostView(id) }
+            }
+        } catch (e: Exception) {
+            BumpDeskLog.fail(BumpDeskLog.Tag.WIDGET, "restoreSavedWidget", "id=$id ${e.message}", e)
         }
     }
 

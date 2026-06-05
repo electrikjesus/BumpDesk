@@ -79,7 +79,7 @@ class DeskRepository(context: Context) {
                     sizeZ = widget.size.z,
                     surface = widget.surface.name,
                     isPinned = true,
-                    scale = 1.0f,
+                    scale = widget.scale,
                 ),
             )
         }
@@ -142,7 +142,8 @@ class DeskRepository(context: Context) {
                         appWidgetId = saved.appWidgetId ?: 0,
                         position = Vector3(saved.posX, saved.posY, saved.posZ),
                         size = Vector3(saved.sizeX, 0f, saved.sizeZ),
-                        surface = BumpItem.Surface.valueOf(saved.surface)
+                        surface = BumpItem.Surface.valueOf(saved.surface),
+                        scale = saved.scale.coerceIn(0.5f, 2.5f),
                     ))
                 }
                 else -> {

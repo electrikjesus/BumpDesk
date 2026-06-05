@@ -64,18 +64,38 @@ object TextRenderer {
         backgroundColor: Int = Color.rgb(62, 68, 82),
         foregroundColor: Int = Color.WHITE,
     ): Bitmap {
+        return createMaterialHandleBitmap(glyph, size, backgroundColor, foregroundColor)
+    }
+
+    /** Rounded Material-style control for widget move/resize handles. */
+    fun createMaterialHandleBitmap(
+        glyph: String,
+        size: Int = 192,
+        backgroundColor: Int = Color.rgb(62, 68, 82),
+        foregroundColor: Int = Color.WHITE,
+        strokeColor: Int = Color.argb(90, 180, 190, 210),
+    ): Bitmap {
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
-        val radius = size * 0.28f
+        val radius = size * 0.32f
+        val rect = RectF(size * 0.04f, size * 0.04f, size * 0.96f, size * 0.96f)
+
         val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = backgroundColor
             style = Paint.Style.FILL
         }
-        canvas.drawRoundRect(RectF(0f, 0f, size.toFloat(), size.toFloat()), radius, radius, bgPaint)
+        canvas.drawRoundRect(rect, radius, radius, bgPaint)
+
+        val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = strokeColor
+            style = Paint.Style.STROKE
+            strokeWidth = size * 0.035f
+        }
+        canvas.drawRoundRect(rect, radius, radius, strokePaint)
 
         val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = foregroundColor
-            textSize = size * 0.46f
+            textSize = size * 0.42f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             textAlign = Paint.Align.CENTER
         }

@@ -57,4 +57,15 @@ class FolderDrawerStyleTest {
         assertEquals(0f, layout.pos[0], 0.01f)
         assertEquals(0f, layout.pos[2], 0.01f)
     }
+
+    @Test
+    fun recentsUsesFourItemPages() {
+        val pile = Pile(
+            items = MutableList(5) { BumpItem(type = BumpItem.Type.RECENT_APP) },
+            name = "Recents",
+            isSystem = true,
+        )
+        assertEquals(2, FolderDrawerStyle.totalPages(pile))
+        assertEquals(4, FolderDrawerStyle.itemsPerPage(pile))
+    }
 }

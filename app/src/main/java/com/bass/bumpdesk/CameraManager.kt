@@ -256,6 +256,14 @@ class CameraManager {
         )
     }
 
+    fun syncSavedViewFromCurrent() {
+        savedPos = targetPos.clone()
+        savedLookAt = targetLookAt.clone()
+        savedViewMode = currentViewMode
+        savedZoomLevel = zoomLevel
+        savedFieldOfView = fieldOfView
+    }
+
     private fun saveCurrentView() {
         if (currentViewMode != ViewMode.FOLDER_EXPANDED && currentViewMode != ViewMode.WIDGET_FOCUS) {
             savedPos = targetPos.clone()
@@ -362,7 +370,7 @@ class CameraManager {
 
     fun focusOnWidget(widget: WidgetItem) {
         saveCurrentView()
-        val maxDim = max(widget.size.x, widget.size.z)
+        val maxDim = max(widget.size.x * widget.scale, widget.size.z * widget.scale)
         val dist = (maxDim * 2.5f).coerceIn(4f, 15f)
         
         when (widget.surface) {

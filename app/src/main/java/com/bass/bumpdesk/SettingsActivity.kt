@@ -65,6 +65,42 @@ class SettingsActivity : AppCompatActivity() {
             }
         }
 
+        findViewById<Spinner>(R.id.spRecentsViewMode).apply {
+            adapter = ArrayAdapter(
+                this@SettingsActivity,
+                android.R.layout.simple_spinner_dropdown_item,
+                listOf("Icon grid", "Task cards with controls"),
+            )
+            setSelection(
+                if (prefs.getString(RecentsPreferences.PREF_VIEW_MODE, RecentsPreferences.VIEW_ICONS) ==
+                    RecentsPreferences.VIEW_TASK_CARDS
+                ) {
+                    1
+                } else {
+                    0
+                },
+            )
+            onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(
+                    parent: AdapterView<*>?,
+                    view: android.view.View?,
+                    position: Int,
+                    id: Long,
+                ) {
+                    val mode = if (position == 1) {
+                        RecentsPreferences.VIEW_TASK_CARDS
+                    } else {
+                        RecentsPreferences.VIEW_ICONS
+                    }
+                    if (prefs.getString(RecentsPreferences.PREF_VIEW_MODE, RecentsPreferences.VIEW_ICONS) != mode) {
+                        prefs.edit().putString(RecentsPreferences.PREF_VIEW_MODE, mode).apply()
+                    }
+                }
+
+                override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+            }
+        }
+
         findViewById<CheckBox>(R.id.cbShowAppDrawerIcon).apply {
             isChecked = prefs.getBoolean("show_app_drawer_icon", true)
             setOnCheckedChangeListener { _, isChecked -> 

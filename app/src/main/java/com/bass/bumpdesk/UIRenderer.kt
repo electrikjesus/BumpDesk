@@ -27,8 +27,14 @@ class UIRenderer(
             drawSearchQuery(vPMatrix, searchQuery, textureManager, camera)
         }
 
-        val activePile = sceneState.piles.find { it.isExpanded }
-        if (camera.currentViewMode == CameraManager.ViewMode.FOLDER_EXPANDED && activePile != null) {
+        sceneState.recentsPile?.reconcilePinnedOpenState()
+
+        val activePile = sceneState.piles.find {
+            it.layoutAsExpandedDrawer() && camera.currentViewMode == CameraManager.ViewMode.FOLDER_EXPANDED
+        } ?: sceneState.piles.find { it.showsDesktopPinnedDrawer() }
+        if (activePile != null &&
+            (camera.currentViewMode == CameraManager.ViewMode.FOLDER_EXPANDED || activePile.showsDesktopPinnedDrawer())
+        ) {
             ensureFolderTitle(activePile, textureManager)
             overlayRenderer.drawFolderUI(
                 vPMatrix,
@@ -50,8 +56,10 @@ class UIRenderer(
             )
         }
         
-        sceneState.recentsPile?.let { 
-            overlayRenderer.drawRecentsOverlay(vPMatrix, it, textures.arrowLeft, textures.arrowRight, lightPos) 
+        sceneState.recentsPile?.let { pile ->
+            if (pile.isRecentsPile() && pile.surface == BumpItem.Surface.BACK_WALL && !pile.layoutAsExpandedDrawer()) {
+                overlayRenderer.drawRecentsOverlay(vPMatrix, pile, textures.arrowLeft, textures.arrowRight, lightPos)
+            }
         }
     }
 

@@ -3,6 +3,7 @@ package com.bass.bumpdesk
 import android.content.Context
 import android.view.MotionEvent
 import android.appwidget.AppWidgetHostView
+import android.appwidget.AppWidgetManager
 import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.sqrt
@@ -35,6 +36,8 @@ class InteractionManager(
     private val undoManager = UndoManager()
     private var dragStartPos: Vector3? = null
     private var dragStartSurface: BumpItem.Surface? = null
+    private var draggingPile: Pile? = null
+    private var draggingPileStartPos: Vector3? = null
 
     // For leafing gesture
     private var isLeafing = false
@@ -45,6 +48,7 @@ class InteractionManager(
     private var resizeWidget: WidgetItem? = null
     private var resizeStartSize: Vector3? = null
     private var resizeStartPos: Vector3? = null
+    private var widgetDragGrabOffset: Vector3? = null
 
     // For widget interaction
     private var activeInteractingWidget: WidgetItem? = null
@@ -72,6 +76,8 @@ class InteractionManager(
         lassoStartPoint = null
         activeInteractingWidget = null
         activeWidgetView = null
+        draggingPile = null
+        draggingPileStartPos = null
         
         val rS = FloatArray(4)
         val rE = FloatArray(4)
@@ -81,9 +87,17 @@ class InteractionManager(
         val widgetHit = findIntersectingWidget(rS, rE, sceneState.widgetItems)
         if (widgetHit != null) {
             val widget = widgetHit.first
+            val widgetUv = widgetSurfaceUv(widget, rS, rE)
+            if (widgetUv != null && WidgetHandleStyle.isTouchOnHandle(widget, widgetUv.first, widgetUv.second, WidgetHandleStyle.Kind.MOVE)) {
+                sceneState.selectedWidget = widget
+                beginWidgetDrag(widget, x, y)
+                isDragging = true
+                return widget
+            }
             if (isTouchOnResizeHandle(widget, rS, rE)) {
                 isResizingWidget = true
                 resizeWidget = widget
+                sceneState.selectedWidget = widget
                 resizeStartSize = widget.size.copy()
                 resizeStartPos = getWidgetPoint(widget, x, y)
                 return widget
@@ -97,8 +111,18 @@ class InteractionManager(
             }
         }
 
+        val pinnedRecents = findPinnedOpenRecentsDrawerHit(rS, rE, sceneState)
+        if (pinnedRecents != null) {
+            draggingPile = pinnedRecents
+            draggingPileStartPos = pinnedRecents.position.copy()
+            sceneState.selectedItem = null
+            sceneState.selectedWidget = widgetHit?.first
+            return pinnedRecents
+        }
+
         sceneState.selectedItem = findIntersectingItem(rS, rE, sceneState.bumpItems, sceneState.piles)
         sceneState.selectedWidget = widgetHit?.first
+        widgetHit?.first?.let { beginWidgetDrag(it, x, y) }
 
         sceneState.selectedItem?.let {
             dragStartPos = it.transform.position.copy()
@@ -137,6 +161,9 @@ class InteractionManager(
         
         if (dxTouch > touchThreshold || dyTouch > touchThreshold) {
             if (!isDragging && !isLeafing && !isResizingWidget) {
+                if (draggingPile != null) {
+                    isDragging = true
+                } else {
                 val selectedItem = sceneState.selectedItem
                 if (selectedItem != null) {
                     val pile = sceneState.getPileOf(selectedItem)
@@ -154,6 +181,7 @@ class InteractionManager(
                         isLassoPending = false
                     }
                 }
+                }
             }
         }
         
@@ -165,10 +193,18 @@ class InteractionManager(
                 val du = point.x - start.x
                 val dv = point.z - start.z
                 resizeStartSize?.let { size ->
-                    resizeWidget!!.size = size.copy(
-                        x = (size.x + du).coerceIn(1.0f, 5.0f),
-                        z = (size.z + dv).coerceIn(1.0f, 5.0f)
-                    )
+                    val info = context?.let { ctx ->
+                        AppWidgetManager.getInstance(ctx).getAppWidgetInfo(resizeWidget!!.appWidgetId)
+                    }
+                    if (info != null) {
+                        val scale = resizeWidget!!.scale
+                        resizeWidget!!.size = WidgetUtils.computeResizedSize(
+                            startSize = size,
+                            du = du / scale,
+                            dv = dv / scale,
+                            info = info,
+                        )
+                    }
                 }
             }
             return true
@@ -186,6 +222,24 @@ class InteractionManager(
                     }
                     leafStartY = y
                     return true
+                }
+            }
+            return false
+        }
+
+        if (draggingPile != null && isDragging) {
+            val hit = findWallOrFloorHit(rS, rE, 0.05f)
+            hit?.let { (_, pos) ->
+                val pile = draggingPile!!
+                pile.isDraggingOnDesktop = true
+                pile.position = Vector3.fromArray(pos).copy(y = 0.05f)
+                if (pile.isRecentsPile()) {
+                    context?.let { ctx ->
+                        RecentsPreferences.saveFromPile(
+                            pile,
+                            ctx.getSharedPreferences("bump_prefs", Context.MODE_PRIVATE),
+                        )
+                    }
                 }
             }
             return false
@@ -217,13 +271,21 @@ class InteractionManager(
                 }
                 item.transform.position = finalPos
                 
-                pile?.let { 
+                pile?.let {
                     if (!it.isExpanded) {
-                        it.position = targetPos
-                        it.surface = surface
+                        it.position = targetPos.copy(y = 0.05f)
+                        it.surface = BumpItem.Surface.FLOOR
                         it.items.forEach { pileItem ->
-                            pileItem.transform.surface = surface
-                            pileItem.transform.position = targetPos
+                            pileItem.transform.surface = BumpItem.Surface.FLOOR
+                            pileItem.transform.position = it.position
+                        }
+                        if (it.isRecentsPile()) {
+                            context?.let { ctx ->
+                                RecentsPreferences.saveFromPile(
+                                    it,
+                                    ctx.getSharedPreferences("bump_prefs", Context.MODE_PRIVATE),
+                                )
+                            }
                         }
                     }
                 }
@@ -250,10 +312,20 @@ class InteractionManager(
         }
 
         if (isResizingWidget) {
+            val widget = resizeWidget
             isResizingWidget = false
             resizeWidget = null
+            resizeStartSize = null
+            resizeStartPos = null
+            widget?.let { finished ->
+                (context as? LauncherActivity)?.onWidgetResizeFinished(finished)
+            }
             return
         }
+
+        draggingPile?.isDraggingOnDesktop = false
+        draggingPile = null
+        draggingPileStartPos = null
 
         if (sceneState.selectedItem != null) {
             val item = sceneState.selectedItem!!
@@ -273,7 +345,7 @@ class InteractionManager(
             dragStartPos = null
             dragStartSurface = null
 
-            if (pile != null && pile.isExpanded) {
+            if (pile != null && pile.isExpanded && !pile.isRecentsPile()) {
                 PileOperations.removeItemFromExpandedPile(sceneState, pile, item)
             } else if (pile == null && isDragging) {
                 val nearbyPile = sceneState.piles.find { p ->
@@ -300,6 +372,7 @@ class InteractionManager(
         }
         sceneState.selectedItem = null
         sceneState.selectedWidget = null
+        widgetDragGrabOffset = null
         isLassoPending = false
         lassoStartPoint = null
         lassoPoints.clear()
@@ -318,7 +391,31 @@ class InteractionManager(
             activeInteractingWidget = null
             activeWidgetView = null
         }
+        draggingPile?.isDraggingOnDesktop = false
+        draggingPile = null
+        draggingPileStartPos = null
+        widgetDragGrabOffset = null
         lassoPoints.clear()
+    }
+
+    private fun findPinnedOpenRecentsDrawerHit(
+        rS: FloatArray,
+        rE: FloatArray,
+        sceneState: SceneState,
+    ): Pile? {
+        val pile = sceneState.recentsPile ?: return null
+        if (!pile.showsDesktopPinnedDrawer()) return null
+
+        val t = (FolderDrawerStyle.PANEL_Y - rS[1]) / (rE[1] - rS[1])
+        if (t <= 0) return null
+
+        val hitX = rS[0] + t * (rE[0] - rS[0])
+        val hitZ = rS[2] + t * (rE[2] - rS[2])
+        return if (FolderDrawerStyle.containsPointInFloorDrawer(pile, hitX, hitZ, floorHalfX, floorHalfZ)) {
+            pile
+        } else {
+            null
+        }
     }
 
     private fun dispatchWidgetTouchEvent(action: Int, x: Float, y: Float) {
@@ -342,13 +439,15 @@ class InteractionManager(
         }
     }
 
-    private fun isTouchOnResizeHandle(widget: WidgetItem, rS: FloatArray, rE: FloatArray): Boolean {
+    private fun widgetSurfaceUv(widget: WidgetItem, rS: FloatArray, rE: FloatArray): Pair<Float, Float>? {
         val t = getWidgetT(widget, rS, rE)
-        if (t < 0) return false
-        
-        val (u, v) = getWidgetUV(widget, rS, rE, t)
-        // Handle is bottom-right corner (UV space)
-        return u > 0.85f && v > 0.85f
+        if (t < 0) return null
+        return getWidgetUV(widget, rS, rE, t)
+    }
+
+    private fun isTouchOnResizeHandle(widget: WidgetItem, rS: FloatArray, rE: FloatArray): Boolean {
+        val uv = widgetSurfaceUv(widget, rS, rE) ?: return false
+        return WidgetHandleStyle.isTouchOnHandle(widget, uv.first, uv.second, WidgetHandleStyle.Kind.RESIZE)
     }
 
     private fun getWidgetT(widget: WidgetItem, rS: FloatArray, rE: FloatArray): Float {
@@ -360,16 +459,19 @@ class InteractionManager(
         }
     }
 
+    private fun widgetHalfExtents(widget: WidgetItem): Vector3 = widget.displayHalfSize()
+
     private fun getWidgetUV(widget: WidgetItem, rS: FloatArray, rE: FloatArray, t: Float): Pair<Float, Float> {
+        val half = widgetHalfExtents(widget)
         val iX = rS[0] + t * (rE[0] - rS[0])
         val iY = rS[1] + t * (rE[1] - rS[1])
         val iZ = rS[2] + t * (rE[2] - rS[2])
         
         return when (widget.surface) {
-            BumpItem.Surface.BACK_WALL -> (iX - (widget.position.x - widget.size.x)) / (2f * widget.size.x) to 1f - (iY - (widget.position.y - widget.size.z)) / (2f * widget.size.z)
-            BumpItem.Surface.LEFT_WALL -> (iZ - (widget.position.z - widget.size.x)) / (2f * widget.size.x) to 1f - (iY - (widget.position.y - widget.size.z)) / (2f * widget.size.z)
-            BumpItem.Surface.RIGHT_WALL -> 1f - (iZ - (widget.position.z - widget.size.x)) / (2f * widget.size.x) to 1f - (iY - (widget.position.y - widget.size.z)) / (2f * widget.size.z)
-            BumpItem.Surface.FLOOR -> (iX - (widget.position.x - widget.size.x)) / (2f * widget.size.x) to (iZ - (widget.position.z - widget.size.z)) / (2f * widget.size.z)
+            BumpItem.Surface.BACK_WALL -> (iX - (widget.position.x - half.x)) / (2f * half.x) to 1f - (iY - (widget.position.y - half.z)) / (2f * half.z)
+            BumpItem.Surface.LEFT_WALL -> (iZ - (widget.position.z - half.x)) / (2f * half.x) to 1f - (iY - (widget.position.y - half.z)) / (2f * half.z)
+            BumpItem.Surface.RIGHT_WALL -> 1f - (iZ - (widget.position.z - half.x)) / (2f * half.x) to 1f - (iY - (widget.position.y - half.z)) / (2f * half.z)
+            BumpItem.Surface.FLOOR -> (iX - (widget.position.x - half.x)) / (2f * half.x) to (iZ - (widget.position.z - half.z)) / (2f * half.z)
         }
     }
 
@@ -441,15 +543,16 @@ class InteractionManager(
         val t = getWidgetT(widget, rS, rE)
         if (t <= 0) return -1f
         
+        val half = widgetHalfExtents(widget)
         val iX = rS[0] + t * (rE[0] - rS[0])
         val iY = rS[1] + t * (rE[1] - rS[1])
         val iZ = rS[2] + t * (rE[2] - rS[2])
         
         return when (widget.surface) {
-            BumpItem.Surface.BACK_WALL -> if (!isInfiniteMode && abs(iX - widget.position.x) < widget.size.x && abs(iY - widget.position.y) < widget.size.z) t else -1f
-            BumpItem.Surface.LEFT_WALL -> if (!isInfiniteMode && abs(iZ - widget.position.z) < widget.size.x && abs(iY - widget.position.y) < widget.size.z) t else -1f
-            BumpItem.Surface.RIGHT_WALL -> if (!isInfiniteMode && abs(iZ - widget.position.z) < widget.size.x && abs(iY - widget.position.y) < widget.size.z) t else -1f
-            BumpItem.Surface.FLOOR -> if (abs(iX - widget.position.x) < widget.size.x && abs(iZ - widget.position.z) < widget.size.z) t else -1f
+            BumpItem.Surface.BACK_WALL -> if (!isInfiniteMode && abs(iX - widget.position.x) < half.x && abs(iY - widget.position.y) < half.z) t else -1f
+            BumpItem.Surface.LEFT_WALL -> if (!isInfiniteMode && abs(iZ - widget.position.z) < half.x && abs(iY - widget.position.y) < half.z) t else -1f
+            BumpItem.Surface.RIGHT_WALL -> if (!isInfiniteMode && abs(iZ - widget.position.z) < half.x && abs(iY - widget.position.y) < half.z) t else -1f
+            BumpItem.Surface.FLOOR -> if (abs(iX - widget.position.x) < half.x && abs(iZ - widget.position.z) < half.z) t else -1f
         }
     }
 
@@ -495,17 +598,22 @@ class InteractionManager(
         return bestSurface?.let { it to bestPos }
     }
 
+    private fun beginWidgetDrag(widget: WidgetItem, touchX: Float, touchY: Float) {
+        val touchPoint = getWidgetPoint(widget, touchX, touchY)
+        widgetDragGrabOffset = widget.position - touchPoint
+    }
+
     fun dragWidget(widget: WidgetItem, rS: FloatArray, rE: FloatArray) {
         val hit = findWallOrFloorHit(rS, rE, 0.1f)
         hit?.let { (surface, pos) ->
+            val offset = widgetDragGrabOffset ?: Vector3(0f, 0f, 0f)
+            val target = Vector3.fromArray(pos) + offset
             widget.surface = surface
-            widget.position = Vector3.fromArray(pos)
-            
-            when (surface) {
-                BumpItem.Surface.BACK_WALL -> widget.position = widget.position.copy(z = -roomSize + 0.1f)
-                BumpItem.Surface.LEFT_WALL -> widget.position = widget.position.copy(x = -roomSize + 0.1f)
-                BumpItem.Surface.RIGHT_WALL -> widget.position = widget.position.copy(x = roomSize - 0.1f)
-                BumpItem.Surface.FLOOR -> widget.position = widget.position.copy(y = 0.1f)
+            widget.position = when (surface) {
+                BumpItem.Surface.BACK_WALL -> target.copy(z = -roomSize + 0.1f)
+                BumpItem.Surface.LEFT_WALL -> target.copy(x = -roomSize + 0.1f)
+                BumpItem.Surface.RIGHT_WALL -> target.copy(x = roomSize - 0.1f)
+                BumpItem.Surface.FLOOR -> target.copy(y = 0.1f)
             }
         }
     }

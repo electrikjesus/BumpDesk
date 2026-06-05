@@ -62,22 +62,7 @@ class ItemRenderer(
 
         when (appearance.type) {
             BumpItem.Type.APP -> {
-                appInfo?.let { app ->
-                    val overrideBitmap = ThemeManager.getIconOverride(context, app.packageName)
-                    val iconBitmap = overrideBitmap ?: (app.icon?.let { TextureUtils.getBitmapFromDrawable(it) })
-                    
-                    if (iconBitmap != null) {
-                        val labelBitmap = TextRenderer.createAppLabelBitmap(app.label)
-                        val combined = TextureUtils.getCombinedBitmap(context, iconBitmap, labelBitmap, false)
-                        appearance.textureId = textureManager.loadTextureFromBitmap(combined)
-                        
-                        if (cacheKey != null) textureManager.cacheTexture(cacheKey, appearance.textureId)
-                        
-                        combined.recycle()
-                        labelBitmap.recycle()
-                        if (overrideBitmap != null) iconBitmap.recycle()
-                    }
-                }
+                appInfo?.let { app -> loadAppIconTexture(item, app, cacheKey) }
             }
             BumpItem.Type.STICKY_NOTE -> {
                 val text = item.textData?.text ?: ""
@@ -112,12 +97,18 @@ class ItemRenderer(
             }
             BumpItem.Type.RECENT_APP -> {
                 appInfo?.let { app ->
-                    val overrideBitmap = ThemeManager.getIconOverride(context, app.packageName)
-                    val iconDrawable = if (overrideBitmap != null) BitmapDrawable(context.resources, overrideBitmap) else app.icon
-                    val bitmap = TextureUtils.createRecentTaskBitmap(context, app.snapshot, iconDrawable, app.label)
-                    appearance.textureId = textureManager.loadTextureFromBitmap(bitmap)
-                    bitmap.recycle()
-                    overrideBitmap?.recycle()
+                    val pile = sceneState.getPileOf(item)
+                    val folderGrid = pile?.showsRecentsIconGrid() == true
+                    if (folderGrid) {
+                        loadAppIconTexture(item, app, cacheKey)
+                    } else {
+                        val overrideBitmap = ThemeManager.getIconOverride(context, app.packageName)
+                        val iconDrawable = if (overrideBitmap != null) BitmapDrawable(context.resources, overrideBitmap) else app.icon
+                        val bitmap = TextureUtils.createRecentTaskBitmap(context, app.snapshot, iconDrawable, app.label)
+                        appearance.textureId = textureManager.loadTextureFromBitmap(bitmap)
+                        bitmap.recycle()
+                        overrideBitmap?.recycle()
+                    }
                 }
             }
             BumpItem.Type.APP_DRAWER -> {
@@ -128,6 +119,24 @@ class ItemRenderer(
 
                 combined.recycle()
             }
+        }
+    }
+
+    private fun loadAppIconTexture(item: BumpItem, app: AppInfo, cacheKey: String?) {
+        val appearance = item.appearance
+        val overrideBitmap = ThemeManager.getIconOverride(context, app.packageName)
+        val iconBitmap = overrideBitmap ?: (app.icon?.let { TextureUtils.getBitmapFromDrawable(it) })
+
+        if (iconBitmap != null) {
+            val labelBitmap = TextRenderer.createAppLabelBitmap(app.label)
+            val combined = TextureUtils.getCombinedBitmap(context, iconBitmap, labelBitmap, false)
+            appearance.textureId = textureManager.loadTextureFromBitmap(combined)
+
+            if (cacheKey != null) textureManager.cacheTexture(cacheKey, appearance.textureId)
+
+            combined.recycle()
+            labelBitmap.recycle()
+            if (overrideBitmap != null) iconBitmap.recycle()
         }
     }
 
@@ -168,7 +177,11 @@ class ItemRenderer(
         val appearance = item.appearance
         
         val pile = sceneState.getPileOf(item)
-        val surfaceToUse = if (pile?.isExpanded == true) BumpItem.Surface.FLOOR else transform.surface
+        val surfaceToUse = when {
+            pile?.showsRecentsTaskCards() == true -> BumpItem.Surface.BACK_WALL
+            pile?.isExpanded == true -> BumpItem.Surface.FLOOR
+            else -> transform.surface
+        }
         
         val zOffset = 0.01f
         var posX = transform.position.x
@@ -207,7 +220,13 @@ class ItemRenderer(
         
         val heightMult = when (appearance.type) { 
             BumpItem.Type.APP -> if (pile?.layoutMode == Pile.LayoutMode.CAROUSEL) 1.6f else 1.25f
-            BumpItem.Type.RECENT_APP -> 1.6f
+            BumpItem.Type.RECENT_APP -> {
+                if (pile?.showsRecentsIconGrid() == true) {
+                    1.25f
+                } else {
+                    1.6f
+                }
+            }
             BumpItem.Type.APP_DRAWER -> 1.38f
             else -> 1.0f 
         }
@@ -244,7 +263,7 @@ class ItemRenderer(
         if (pile.previewTextureId <= 0) return
         Matrix.setIdentityM(modelMatrix, 0)
         Matrix.translateM(modelMatrix, 0, pile.position.x, pile.position.y + 0.01f, pile.position.z)
-        val heightScale = if (pile.showsFolderLabel()) 1.38f else 1f
+        val heightScale = if (pile.showsCollapsedLabel()) 1.38f else 1f
         Matrix.scaleM(modelMatrix, 0, pile.scale, 1f, pile.scale * heightScale)
         appIconBox.draw(
             vPMatrix,

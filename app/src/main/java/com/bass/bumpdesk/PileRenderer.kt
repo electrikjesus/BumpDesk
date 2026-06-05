@@ -11,7 +11,7 @@ class PileRenderer(
     private val overlayRenderer: OverlayRenderer,
     private val sceneState: SceneState
 ) {
-    private val ITEMS_PER_PAGE = FolderDrawerStyle.ITEMS_PER_PAGE
+    private fun itemsPerPage(pile: Pile) = FolderDrawerStyle.itemsPerPage(pile)
 
     fun drawPiles(
         vPMatrix: FloatArray,
@@ -24,11 +24,13 @@ class PileRenderer(
         roomHalfZ: Float = 30f,
     ) {
         piles.forEach { pile ->
-            val isExpanded = pile.isExpanded
+            pile.reconcilePinnedOpenState()
+            val drawExpanded = pile.layoutAsExpandedDrawer()
             
-            if (isExpanded) {
-                val startIdx = pile.scrollIndex * ITEMS_PER_PAGE
-                val endIdx = (startIdx + ITEMS_PER_PAGE).coerceAtMost(pile.items.size)
+            if (drawExpanded) {
+                val pageSize = itemsPerPage(pile)
+                val startIdx = pile.scrollIndex * pageSize
+                val endIdx = (startIdx + pageSize).coerceAtMost(pile.items.size)
                 val layout = if (FolderDrawerStyle.usesMaterialChrome(pile)) {
                     FolderDrawerStyle.layout(pile, roomHalfX, roomHalfZ)
                 } else {
@@ -39,7 +41,7 @@ class PileRenderer(
                 // Task: Clear texture IDs for items on non-visible pages to allow 
                 // TextureManager's LRU cache to manage memory effectively.
                 // We keep a 1-page buffer for smoother scrolling.
-                val bufferRange = (pile.scrollIndex - 1) * ITEMS_PER_PAGE until (pile.scrollIndex + 2) * ITEMS_PER_PAGE
+                val bufferRange = (pile.scrollIndex - 1) * pageSize until (pile.scrollIndex + 2) * pageSize
                 
                 pile.items.forEachIndexed { index, item ->
                     if (index in startIdx until endIdx) {
@@ -55,7 +57,7 @@ class PileRenderer(
                 return@forEach
             }
 
-            if (pile.showsFolderPreview()) {
+            if (pile.showsCollapsedPreview()) {
                 PileFolderIcons.ensurePreview(context, pile, textureManager)
                 itemRenderer.drawPileFolderPreview(vPMatrix, pile, lightPos)
                 return@forEach

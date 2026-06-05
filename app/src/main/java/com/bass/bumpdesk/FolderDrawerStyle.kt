@@ -32,13 +32,34 @@ object FolderDrawerStyle {
     data class HitResult(val kind: Hit, val pageIndex: Int = -1)
 
     fun isMaterialDrawer(pile: Pile): Boolean =
-        pile.isExpanded && pile.surface == BumpItem.Surface.FLOOR &&
-            pile.isSystem && pile.name == "All Apps"
+        pile.layoutAsExpandedDrawer() && pile.surface == BumpItem.Surface.FLOOR &&
+            ((pile.isSystem && pile.name == "All Apps") || pile.isRecentsPile())
 
     fun usesMaterialChrome(pile: Pile): Boolean =
-        pile.isExpanded && pile.surface == BumpItem.Surface.FLOOR
+        pile.layoutAsExpandedDrawer() && pile.surface == BumpItem.Surface.FLOOR
+
+    fun gridColumns(pile: Pile): Int = if (pile.isRecentsPile()) 2 else GRID_COLUMNS
+
+    fun gridRows(pile: Pile): Int = if (pile.isRecentsPile()) 2 else GRID_ROWS
+
+    fun itemsPerPage(pile: Pile): Int = gridColumns(pile) * gridRows(pile)
 
     fun gridSpacing(scale: Float): Float = GRID_SPACING * scale
+
+    fun gridSpacing(pile: Pile): Float =
+        if (pile.showsRecentsTaskCards()) 5.0f * pile.scale else gridSpacing(pile.scale)
+
+    fun halfDimX(pile: Pile): Float {
+        val columns = gridColumns(pile)
+        val span = columns * gridSpacing(pile)
+        return span / 2f + HORIZONTAL_PADDING * pile.scale
+    }
+
+    fun halfDimZ(pile: Pile): Float {
+        val rows = gridRows(pile)
+        val span = rows * gridSpacing(pile)
+        return span / 2f + (TITLE_BAND + PAGINATION_BAND + CONTENT_INSET_Z) * pile.scale
+    }
 
     fun halfDimX(scale: Float): Float {
         val span = GRID_COLUMNS * gridSpacing(scale)
@@ -51,8 +72,8 @@ object FolderDrawerStyle {
     }
 
     fun layout(pile: Pile, roomHalfX: Float, roomHalfZ: Float): Layout {
-        val halfX = halfDimX(pile.scale)
-        val halfZ = halfDimZ(pile.scale)
+        val halfX = halfDimX(pile)
+        val halfZ = halfDimZ(pile)
         val uiX = constrainDrawerCenter(pile.position.x, roomHalfX, halfX)
         val uiZ = constrainDrawerCenter(pile.position.z, roomHalfZ, halfZ)
         return Layout(halfX, halfZ, floatArrayOf(uiX, PANEL_Y, uiZ))
@@ -65,6 +86,9 @@ object FolderDrawerStyle {
         return if (min <= max) value.coerceIn(min, max) else 0f
     }
 
+    fun totalPages(pile: Pile): Int =
+        ceil(pile.items.size.toFloat() / itemsPerPage(pile)).toInt().coerceAtLeast(1)
+
     fun totalPages(itemCount: Int): Int =
         ceil(itemCount.toFloat() / ITEMS_PER_PAGE).toInt().coerceAtLeast(1)
 
@@ -76,13 +100,16 @@ object FolderDrawerStyle {
         itemIndex: Int,
         layout: Layout,
     ): Pair<Float, Float> {
-        val itemInPage = itemIndex % ITEMS_PER_PAGE
-        val row = itemInPage / GRID_COLUMNS
-        val col = itemInPage % GRID_COLUMNS
-        val spacing = gridSpacing(pile.scale)
+        val columns = gridColumns(pile)
+        val rows = gridRows(pile)
+        val pageSize = itemsPerPage(pile)
+        val itemInPage = itemIndex % pageSize
+        val row = itemInPage / columns
+        val col = itemInPage % columns
+        val spacing = gridSpacing(pile)
         val anchorZ = gridAnchorZ(layout, pile.scale)
-        val x = layout.pos[0] + (col - (GRID_COLUMNS - 1) / 2f) * spacing
-        val z = anchorZ + (row - (GRID_ROWS - 1) / 2f) * spacing
+        val x = layout.pos[0] + (col - (columns - 1) / 2f) * spacing
+        val z = anchorZ + (row - (rows - 1) / 2f) * spacing
         return x to z
     }
 
@@ -147,6 +174,18 @@ object FolderDrawerStyle {
         )
     }
 
+    fun containsPointInFloorDrawer(
+        pile: Pile,
+        hitX: Float,
+        hitZ: Float,
+        roomHalfX: Float,
+        roomHalfZ: Float,
+    ): Boolean {
+        val layout = layout(pile, roomHalfX, roomHalfZ)
+        return abs(hitX - layout.pos[0]) <= layout.halfDimX &&
+            abs(hitZ - layout.pos[2]) <= layout.halfDimZ
+    }
+
     fun hitTestFloorDrawer(pile: Pile, hitX: Float, hitZ: Float, roomHalfX: Float, roomHalfZ: Float): HitResult {
         val layout = layout(pile, roomHalfX, roomHalfZ)
         val scale = pile.scale
@@ -162,7 +201,7 @@ object FolderDrawerStyle {
             return HitResult(Hit.TITLE)
         }
 
-        val pages = totalPages(pile.items.size)
+        val pages = totalPages(pile)
         if (pile.scrollIndex > 0) {
             val prev = prevButtonCenter(layout, scale)
             if (abs(hitX - prev[0]) < hitHalf && abs(hitZ - prev[1]) < hitHalf) {

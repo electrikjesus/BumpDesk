@@ -22,6 +22,7 @@ object BumpDeskLog {
         const val WALLPAPER = "$PREFIX:Wallpaper"
         const val RADIAL_MENU = "$PREFIX:RadialMenu"
         const val CORE = "$PREFIX:Core"
+        const val WIDGET = "$PREFIX:Widget"
     }
 
     private fun write(level: Int, tag: String, message: String, throwable: Throwable? = null) {

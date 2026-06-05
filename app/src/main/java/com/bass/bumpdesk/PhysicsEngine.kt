@@ -16,7 +16,24 @@ class PhysicsEngine {
     var roomHeight = 30.0f
     val INFINITE_SIZE = 100.0f
     val UI_MARGIN = 0.2f
-    val ITEMS_PER_PAGE = 16
+    val ITEMS_PER_PAGE = FolderDrawerStyle.ITEMS_PER_PAGE
+
+    private fun itemsPerPage(pile: Pile) = FolderDrawerStyle.itemsPerPage(pile)
+
+    private fun expandedPileItemScale(pile: Pile): Float {
+        if (pile.isRecentsPile()) {
+            return if (pile.showsRecentsTaskCards()) {
+                (defaultScale * 1.25f).coerceIn(0.4f, 2.0f)
+            } else {
+                (defaultScale * 0.8f).coerceIn(0.4f, 2.0f)
+            }
+        }
+        val base = when {
+            pile.showsRecentsTaskCards() -> 1.0f * pile.scale
+            else -> 0.8f * pile.scale
+        }
+        return base.coerceIn(0.4f, 2.5f)
+    }
 
     var isInfiniteMode = false
     var isFlatFloorMode = false
@@ -30,26 +47,32 @@ class PhysicsEngine {
         onBump: (Float) -> Unit
     ) {
         piles.forEach { pile ->
+            pile.reconcilePinnedOpenState()
             constrainPile(pile)
+
+            if (pile.isDraggingOnDesktop && pile.layoutAsExpandedDrawer()) {
+                layoutExpandedPileItems(pile, selectedItem)
+                return@forEach
+            }
 
             pile.items.forEachIndexed { index, item ->
                 if (item == selectedItem) return@forEachIndexed
                 
-                val isVisibleInPage = !pile.isExpanded || (index >= pile.scrollIndex * ITEMS_PER_PAGE && index < (pile.scrollIndex + 1) * ITEMS_PER_PAGE)
+                val pageSize = itemsPerPage(pile)
+                val isExpandedLayout = pile.layoutAsExpandedDrawer()
+                val isVisibleInPage = !isExpandedLayout ||
+                    (index >= pile.scrollIndex * pageSize && index < (pile.scrollIndex + 1) * pageSize)
                 
                 val targetScale = when {
-                    pile.isExpanded -> if (isVisibleInPage) 0.8f * pile.scale else 0.01f
-                    pile.showsFolderPreview() -> pile.scale
+                    isExpandedLayout -> if (isVisibleInPage) 0.8f * pile.scale else 0.01f
+                    pile.showsCollapsedPreview() -> pile.scale
                     pile.layoutMode == Pile.LayoutMode.CAROUSEL -> 1.5f * pile.scale
                     pile.layoutMode == Pile.LayoutMode.GRID -> 0.8f * pile.scale
                     else -> defaultScale
                 }
                 
-                // If the pile is expanded, we want to scale the items relative to the pile scale,
-                // but we also need to account for the global defaultScale.
-                // We use a fixed base scale for expanded icons (0.8f) and multiply by the folder's scale.
-                val finalTargetScale = if (pile.isExpanded) {
-                    (0.8f * pile.scale).coerceIn(0.4f, 2.0f)
+                val finalTargetScale = if (isExpandedLayout) {
+                    expandedPileItemScale(pile)
                 } else {
                     targetScale
                 }
@@ -91,17 +114,39 @@ class PhysicsEngine {
         }
     }
 
+    private fun layoutExpandedPileItems(pile: Pile, @Suppress("UNUSED_PARAMETER") selectedItem: BumpItem?) {
+        val snap = pile.isDraggingOnDesktop
+        pile.items.forEachIndexed { index, item ->
+            val pageSize = itemsPerPage(pile)
+            val isVisibleInPage =
+                index >= pile.scrollIndex * pageSize && index < (pile.scrollIndex + 1) * pageSize
+            val finalTargetScale = if (isVisibleInPage) {
+                expandedPileItemScale(pile)
+            } else {
+                0.01f
+            }
+            val scaleBlend = if (snap) 1f else 0.1f
+            item.transform.scale += (finalTargetScale - item.transform.scale) * scaleBlend
+
+            val targetPos = calculateTargetPositionInPile(pile, index)
+            val posBlend = if (snap) 1f else 0.15f
+            item.transform.position = item.transform.position + (targetPos - item.transform.position) * posBlend
+            item.transform.surface = pile.surface
+            item.transform.velocity = Vector3()
+        }
+    }
+
     private fun constrainPile(pile: Pile) {
         val count = pile.items.size
         // 4x4 grid when expanded
         val side = when {
-            pile.isExpanded -> 4
-            pile.showsFolderPreview() -> 1
+            pile.layoutAsExpandedDrawer() -> FolderDrawerStyle.gridColumns(pile).coerceAtLeast(FolderDrawerStyle.gridRows(pile))
+            pile.showsCollapsedPreview() -> 1
             else -> ceil(sqrt(count.toDouble())).toInt().coerceAtLeast(1)
         }
         val spacing = when {
-            pile.isExpanded || pile.layoutMode == Pile.LayoutMode.GRID -> 2.0f * pile.scale
-            pile.showsFolderPreview() -> gridSpacingBase * pile.scale
+            pile.layoutAsExpandedDrawer() || pile.layoutMode == Pile.LayoutMode.GRID -> 2.0f * pile.scale
+            pile.showsCollapsedPreview() -> gridSpacingBase * pile.scale
             else -> gridSpacingBase * pile.scale
         }
         val halfDim = (side * spacing) / 2f
@@ -204,14 +249,19 @@ class PhysicsEngine {
     private fun calculateTargetPositionInPile(pile: Pile, index: Int): Vector3 {
         val count = pile.items.size
         
-        if (pile.isExpanded) {
+        if (pile.layoutAsExpandedDrawer()) {
             val pageIndex = pile.scrollIndex
-            val itemInPageIndex = index % ITEMS_PER_PAGE
-            val isCurrentPage = index / ITEMS_PER_PAGE == pageIndex
+            val pageSize = itemsPerPage(pile)
+            val itemInPageIndex = index % pageSize
+            val isCurrentPage = index / pageSize == pageIndex
 
             val layout = FolderDrawerStyle.layout(pile, floorRoomHalfX(), floorRoomHalfZ())
 
-            val yPos = if (isCurrentPage) FolderDrawerStyle.ICON_Y else -10f
+            val yPos = when {
+                !isCurrentPage -> -10f
+                pile.showsRecentsTaskCards() -> 1.1f * pile.scale
+                else -> FolderDrawerStyle.ICON_Y
+            }
             val (x, z) = FolderDrawerStyle.itemGridPosition(pile, index, layout)
 
             return Vector3(x, yPos, z)
@@ -233,6 +283,8 @@ class PhysicsEngine {
                 else -> pile.position.copy(x = pile.position.x + offset)
             }
         } else if (pile.layoutMode == Pile.LayoutMode.FOLDER && !pile.isExpanded) {
+            return pile.position.copy(y = 0.05f)
+        } else if (pile.isRecentsPile() && pile.surface == BumpItem.Surface.FLOOR && !pile.isExpanded) {
             return pile.position.copy(y = 0.05f)
         } else if (pile.layoutMode == Pile.LayoutMode.GRID) {
             val side = ceil(sqrt(count.toDouble())).toInt().coerceAtLeast(1)
