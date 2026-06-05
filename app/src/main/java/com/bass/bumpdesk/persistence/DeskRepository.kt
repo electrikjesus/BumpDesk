@@ -17,11 +17,7 @@ class DeskRepository(context: Context) {
 
     suspend fun saveState(sceneState: SceneState) = withContext(Dispatchers.IO) {
         val snapshot = sceneState.withReadLockResult { buildPersistenceSnapshot(sceneState) }
-
-        dao.deleteAllItems()
-        dao.deleteAllPiles()
-        dao.insertAllItems(snapshot.deskItems)
-        dao.insertAllPiles(snapshot.deskPiles)
+        dao.replaceAll(snapshot.deskItems, snapshot.deskPiles)
     }
 
     private data class PersistenceSnapshot(

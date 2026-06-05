@@ -244,6 +244,10 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
             renderer.updateSettings()
             pendingSettingsUpdate = false
         }
+        if (sharedPreferences?.getBoolean("reset_desktop_trigger", false) == true) {
+            sharedPreferences.edit().remove("reset_desktop_trigger").apply()
+            glSurfaceView.queueEvent { renderer.resetDesktopLayout() }
+        }
         if (sharedPreferences?.getBoolean("show_recent_apps", true) == true) {
             updateRecents()
         }

@@ -53,7 +53,8 @@ class PhysicsEngine {
         selectedItem: BumpItem?,
         onBump: (Float) -> Unit
     ) {
-        piles.forEach { pile ->
+        val pileSnapshot = piles.toList()
+        pileSnapshot.forEach { pile ->
             pile.reconcilePinnedOpenState()
             constrainPile(pile)
 
@@ -62,7 +63,7 @@ class PhysicsEngine {
                 return@forEach
             }
 
-            pile.items.forEachIndexed { index, item ->
+            pile.items.toList().forEachIndexed { index, item ->
                 if (item == selectedItem) return@forEachIndexed
                 
                 val pageSize = itemsPerPage(pile)
@@ -98,7 +99,8 @@ class PhysicsEngine {
             }
         }
 
-        val activeItems = items.filter { item -> !isInPile(item, piles) }
+        val itemsSnapshot = items.toList()
+        val activeItems = itemsSnapshot.filter { item -> !isInPile(item, pileSnapshot) }
         activeItems.forEach { item ->
             if (item == selectedItem) {
                 applyConstraints(item, onBump)
@@ -127,7 +129,7 @@ class PhysicsEngine {
 
     private fun layoutExpandedPileItems(pile: Pile, @Suppress("UNUSED_PARAMETER") selectedItem: BumpItem?) {
         val snap = pile.isDraggingOnDesktop
-        pile.items.forEachIndexed { index, item ->
+        pile.items.toList().forEachIndexed { index, item ->
             val pageSize = itemsPerPage(pile)
             val isVisibleInPage =
                 index >= pile.scrollIndex * pageSize && index < (pile.scrollIndex + 1) * pageSize
@@ -165,14 +167,23 @@ class PhysicsEngine {
             else -> gridSpacingBase * pile.scale
         }
         val halfDim = (side * spacing) / 2f
-        
+        val marginX: Float
+        val marginZ: Float
+        if (pile.layoutAsExpandedDrawer()) {
+            marginX = FolderDrawerStyle.panelHalfDimX(pile)
+            marginZ = FolderDrawerStyle.panelHalfDimY(pile)
+        } else {
+            marginX = halfDim
+            marginZ = halfDim
+        }
+
         when (pile.surface) {
             BumpItem.Surface.FLOOR -> {
-                val limitX = floorLimitX(halfDim)
-                val limitZ = floorLimitZ(halfDim)
+                val limitX = floorLimitX(marginX)
+                val limitZ = floorLimitZ(marginZ)
                 pile.position = pile.position.copy(
-                    x = pile.position.x.coerceIn(-limitX, limitX),
-                    z = pile.position.z.coerceIn(-limitZ, limitZ),
+                    x = coerceSymmetric(pile.position.x, limitX),
+                    z = coerceSymmetric(pile.position.z, limitZ),
                     y = 0.05f
                 )
             }
@@ -181,36 +192,63 @@ class PhysicsEngine {
                     val halfX = FolderDrawerStyle.panelHalfDimX(pile)
                     val halfY = FolderDrawerStyle.panelHalfDimY(pile)
                     pile.position = pile.position.copy(
-                        x = pile.position.x.coerceIn(-roomSize + halfX + UI_MARGIN, roomSize - halfX - UI_MARGIN),
-                        y = pile.position.y.coerceIn(halfY + 0.5f, roomHeight - 2f - halfY),
+                        x = coerceRange(
+                            pile.position.x,
+                            -roomSize + halfX + UI_MARGIN,
+                            roomSize - halfX - UI_MARGIN,
+                        ),
+                        y = coerceRange(pile.position.y, halfY + 0.5f, roomHeight - 2f - halfY),
                         z = -roomSize + FolderDrawerStyle.WALL_DRAWER_INSET,
                     )
                 } else {
-                    val limit = roomSize - halfDim - UI_MARGIN
+                    val limit = roomSize - marginX - UI_MARGIN
                     pile.position = pile.position.copy(
-                        x = pile.position.x.coerceIn(-limit, limit),
-                        y = pile.position.y.coerceIn(0.05f + halfDim, roomHeight - 2f - halfDim),
+                        x = coerceSymmetric(pile.position.x, limit),
+                        y = coerceRange(
+                            pile.position.y,
+                            0.05f + marginZ,
+                            roomHeight - 2f - marginZ,
+                        ),
                         z = -roomSize + 0.6f,
                     )
                 }
             }
             BumpItem.Surface.LEFT_WALL -> {
-                val limit = roomSize - halfDim - UI_MARGIN
+                val limit = roomSize - marginX - UI_MARGIN
                 pile.position = pile.position.copy(
-                    z = pile.position.z.coerceIn(-limit, limit),
-                    y = pile.position.y.coerceIn(0.05f + halfDim, roomHeight - 2f - halfDim),
+                    z = coerceSymmetric(pile.position.z, limit),
+                    y = coerceRange(
+                        pile.position.y,
+                        0.05f + marginZ,
+                        roomHeight - 2f - marginZ,
+                    ),
                     x = -roomSize + 0.6f
                 )
             }
             BumpItem.Surface.RIGHT_WALL -> {
-                val limit = roomSize - halfDim - UI_MARGIN
+                val limit = roomSize - marginX - UI_MARGIN
                 pile.position = pile.position.copy(
-                    z = pile.position.z.coerceIn(-limit, limit),
-                    y = pile.position.y.coerceIn(0.05f + halfDim, roomHeight - 2f - halfDim),
+                    z = coerceSymmetric(pile.position.z, limit),
+                    y = coerceRange(
+                        pile.position.y,
+                        0.05f + marginZ,
+                        roomHeight - 2f - marginZ,
+                    ),
                     x = roomSize - 0.6f
                 )
             }
         }
+    }
+
+    private fun coerceSymmetric(value: Float, limit: Float): Float {
+        val safe = limit.coerceAtLeast(0f)
+        return value.coerceIn(-safe, safe)
+    }
+
+    private fun coerceRange(value: Float, min: Float, max: Float): Float {
+        val low = minOf(min, max)
+        val high = maxOf(min, max)
+        return value.coerceIn(low, high)
     }
 
     private fun applyConstraints(item: BumpItem, onBump: (Float) -> Unit) {

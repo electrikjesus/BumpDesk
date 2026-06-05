@@ -459,7 +459,14 @@ class InteractionManager(
             dragStartSurface = null
 
             if (pile != null && pile.isExpanded && !pile.isRecentsPile()) {
-                PileOperations.removeItemFromExpandedPile(sceneState, pile, item)
+                PileOperations.removeItemFromExpandedPile(
+                    sceneState,
+                    pile,
+                    item,
+                    roomHalfX = floorHalfX,
+                    roomHalfZ = floorHalfZ,
+                    roomSize = roomSize,
+                )
             } else if (pile == null && isDragging) {
                 val nearbyPile = sceneState.piles.find { p ->
                     if (p.isSystem) return@find false

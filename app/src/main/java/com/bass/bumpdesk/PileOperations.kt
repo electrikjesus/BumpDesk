@@ -153,7 +153,14 @@ object PileOperations {
         return targets
     }
 
-    fun removeItemFromExpandedPile(sceneState: SceneState, pile: Pile, item: BumpItem): Boolean {
+    fun removeItemFromExpandedPile(
+        sceneState: SceneState,
+        pile: Pile,
+        item: BumpItem,
+        roomHalfX: Float = 30f,
+        roomHalfZ: Float = 30f,
+        roomSize: Float = 30f,
+    ): Boolean {
         BumpDeskLog.enter(
             BumpDeskLog.Tag.ICON_GROUP,
             "removeItemFromExpandedPile",
@@ -169,9 +176,9 @@ object PileOperations {
             if (pile.layoutAsExpandedDrawer()) {
                 val layout = FolderDrawerStyle.layoutForPile(
                     pile,
-                    roomHalfX = 30f,
-                    roomHalfZ = 30f,
-                    roomSize = 30f,
+                    roomHalfX = roomHalfX,
+                    roomHalfZ = roomHalfZ,
+                    roomSize = roomSize,
                 )
                 val stillInside = if (pile.surface == BumpItem.Surface.FLOOR) {
                     FolderDrawerStyle.isInsideContentArea(item, layout, pile.scale)
@@ -196,19 +203,21 @@ object PileOperations {
             }
 
             val appInfo = item.appData?.appInfo
-            if (appInfo != null) {
-                val duplicateOnFloor = sceneState.bumpItems.any {
+            if (appInfo != null && sceneState.isAppPlacedOnDesktop(appInfo.packageName)) {
+                val onFloor = sceneState.bumpItems.any {
                     it.appData?.appInfo?.packageName == appInfo.packageName
                 }
-                val duplicateInOtherPile = sceneState.piles.any { other ->
-                    other !== pile && other.items.any {
+                val inUserPile = sceneState.piles.any { other ->
+                    !other.isSystem && other.items.any {
                         it.appData?.appInfo?.packageName == appInfo.packageName
                     }
                 }
-                if (duplicateOnFloor || duplicateInOtherPile) {
-                    BumpDeskLog.w(BumpDeskLog.Tag.ICON_GROUP, "removeItemFromExpandedPile", "skipped | duplicate app on desktop")
-                    return@withWriteLockResult false
-                }
+                BumpDeskLog.w(
+                    BumpDeskLog.Tag.ICON_GROUP,
+                    "removeItemFromExpandedPile",
+                    "skipped | already on user desktop pkg=${appInfo.packageName} floor=$onFloor userPile=$inUserPile",
+                )
+                return@withWriteLockResult false
             }
 
             pile.items.remove(item)

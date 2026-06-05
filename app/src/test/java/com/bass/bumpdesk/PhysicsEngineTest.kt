@@ -30,4 +30,31 @@ class PhysicsEngineTest {
         assertEquals(-0.05f, newVel.y, 0.001f) // 0 - 0.1 = -0.1, then -0.1 * 0.5 = -0.05
         assertEquals(4.9f, newPos.y, 0.001f) // 5 + (-0.1) = 4.9
     }
+
+    @Test
+    fun constrainPileDoesNotCrashWhenDrawerExceedsFloorBounds() {
+        val engine = PhysicsEngine()
+        engine.isFlatFloorMode = true
+        engine.floorHalfX = 6f
+        engine.floorHalfZ = 4f
+        engine.roomSize = 6f
+
+        val pile = Pile(
+            name = "Recents",
+            isSystem = true,
+            layoutMode = Pile.LayoutMode.FOLDER,
+            surface = BumpItem.Surface.FLOOR,
+            position = Vector3(12f, 0.05f, 9f),
+            scale = 2.5f,
+        ).apply {
+            isPinnedOpen = true
+            drawerGridColumns = 4
+            drawerGridRows = 2
+        }
+        repeat(8) { pile.items.add(BumpItem()) }
+
+        engine.update(mutableListOf(), mutableListOf(pile), null) {}
+
+        assertEquals(0.05f, pile.position.y, 0.001f)
+    }
 }

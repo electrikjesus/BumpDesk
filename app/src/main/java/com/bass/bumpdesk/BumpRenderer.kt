@@ -10,6 +10,8 @@ import com.bass.bumpdesk.persistence.DeskRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 import android.media.AudioAttributes
@@ -62,6 +64,9 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
 
     private val repository by lazy { DeskRepository(context) }
     private val repositoryScope = CoroutineScope(Dispatchers.IO)
+    private val saveMutex = Mutex()
+    @Volatile
+    private var persistenceReady = false
     
     private var frameCount = 0
     var glSurfaceView: GLSurfaceView? = null
@@ -184,16 +189,20 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         
         if (showAppDrawer && !hasAppDrawer) {
             val folderGroupScale = (scalePref + 0.5f).coerceIn(0.5f, 2.5f)
-            sceneState.appDrawerItem = BumpItem(
-                type = BumpItem.Type.APP_DRAWER,
-                position = Vector3(6f, 0.05f, 6f),
-                scale = folderGroupScale,
-            )
-            sceneState.bumpItems.add(sceneState.appDrawerItem!!)
+            sceneState.withWriteLock {
+                sceneState.appDrawerItem = BumpItem(
+                    type = BumpItem.Type.APP_DRAWER,
+                    position = Vector3(6f, 0.05f, 6f),
+                    scale = folderGroupScale,
+                )
+                sceneState.bumpItems.add(sceneState.appDrawerItem!!)
+            }
         } else if (!showAppDrawer && hasAppDrawer) {
-            sceneState.bumpItems.removeAll { it.appearance.type == BumpItem.Type.APP_DRAWER }
-            sceneState.piles.forEach { it.items.removeAll { item -> item.appearance.type == BumpItem.Type.APP_DRAWER } }
-            sceneState.appDrawerItem = null
+            sceneState.withWriteLock {
+                sceneState.bumpItems.removeAll { it.appearance.type == BumpItem.Type.APP_DRAWER }
+                sceneState.piles.forEach { it.items.removeAll { item -> item.appearance.type == BumpItem.Type.APP_DRAWER } }
+                sceneState.appDrawerItem = null
+            }
         }
         
         physicsEngine.isInfiniteMode = prefs.getBoolean("infinite_desktop_mode", false)
@@ -374,11 +383,14 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
     }
 
     private fun saveState() {
+        if (!persistenceReady) return
         sceneState.recentsPile?.let { pile ->
             RecentsPreferences.saveFromPile(pile, context.getSharedPreferences("bump_prefs", Context.MODE_PRIVATE))
         }
         repositoryScope.launch {
-            repository.saveState(sceneState)
+            saveMutex.withLock {
+                repository.saveState(sceneState)
+            }
         }
     }
 
@@ -435,11 +447,30 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 sceneState.widgetItems.addAll(widgetItems)
                 sceneState.piles.clear()
                 sceneState.piles.addAll(piles)
-                
+
                 sceneState.recentsPile = sceneState.piles.find { it.isSystem && it.name == "Recents" }
                 sceneState.appDrawerItem = sceneState.bumpItems.find { it.appearance.type == BumpItem.Type.APP_DRAWER }
             }
-            
+
+            persistenceReady = true
+
+            val reconcile = DesktopReconciliation.reconcile(
+                sceneState,
+                boundX = floorHalfWidth,
+                boundZ = floorHalfDepth,
+            )
+            if (reconcile.removedDuplicateListEntries > 0 ||
+                reconcile.clampedFloorItems > 0 ||
+                reconcile.clampedPiles > 0
+            ) {
+                BumpDeskLog.i(
+                    BumpDeskLog.Tag.ICON_GROUP,
+                    "reconcileDesktop",
+                    "dupes=${reconcile.removedDuplicateListEntries} " +
+                        "clampedItems=${reconcile.clampedFloorItems} clampedPiles=${reconcile.clampedPiles}",
+                )
+            }
+
             onComplete()
             sceneState.widgetItems.forEach { widget ->
                 BumpDeskLog.i(
@@ -463,6 +494,16 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 (context as? LauncherActivity)?.restoreSavedWidgets()
             }
         }
+    }
+
+    fun resetDesktopLayout() {
+        sceneState.withWriteLock {
+            sceneState.bumpItems.removeAll { it.appearance.type != BumpItem.Type.APP_DRAWER }
+            sceneState.piles.removeAll { !it.isSystem }
+        }
+        BumpDeskLog.i(BumpDeskLog.Tag.ICON_GROUP, "resetDesktopLayout", "cleared user icons and piles")
+        saveState()
+        glSurfaceView?.requestRender()
     }
 
     fun addAppToDesk(app: AppInfo) {
@@ -572,56 +613,59 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
 
     fun updateRecents(recents: List<AppInfo>) {
         BumpDeskLog.enter(BumpDeskLog.Tag.RECENTS, "updateRecents", "count=${recents.size}")
-        if (sceneState.recentsPile == null) {
-            sceneState.recentsPile = Pile(
-                mutableListOf(),
-                Vector3(-6f, 0.05f, 6f),
-                name = "Recents",
-                layoutMode = Pile.LayoutMode.FOLDER,
-                surface = BumpItem.Surface.FLOOR,
-                isSystem = true,
-            )
-            sceneState.piles.add(sceneState.recentsPile!!)
-            BumpDeskLog.d(BumpDeskLog.Tag.RECENTS, "updateRecents", "created system recents pile")
-        }
-        
-        val oldItems = sceneState.recentsPile!!.items.toList()
-        val newItems = recents.map { appInfo ->
-            val existing = findExistingRecentsItem(oldItems, appInfo)
-                ?: findExistingRecentsItem(sceneState.bumpItems, appInfo)
-                ?: findExistingRecentsItem(sceneState.piles.flatMap { it.items }, appInfo)
-
-            val item = existing?.copy() ?: BumpItem(type = BumpItem.Type.RECENT_APP, appInfo = appInfo)
-
-            item.apply {
-                this.appInfo = appInfo
-                appearance.type = BumpItem.Type.RECENT_APP
-                transform.position = sceneState.recentsPile!!.position.copy()
-                transform.surface = sceneState.recentsPile!!.surface
-                val prev = existing?.appData?.appInfo
-                if (prev?.snapshot != appInfo.snapshot ||
-                    prev?.taskId != appInfo.taskId ||
-                    prev?.packageName != appInfo.packageName
-                ) {
-                    appearance.textureId = -1
-                }
+        sceneState.withWriteLock {
+            if (sceneState.recentsPile == null) {
+                sceneState.recentsPile = Pile(
+                    mutableListOf(),
+                    Vector3(-6f, 0.05f, 6f),
+                    name = "Recents",
+                    layoutMode = Pile.LayoutMode.FOLDER,
+                    surface = BumpItem.Surface.FLOOR,
+                    isSystem = true,
+                )
+                sceneState.piles.add(sceneState.recentsPile!!)
+                BumpDeskLog.d(BumpDeskLog.Tag.RECENTS, "updateRecents", "created system recents pile")
             }
-            item
-        }
 
-        sceneState.recentsPile!!.items.clear()
-        sceneState.recentsPile!!.items.addAll(newItems)
-        configureRecentsPileForCurrentMode()
-        sceneState.recentsPile?.reconcilePinnedOpenState()
-        sceneState.recentsPile?.let { FolderDrawerStyle.syncRecentsDrawerItemScales(it) }
-        
-        BumpDeskLog.d(BumpDeskLog.Tag.RECENTS, "updateRecents", "tiles=${newItems.size}")
-        newItems.forEach { item ->
-            BumpDeskLog.d(
-                BumpDeskLog.Tag.RECENTS,
-                "updateRecents",
-                "tile pkg=${item.appData?.appInfo?.packageName} taskId=${item.appData?.appInfo?.taskId}"
-            )
+            val pile = sceneState.recentsPile!!
+            val oldItems = pile.items.toList()
+            val newItems = recents.map { appInfo ->
+                val existing = findExistingRecentsItem(oldItems, appInfo)
+                    ?: findExistingRecentsItem(sceneState.bumpItems, appInfo)
+                    ?: findExistingRecentsItem(sceneState.piles.flatMap { it.items }, appInfo)
+
+                val item = existing?.copy() ?: BumpItem(type = BumpItem.Type.RECENT_APP, appInfo = appInfo)
+
+                item.apply {
+                    this.appInfo = appInfo
+                    appearance.type = BumpItem.Type.RECENT_APP
+                    transform.position = pile.position.copy()
+                    transform.surface = pile.surface
+                    val prev = existing?.appData?.appInfo
+                    if (prev?.snapshot != appInfo.snapshot ||
+                        prev?.taskId != appInfo.taskId ||
+                        prev?.packageName != appInfo.packageName
+                    ) {
+                        appearance.textureId = -1
+                    }
+                }
+                item
+            }
+
+            pile.items.clear()
+            pile.items.addAll(newItems)
+            configureRecentsPileForCurrentMode()
+            pile.reconcilePinnedOpenState()
+            FolderDrawerStyle.syncRecentsDrawerItemScales(pile)
+
+            BumpDeskLog.d(BumpDeskLog.Tag.RECENTS, "updateRecents", "tiles=${newItems.size}")
+            newItems.forEach { item ->
+                BumpDeskLog.d(
+                    BumpDeskLog.Tag.RECENTS,
+                    "updateRecents",
+                    "tile pkg=${item.appData?.appInfo?.packageName} taskId=${item.appData?.appInfo?.taskId}",
+                )
+            }
         }
 
         glSurfaceView?.requestRender()

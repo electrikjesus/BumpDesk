@@ -21,4 +21,16 @@ interface DeskItemDao {
 
     @Query("DELETE FROM desk_piles")
     suspend fun deleteAllPiles()
+
+    @Transaction
+    suspend fun replaceAll(items: List<DeskItem>, piles: List<DeskPile>) {
+        deleteAllItems()
+        deleteAllPiles()
+        if (items.isNotEmpty()) {
+            insertAllItems(items)
+        }
+        if (piles.isNotEmpty()) {
+            insertAllPiles(piles)
+        }
+    }
 }
