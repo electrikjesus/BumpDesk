@@ -100,7 +100,7 @@ class ItemRenderer(
                     val pile = sceneState.getPileOf(item)
                     val folderGrid = pile?.showsRecentsIconGrid() == true
                     if (folderGrid) {
-                        loadAppIconTexture(item, app, cacheKey)
+                        loadRecentsGridIconTexture(item, app, cacheKey)
                     } else {
                         val overrideBitmap = ThemeManager.getIconOverride(context, app.packageName)
                         val iconDrawable = if (overrideBitmap != null) BitmapDrawable(context.resources, overrideBitmap) else app.icon
@@ -138,6 +138,27 @@ class ItemRenderer(
             labelBitmap.recycle()
             if (overrideBitmap != null) iconBitmap.recycle()
         }
+    }
+
+    private fun loadRecentsGridIconTexture(item: BumpItem, app: AppInfo, cacheKey: String?) {
+        val appearance = item.appearance
+        val overrideBitmap = ThemeManager.getIconOverride(context, app.packageName)
+        val iconBitmap = overrideBitmap ?: (app.icon?.let { TextureUtils.getBitmapFromDrawable(it, 192) }) ?: return
+
+        val snapshot = if (RecentsSnapshotCapability.isAvailable()) app.snapshot else null
+        val combined = TextureUtils.createRecentsGridIconBitmap(
+            context,
+            snapshot,
+            iconBitmap,
+            app.label,
+            app.taskId,
+        )
+        appearance.textureId = textureManager.loadTextureFromBitmap(combined)
+
+        if (cacheKey != null) textureManager.cacheTexture(cacheKey, appearance.textureId)
+
+        combined.recycle()
+        if (overrideBitmap != null) iconBitmap.recycle()
     }
 
     private fun updateWebTexture(item: BumpItem, onUpdateTexture: (Runnable) -> Unit) {
@@ -179,25 +200,29 @@ class ItemRenderer(
         val pile = sceneState.getPileOf(item)
         val surfaceToUse = when {
             pile?.showsRecentsTaskCards() == true -> BumpItem.Surface.BACK_WALL
+            pile?.layoutAsExpandedDrawer() == true && pile.recentsOnWall() -> pile.surface
             pile?.isExpanded == true -> BumpItem.Surface.FLOOR
             else -> transform.surface
         }
         
-        val zOffset = 0.01f
-        var posX = transform.position.x
-        var posY = transform.position.y
-        var posZ = transform.position.z
+        val wallRecentsDrawer =
+            pile?.layoutAsExpandedDrawer() == true && pile.recentsOnWall() && pile.showsRecentsIconGrid()
+        val (posX, posY, posZ) = SurfaceRenderDepth.offsetDrawPosition(
+            surfaceToUse,
+            transform.position.x,
+            transform.position.y,
+            transform.position.z,
+            skipWallOffset = wallRecentsDrawer,
+        )
 
         when (surfaceToUse) {
             BumpItem.Surface.BACK_WALL -> {
-                posZ += zOffset
                 Matrix.translateM(modelMatrix, 0, posX, posY, posZ)
                 Matrix.rotateM(modelMatrix, 0, 180f, 0f, 1f, 0f)
                 Matrix.rotateM(modelMatrix, 0, 90f, 1f, 0f, 0f)
                 Matrix.rotateM(modelMatrix, 0, 180f, 0f, 0f, 1f)
             }
             BumpItem.Surface.LEFT_WALL -> {
-                posX += zOffset
                 Matrix.translateM(modelMatrix, 0, posX, posY, posZ)
                 Matrix.rotateM(modelMatrix, 0, 90f, 0f, 1f, 0f)
                 Matrix.rotateM(modelMatrix, 0, 180f, 0f, 1f, 0f)
@@ -205,7 +230,6 @@ class ItemRenderer(
                 Matrix.rotateM(modelMatrix, 0, 180f, 0f, 0f, 1f)
             }
             BumpItem.Surface.RIGHT_WALL -> {
-                posX -= zOffset
                 Matrix.translateM(modelMatrix, 0, posX, posY, posZ)
                 Matrix.rotateM(modelMatrix, 0, -90f, 0f, 1f, 0f)
                 Matrix.rotateM(modelMatrix, 0, 180f, 0f, 1f, 0f)
@@ -213,7 +237,6 @@ class ItemRenderer(
                 Matrix.rotateM(modelMatrix, 0, 180f, 0f, 0f, 1f)
             }
             BumpItem.Surface.FLOOR -> {
-                posY += zOffset
                 Matrix.translateM(modelMatrix, 0, posX, posY, posZ)
             }
         }
@@ -262,9 +285,38 @@ class ItemRenderer(
     fun drawPileFolderPreview(vPMatrix: FloatArray, pile: Pile, lightPos: FloatArray) {
         if (pile.previewTextureId <= 0) return
         Matrix.setIdentityM(modelMatrix, 0)
-        Matrix.translateM(modelMatrix, 0, pile.position.x, pile.position.y + 0.01f, pile.position.z)
         val heightScale = if (pile.showsCollapsedLabel()) 1.38f else 1f
-        Matrix.scaleM(modelMatrix, 0, pile.scale, 1f, pile.scale * heightScale)
+        val (posX, posY, posZ) = SurfaceRenderDepth.offsetDrawPosition(
+            pile.surface,
+            pile.position.x,
+            pile.position.y,
+            pile.position.z,
+        )
+        when (pile.surface) {
+            BumpItem.Surface.BACK_WALL -> {
+                Matrix.translateM(modelMatrix, 0, posX, posY, posZ)
+                Matrix.rotateM(modelMatrix, 0, 90f, 1f, 0f, 0f)
+                Matrix.scaleM(modelMatrix, 0, pile.scale, 1f, pile.scale * heightScale)
+            }
+            BumpItem.Surface.LEFT_WALL -> {
+                Matrix.translateM(modelMatrix, 0, posX, posY, posZ)
+                Matrix.rotateM(modelMatrix, 0, 90f, 0f, 1f, 0f)
+                Matrix.rotateM(modelMatrix, 0, 180f, 0f, 1f, 0f)
+                Matrix.rotateM(modelMatrix, 0, 90f, 1f, 0f, 0f)
+                Matrix.scaleM(modelMatrix, 0, pile.scale, 1f, pile.scale * heightScale)
+            }
+            BumpItem.Surface.RIGHT_WALL -> {
+                Matrix.translateM(modelMatrix, 0, posX, posY, posZ)
+                Matrix.rotateM(modelMatrix, 0, -90f, 0f, 1f, 0f)
+                Matrix.rotateM(modelMatrix, 0, 180f, 0f, 1f, 0f)
+                Matrix.rotateM(modelMatrix, 0, 90f, 1f, 0f, 0f)
+                Matrix.scaleM(modelMatrix, 0, pile.scale, 1f, pile.scale * heightScale)
+            }
+            else -> {
+                Matrix.translateM(modelMatrix, 0, posX, posY, posZ)
+                Matrix.scaleM(modelMatrix, 0, pile.scale, 1f, pile.scale * heightScale)
+            }
+        }
         appIconBox.draw(
             vPMatrix,
             modelMatrix,

@@ -391,6 +391,98 @@ object TextureUtils {
         return combinedBitmap
     }
 
+    /**
+     * Recents icon-grid tile: snapshot fills the icon square; app icon is a corner badge.
+     * Falls back to a scaled launcher icon when no snapshot is available.
+     * Live tasks ([taskId] >= 0) get a tinted tile background and an accent dot.
+     */
+    fun createRecentsGridIconBitmap(
+        context: Context,
+        snapshot: Bitmap?,
+        icon: Bitmap,
+        label: String,
+        taskId: Int = -1,
+    ): Bitmap {
+        val tileSize = 192
+        val combinedHeight = (tileSize * 1.38f).toInt()
+        val combinedBitmap = Bitmap.createBitmap(tileSize, combinedHeight, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(combinedBitmap)
+        val corner = tileSize * 0.18f
+        val isLiveTask = taskId >= 0
+
+        val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = when {
+                snapshot != null -> Color.argb(255, 32, 35, 42)
+                isLiveTask -> Color.argb(255, 36, 42, 56)
+                else -> Color.argb(255, 48, 50, 58)
+            }
+        }
+        canvas.drawRoundRect(0f, 0f, tileSize.toFloat(), tileSize.toFloat(), corner, corner, bgPaint)
+
+        if (snapshot != null) {
+            val cropped = centerCropToAspect(snapshot, tileSize.toFloat(), tileSize.toFloat())
+            canvas.drawBitmap(cropped, 0f, 0f, Paint(Paint.FILTER_BITMAP_FLAG))
+            if (cropped !== snapshot) cropped.recycle()
+
+            canvas.drawRect(
+                0f,
+                tileSize * 0.45f,
+                tileSize.toFloat(),
+                tileSize.toFloat(),
+                Paint().apply {
+                    shader = LinearGradient(
+                        0f,
+                        tileSize * 0.45f,
+                        0f,
+                        tileSize.toFloat(),
+                        Color.TRANSPARENT,
+                        Color.argb(150, 0, 0, 0),
+                        Shader.TileMode.CLAMP,
+                    )
+                },
+            )
+
+            val badgeSize = (tileSize * 0.34f).toInt()
+            val margin = (tileSize * 0.06f).toInt()
+            val dst = Rect(
+                tileSize - badgeSize - margin,
+                tileSize - badgeSize - margin,
+                tileSize - margin,
+                tileSize - margin,
+            )
+            val src = Rect(0, 0, icon.width, icon.height)
+            canvas.drawBitmap(icon, src, dst, Paint(Paint.FILTER_BITMAP_FLAG))
+        } else {
+            val contentSize = tileSize * 0.62f
+            val left = (tileSize - contentSize) / 2f
+            val dst = RectF(left, left, left + contentSize, left + contentSize)
+            canvas.drawBitmap(icon, null, dst, Paint(Paint.FILTER_BITMAP_FLAG))
+        }
+
+        if (isLiveTask) {
+            val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.argb(255, 100, 181, 246)
+            }
+            canvas.drawCircle(tileSize / 2f, tileSize - 10f, 5f, dotPaint)
+        }
+
+        val labelBitmap = TextRenderer.createAppLabelBitmap(label)
+        val labelAreaHeight = combinedHeight - tileSize
+        val labelScale = labelAreaHeight.toFloat() / labelBitmap.height
+        val targetLabelW = (labelBitmap.width * labelScale).toInt().coerceAtMost(tileSize)
+        val targetLabelH = (labelBitmap.height * labelScale).toInt()
+
+        val labelX = (tileSize - targetLabelW) / 2f
+        val labelY = tileSize.toFloat() + (labelAreaHeight - targetLabelH) / 2f
+
+        val src = Rect(0, 0, labelBitmap.width, labelBitmap.height)
+        val dst = Rect(labelX.toInt(), labelY.toInt(), (labelX + targetLabelW).toInt(), (labelY + targetLabelH).toInt())
+        canvas.drawBitmap(labelBitmap, src, dst, Paint(Paint.FILTER_BITMAP_FLAG))
+        labelBitmap.recycle()
+
+        return combinedBitmap
+    }
+
     fun loadCombinedTexture(context: Context, icon: Bitmap, label: Bitmap, isShortcut: Boolean = false): Int {
         val combinedBitmap = getCombinedBitmap(context, icon, label, isShortcut)
         val textureId = loadTextureFromBitmap(combinedBitmap)

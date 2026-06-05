@@ -20,12 +20,19 @@ class PhysicsEngine {
 
     private fun itemsPerPage(pile: Pile) = FolderDrawerStyle.itemsPerPage(pile)
 
+    private fun recentsIconGridUsesInstantScale(pile: Pile): Boolean =
+        pile.isRecentsPile() && pile.showsRecentsIconGrid() && pile.layoutAsExpandedDrawer()
+
     private fun expandedPileItemScale(pile: Pile): Float {
         if (pile.isRecentsPile()) {
             return if (pile.showsRecentsTaskCards()) {
                 (defaultScale * 1.25f).coerceIn(0.4f, 2.0f)
+            } else if (pile.showsRecentsIconGrid()) {
+                FolderDrawerStyle.recentsDrawerIconScale(pile)
+            } else if (FolderDrawerStyle.usesCompactRecentsCellGrid(pile)) {
+                FolderDrawerStyle.compactRecentsIconScale(pile)
             } else {
-                (defaultScale * 0.8f).coerceIn(0.4f, 2.0f)
+                1.05f * pile.scale
             }
         }
         val base = when {
@@ -77,7 +84,11 @@ class PhysicsEngine {
                     targetScale
                 }
 
-                item.transform.scale += (finalTargetScale - item.transform.scale) * 0.1f
+                val scaleBlend = when {
+                    recentsIconGridUsesInstantScale(pile) && isExpandedLayout -> 1f
+                    else -> 0.1f
+                }
+                item.transform.scale += (finalTargetScale - item.transform.scale) * scaleBlend
                 
                 val targetPos = calculateTargetPositionInPile(pile, index)
                 item.transform.position = item.transform.position + (targetPos - item.transform.position) * 0.15f
@@ -125,7 +136,11 @@ class PhysicsEngine {
             } else {
                 0.01f
             }
-            val scaleBlend = if (snap) 1f else 0.1f
+            val scaleBlend = when {
+                snap -> 1f
+                recentsIconGridUsesInstantScale(pile) -> 1f
+                else -> 0.1f
+            }
             item.transform.scale += (finalTargetScale - item.transform.scale) * scaleBlend
 
             val targetPos = calculateTargetPositionInPile(pile, index)
@@ -162,12 +177,22 @@ class PhysicsEngine {
                 )
             }
             BumpItem.Surface.BACK_WALL -> {
-                val limit = roomSize - halfDim - UI_MARGIN
-                pile.position = pile.position.copy(
-                    x = pile.position.x.coerceIn(-limit, limit),
-                    y = pile.position.y.coerceIn(0.05f + halfDim, roomHeight - 2f - halfDim),
-                    z = -roomSize + 0.6f
-                )
+                if (pile.isRecentsPile() && pile.layoutAsExpandedDrawer() && pile.recentsOnWall()) {
+                    val halfX = FolderDrawerStyle.panelHalfDimX(pile)
+                    val halfY = FolderDrawerStyle.panelHalfDimY(pile)
+                    pile.position = pile.position.copy(
+                        x = pile.position.x.coerceIn(-roomSize + halfX + UI_MARGIN, roomSize - halfX - UI_MARGIN),
+                        y = pile.position.y.coerceIn(halfY + 0.5f, roomHeight - 2f - halfY),
+                        z = -roomSize + FolderDrawerStyle.WALL_DRAWER_INSET,
+                    )
+                } else {
+                    val limit = roomSize - halfDim - UI_MARGIN
+                    pile.position = pile.position.copy(
+                        x = pile.position.x.coerceIn(-limit, limit),
+                        y = pile.position.y.coerceIn(0.05f + halfDim, roomHeight - 2f - halfDim),
+                        z = -roomSize + 0.6f,
+                    )
+                }
             }
             BumpItem.Surface.LEFT_WALL -> {
                 val limit = roomSize - halfDim - UI_MARGIN
@@ -252,19 +277,67 @@ class PhysicsEngine {
         if (pile.layoutAsExpandedDrawer()) {
             val pageIndex = pile.scrollIndex
             val pageSize = itemsPerPage(pile)
-            val itemInPageIndex = index % pageSize
             val isCurrentPage = index / pageSize == pageIndex
 
-            val layout = FolderDrawerStyle.layout(pile, floorRoomHalfX(), floorRoomHalfZ())
+            when (pile.surface) {
+                BumpItem.Surface.BACK_WALL -> {
+                    val layout = FolderDrawerStyle.backWallLayout(pile, floorRoomHalfX(), roomSize)
+                    if (!isCurrentPage) {
+                        return Vector3(-10f, -10f, pile.position.z)
+                    }
+                    val (x, y) = FolderDrawerStyle.itemGridPositionOnBackWall(pile, index, layout)
+                    val (_, _, drawZ) = FolderDrawerStyle.offsetFromWallSurface(
+                        BumpItem.Surface.BACK_WALL,
+                        layout.pos[0],
+                        layout.pos[1],
+                        layout.pos[2],
+                        FolderDrawerStyle.WALL_ICON_DEPTH,
+                    )
+                    return Vector3(x, y, drawZ)
+                }
+                BumpItem.Surface.LEFT_WALL -> {
+                    val layout = FolderDrawerStyle.leftWallLayout(pile, floorRoomHalfZ(), roomSize)
+                    if (!isCurrentPage) {
+                        return Vector3(pile.position.x, -10f, -10f)
+                    }
+                    val (z, y) = FolderDrawerStyle.itemGridPositionOnSideWall(pile, index, layout)
+                    val (drawX, _, _) = FolderDrawerStyle.offsetFromWallSurface(
+                        BumpItem.Surface.LEFT_WALL,
+                        layout.pos[0],
+                        layout.pos[1],
+                        layout.pos[2],
+                        FolderDrawerStyle.WALL_ICON_DEPTH,
+                    )
+                    return Vector3(drawX, y, z)
+                }
+                BumpItem.Surface.RIGHT_WALL -> {
+                    val layout = FolderDrawerStyle.rightWallLayout(pile, floorRoomHalfZ(), roomSize)
+                    if (!isCurrentPage) {
+                        return Vector3(pile.position.x, -10f, -10f)
+                    }
+                    val (z, y) = FolderDrawerStyle.itemGridPositionOnSideWall(pile, index, layout)
+                    val (drawX, _, _) = FolderDrawerStyle.offsetFromWallSurface(
+                        BumpItem.Surface.RIGHT_WALL,
+                        layout.pos[0],
+                        layout.pos[1],
+                        layout.pos[2],
+                        FolderDrawerStyle.WALL_ICON_DEPTH,
+                    )
+                    return Vector3(drawX, y, z)
+                }
+                else -> {
+                    val layout = FolderDrawerStyle.layout(pile, floorRoomHalfX(), floorRoomHalfZ())
 
-            val yPos = when {
-                !isCurrentPage -> -10f
-                pile.showsRecentsTaskCards() -> 1.1f * pile.scale
-                else -> FolderDrawerStyle.ICON_Y
+                    val yPos = when {
+                        !isCurrentPage -> -10f
+                        pile.showsRecentsTaskCards() -> 1.1f * pile.scale
+                        else -> FolderDrawerStyle.floorIconY(pile, layout)
+                    }
+                    val (x, z) = FolderDrawerStyle.itemGridPosition(pile, index, layout)
+
+                    return Vector3(x, yPos, z)
+                }
             }
-            val (x, z) = FolderDrawerStyle.itemGridPosition(pile, index, layout)
-
-            return Vector3(x, yPos, z)
         } else if (pile.isFannedOut) {
             val spacing = if (pile.layoutMode == Pile.LayoutMode.GRID) 2.0f * pile.scale else gridSpacingBase * pile.scale
             val offset = (index - (count - 1) / 2f) * spacing
@@ -283,9 +356,9 @@ class PhysicsEngine {
                 else -> pile.position.copy(x = pile.position.x + offset)
             }
         } else if (pile.layoutMode == Pile.LayoutMode.FOLDER && !pile.isExpanded) {
-            return pile.position.copy(y = 0.05f)
-        } else if (pile.isRecentsPile() && pile.surface == BumpItem.Surface.FLOOR && !pile.isExpanded) {
-            return pile.position.copy(y = 0.05f)
+            return collapsedFolderPosition(pile)
+        } else if (pile.isRecentsPile() && !pile.isExpanded) {
+            return collapsedFolderPosition(pile)
         } else if (pile.layoutMode == Pile.LayoutMode.GRID) {
             val side = ceil(sqrt(count.toDouble())).toInt().coerceAtLeast(1)
             val gridSpacing = 2.0f * pile.scale
@@ -299,6 +372,14 @@ class PhysicsEngine {
             return pile.position.copy(y = pile.position.y + leafOffset)
         }
     }
+
+    private fun collapsedFolderPosition(pile: Pile): Vector3 =
+        when (pile.surface) {
+            BumpItem.Surface.FLOOR -> pile.position.copy(y = 0.05f)
+            BumpItem.Surface.BACK_WALL -> pile.position.copy(z = -roomSize + 0.6f)
+            BumpItem.Surface.LEFT_WALL -> pile.position.copy(x = -roomSize + 0.6f)
+            BumpItem.Surface.RIGHT_WALL -> pile.position.copy(x = roomSize - 0.6f)
+        }
 
     private fun resolveCollision(item: BumpItem, other: BumpItem, selectedItem: BumpItem?, onBump: (Float) -> Unit) {
         val itemCanMove = !item.transform.isPinned && item != selectedItem
