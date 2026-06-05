@@ -61,6 +61,14 @@
             android:buttonTint="#D0BCFF" />
 
         <CheckBox
+            android:id="@+id/cbFlatFloorDesktop"
+            android:layout_width="match_parent"
+            android:layout_height="64dp"
+            android:text="Flat Floor Desktop (top-down view)"
+            android:textColor="#FFFFFF"
+            android:buttonTint="#D0BCFF" />
+
+        <CheckBox
             android:id="@+id/cbUseWallpaperAsFloor"
             android:layout_width="match_parent"
             android:layout_height="64dp"

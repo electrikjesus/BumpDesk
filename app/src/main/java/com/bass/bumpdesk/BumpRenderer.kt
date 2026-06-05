@@ -70,6 +70,9 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
 
     var ROOM_SIZE = 30f
     var ROOM_HEIGHT = 30f
+    var floorHalfWidth = 30f
+    var floorHalfDepth = 30f
+    var isFlatFloorMode = false
 
     enum class GridLayout { GRID, ROW, COLUMN }
 
@@ -178,23 +181,46 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         physicsEngine.isInfiniteMode = prefs.getBoolean("infinite_desktop_mode", false)
         interactionManager.isInfiniteMode = physicsEngine.isInfiniteMode
 
+        isFlatFloorMode = prefs.getBoolean(FlatFloorMode.PREF_KEY, false) && !physicsEngine.isInfiniteMode
+        physicsEngine.isFlatFloorMode = isFlatFloorMode
+        interactionManager.isFlatFloorMode = isFlatFloorMode
+        camera.isFlatFloorMode = isFlatFloorMode
+
         ROOM_SIZE = prefs.getInt("room_size_scale", 30).toFloat()
         ROOM_HEIGHT = ROOM_SIZE
+        floorHalfWidth = ROOM_SIZE
+        floorHalfDepth = ROOM_SIZE
 
-        interactionManager.roomSize = ROOM_SIZE
+        if (isFlatFloorMode) {
+            applyFlatFloorBounds(displayProfile)
+        }
+
+        syncWallpaperFloorCrop()
         interactionManager.roomHeight = ROOM_HEIGHT
+        interactionManager.floorHalfX = floorHalfWidth
+        interactionManager.floorHalfZ = floorHalfDepth
         
-        physicsEngine.roomSize = ROOM_SIZE
+        physicsEngine.roomSize = if (isFlatFloorMode) floorHalfWidth else ROOM_SIZE
         physicsEngine.roomHeight = ROOM_HEIGHT
+        physicsEngine.floorHalfX = floorHalfWidth
+        physicsEngine.floorHalfZ = floorHalfDepth
 
         camera.isInfiniteMode = physicsEngine.isInfiniteMode
-        camera.MAX_X = ROOM_SIZE - 1f
-        camera.MAX_Y = ROOM_HEIGHT - 1f
-        camera.MAX_Z = ROOM_SIZE - 1f
-        camera.MIN_X = -ROOM_SIZE + 1f
-        camera.MIN_Z = -ROOM_SIZE + 1f
+        if (isFlatFloorMode) {
+            camera.MAX_X = floorHalfWidth - 1f
+            camera.MAX_Y = ROOM_HEIGHT - 1f
+            camera.MAX_Z = floorHalfDepth - 1f
+            camera.MIN_X = -floorHalfWidth + 1f
+            camera.MIN_Z = -floorHalfDepth + 1f
+        } else {
+            camera.MAX_X = ROOM_SIZE - 1f
+            camera.MAX_Y = ROOM_HEIGHT - 1f
+            camera.MAX_Z = ROOM_SIZE - 1f
+            camera.MIN_X = -ROOM_SIZE + 1f
+            camera.MIN_Z = -ROOM_SIZE + 1f
+        }
         
-        if (prefs.contains("cam_def_pos_x")) {
+        if (prefs.contains("cam_def_pos_x") && !isFlatFloorMode) {
             camera.customDefaultPos[0] = prefs.getFloat("cam_def_pos_x", camera.ABSOLUTE_DEFAULT_POS[0])
             camera.customDefaultPos[1] = prefs.getFloat("cam_def_pos_y", camera.ABSOLUTE_DEFAULT_POS[1])
             camera.customDefaultPos[2] = prefs.getFloat("cam_def_pos_z", camera.ABSOLUTE_DEFAULT_POS[2])
@@ -215,6 +241,22 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
             prefs.edit().remove("reset_camera_trigger").apply()
             sessionProfileApplied = true
             CameraDiagnostics.log(camera, "updateSettings", "source=resetCameraTrigger")
+        } else if (isFlatFloorMode) {
+            val aspect = if (surfaceWidth > 0 && surfaceHeight > 0) {
+                surfaceWidth.toFloat() / surfaceHeight
+            } else {
+                displayProfile.widthPx.toFloat() / displayProfile.heightPx.coerceAtLeast(1)
+            }
+            val bounds = FlatFloorMode.computeFloorBounds(
+                FlatFloorMode.DEFAULT_EYE_Y,
+                FlatFloorMode.DEFAULT_EYE_Z,
+                FlatFloorMode.DEFAULT_FOV,
+                aspect,
+                FlatFloorMode.DEFAULT_ZOOM,
+            )
+            camera.applyFlatFloorDefaults(bounds, aspect)
+            sessionProfileApplied = true
+            CameraDiagnostics.log(camera, "updateSettings", "source=flatFloorDefaults")
         } else {
             camera.customDefaultPos = displayProfile.defaultCameraPos.clone()
             camera.customDefaultLookAt = displayProfile.defaultCameraLookAt.clone()
@@ -236,6 +278,26 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         }
 
         glSurfaceView?.requestRender()
+    }
+
+    private fun wallpaperFloorCropAspect(): Pair<Float, Float> {
+        return if (isFlatFloorMode) {
+            floorHalfWidth to floorHalfDepth
+        } else {
+            1f to 1f
+        }
+    }
+
+    private fun syncWallpaperFloorCrop(reloadTexture: Boolean = true) {
+        val prefs = context.getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
+        if (!prefs.getBoolean("use_wallpaper_as_floor", false)) {
+            return
+        }
+        val (cropW, cropH) = wallpaperFloorCropAspect()
+        val recropped = WallpaperFloorProvider.updateFloorCropAspect(cropW, cropH)
+        if (recropped && reloadTexture) {
+            reloadFloorTexture()
+        }
     }
 
     private fun saveState() {
@@ -579,7 +641,19 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         Matrix.invertM(interactionManager.invertedVPMatrix, 0, vPMatrix, 0)
         
         val isAnimatedTheme = ThemeManager.currentThemeName == "BumpDesk Animated"
-        roomRenderer.draw(vPMatrix, floorTextureId, wallTextureIds, lightPos, interactionManager.isInfiniteMode, ROOM_SIZE, ROOM_HEIGHT, frameCount.toFloat(), isAnimatedTheme)
+        roomRenderer.draw(
+            vPMatrix,
+            floorTextureId,
+            wallTextureIds,
+            lightPos,
+            interactionManager.isInfiniteMode,
+            ROOM_SIZE,
+            ROOM_HEIGHT,
+            floorHalfWidth,
+            floorHalfDepth,
+            frameCount.toFloat(),
+            isAnimatedTheme
+        )
         
         val onUpdateTexture: (Runnable) -> Unit = { event -> glSurfaceView?.queueEvent(event) }
 
@@ -593,6 +667,8 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         if (interactionManager.lassoPoints.isNotEmpty()) lassoRenderer.draw(vPMatrix, interactionManager.lassoPoints)
         
         if (isAnimatedTheme) {
+            glSurfaceView?.requestRender()
+        } else if (camera.isAnimating()) {
             glSurfaceView?.requestRender()
         }
     }
@@ -770,45 +846,51 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
             }
             if (item.appearance.type == BumpItem.Type.APP || item.appearance.type == BumpItem.Type.RECENT_APP) (context as? LauncherActivity)?.launchApp(item) else if (item.appearance.type == BumpItem.Type.STICKY_NOTE) (context as? LauncherActivity)?.promptEditStickyNote(item) else if (item.appearance.type == BumpItem.Type.PHOTO_FRAME) (context as? LauncherActivity)?.promptChangePhoto(item) else if (item.appearance.type == BumpItem.Type.WEB_WIDGET) (context as? LauncherActivity)?.promptEditWebWidget(item)
         } else if (camera.currentViewMode != CameraManager.ViewMode.DEFAULT) dismissExpandedPile()
+        glSurfaceView?.requestRender()
     }
 
     fun handleDoubleTap(x: Float, y: Float) {
         val rS = FloatArray(4); val rE = FloatArray(4); interactionManager.calculateRay(x, y, rS, rE)
-        val walls = listOf(
-            Triple(BumpItem.Surface.BACK_WALL, floatArrayOf(0f, 4f, 2f), floatArrayOf(0f, 4f, -ROOM_SIZE)),
-            Triple(BumpItem.Surface.LEFT_WALL, floatArrayOf(2f, 4f, 0f), floatArrayOf(-ROOM_SIZE, 4f, 0f)),
-            Triple(BumpItem.Surface.RIGHT_WALL, floatArrayOf(-2f, 4f, 0f), floatArrayOf(ROOM_SIZE, 4f, 0f))
-        )
-        var best: Triple<BumpItem.Surface, FloatArray, FloatArray>? = null; var minT = Float.MAX_VALUE
-        walls.forEach { (s, cp, la) -> 
-            val t = when (s) { 
-                BumpItem.Surface.BACK_WALL -> (-ROOM_SIZE + 0.05f - rS[2]) / (rE[2] - rS[2])
-                BumpItem.Surface.LEFT_WALL -> (-ROOM_SIZE + 0.05f - rS[0]) / (rE[0] - rS[0])
-                BumpItem.Surface.RIGHT_WALL -> (ROOM_SIZE - 0.05f - rS[0]) / (rE[0] - rS[0])
-                else -> -1f 
+        if (!isFlatFloorMode) {
+            val walls = listOf(
+                Triple(BumpItem.Surface.BACK_WALL, floatArrayOf(0f, 4f, 2f), floatArrayOf(0f, 4f, -ROOM_SIZE)),
+                Triple(BumpItem.Surface.LEFT_WALL, floatArrayOf(2f, 4f, 0f), floatArrayOf(-ROOM_SIZE, 4f, 0f)),
+                Triple(BumpItem.Surface.RIGHT_WALL, floatArrayOf(-2f, 4f, 0f), floatArrayOf(ROOM_SIZE, 4f, 0f))
+            )
+            var best: Triple<BumpItem.Surface, FloatArray, FloatArray>? = null; var minT = Float.MAX_VALUE
+            walls.forEach { (s, cp, la) ->
+                val t = when (s) {
+                    BumpItem.Surface.BACK_WALL -> (-ROOM_SIZE + 0.05f - rS[2]) / (rE[2] - rS[2])
+                    BumpItem.Surface.LEFT_WALL -> (-ROOM_SIZE + 0.05f - rS[0]) / (rE[0] - rS[0])
+                    BumpItem.Surface.RIGHT_WALL -> (ROOM_SIZE - 0.05f - rS[0]) / (rE[0] - rS[0])
+                    else -> -1f
+                }
+                if (t > 0 && t < minT) {
+                    val hitX = rS[0] + t * (rE[0] - rS[0])
+                    val hitY = rS[1] + t * (rE[1] - rS[1])
+                    val hitZ = rS[2] + t * (rE[2] - rS[2])
+                    val margin = ROOM_SIZE + 0.1f
+                    if (abs(hitX) <= margin && abs(hitZ) <= margin && hitY >= 0f && hitY <= ROOM_HEIGHT) {
+                        minT = t; best = Triple(s, cp, la)
+                    }
+                }
             }
-            if (t > 0 && t < minT) { 
-                val hitX = rS[0] + t * (rE[0] - rS[0])
-                val hitY = rS[1] + t * (rE[1] - rS[1])
-                val hitZ = rS[2] + t * (rE[2] - rS[2])
-                val margin = ROOM_SIZE + 0.1f
-                if (abs(hitX) <= margin && abs(hitZ) <= margin && hitY >= 0f && hitY <= ROOM_HEIGHT) { 
-                    minT = t; best = Triple(s, cp, la) 
-                } 
-            } 
-        }
-        if (best != null) { 
-            camera.focusOnWall(when(best!!.first) { 
-                BumpItem.Surface.BACK_WALL -> CameraManager.ViewMode.BACK_WALL
-                BumpItem.Surface.LEFT_WALL -> CameraManager.ViewMode.LEFT_WALL
-                else -> CameraManager.ViewMode.RIGHT_WALL 
-            }, best!!.second, best!!.third)
-            (context as? LauncherActivity)?.showResetButton(true); return 
+            if (best != null) {
+                camera.focusOnWall(when(best!!.first) {
+                    BumpItem.Surface.BACK_WALL -> CameraManager.ViewMode.BACK_WALL
+                    BumpItem.Surface.LEFT_WALL -> CameraManager.ViewMode.LEFT_WALL
+                    else -> CameraManager.ViewMode.RIGHT_WALL
+                }, best!!.second, best!!.third)
+                (context as? LauncherActivity)?.showResetButton(true); return
+            }
         }
         val tf = -rS[1] / (rE[1] - rS[1])
-        if (tf > 0 && abs(rS[0] + tf * (rE[0] - rS[0])) <= ROOM_SIZE && abs(rS[2] + tf * (rE[2] - rS[2])) <= ROOM_SIZE) { 
+        if (tf > 0 &&
+            abs(rS[0] + tf * (rE[0] - rS[0])) <= floorHalfWidth &&
+            abs(rS[2] + tf * (rE[2] - rS[2])) <= floorHalfDepth
+        ) {
             camera.focusOnFloor()
-            (context as? LauncherActivity)?.showResetButton(true)
+            (context as? LauncherActivity)?.showResetButton(!isFlatFloorMode)
             playSound(focusSoundId, 0.4f); hapticManager.selection() ; return
         }
         handleSingleTap(x, y)
@@ -848,16 +930,41 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         sceneState.piles.forEach { it.isExpanded = false }
         val profile = ScreenMetrics.from(context)
         OrientationCameraAnchor.clear(context, profile.orientationKey)
-        camera.applyProfileDefaults(profile)
+        val prefs = context.getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
+        if (isFlatFloorMode) {
+            val aspect = if (surfaceWidth > 0 && surfaceHeight > 0) {
+                surfaceWidth.toFloat() / surfaceHeight
+            } else {
+                profile.widthPx.toFloat() / profile.heightPx.coerceAtLeast(1)
+            }
+            val bounds = FlatFloorMode.computeFloorBounds(
+                FlatFloorMode.DEFAULT_EYE_Y,
+                FlatFloorMode.DEFAULT_EYE_Z,
+                FlatFloorMode.DEFAULT_FOV,
+                aspect,
+                FlatFloorMode.DEFAULT_ZOOM,
+            )
+            camera.transitionToFlatFloorDefaults(bounds, aspect)
+        } else {
+            camera.applyProfileDefaults(profile)
+        }
         sessionProfileApplied = true
         (context as? LauncherActivity)?.showResetButton(false)
+        glSurfaceView?.requestRender()
     }
-    fun dismissExpandedPile() { sceneState.piles.removeAll { it.isSystem && it.name == "All Apps" }; sceneState.piles.forEach { it.isExpanded = false }; camera.restorePreviousView(); (context as? LauncherActivity)?.showResetButton(camera.currentViewMode != CameraManager.ViewMode.DEFAULT) }
+    fun dismissExpandedPile() {
+        sceneState.piles.removeAll { it.isSystem && it.name == "All Apps" }
+        sceneState.piles.forEach { it.isExpanded = false }
+        camera.restorePreviousView()
+        val showReset = !isFlatFloorMode && camera.currentViewMode != CameraManager.ViewMode.DEFAULT
+        (context as? LauncherActivity)?.showResetButton(showReset)
+        glSurfaceView?.requestRender()
+    }
     fun onDisplayProfileChanged() {
         val prefs = context.getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
         interactionManager.updateTouchMetrics(context)
         val profile = ScreenMetrics.from(context)
-        if (prefs.contains("cam_def_pos_x")) {
+        if (prefs.contains("cam_def_pos_x") && !isFlatFloorMode) {
             CameraDiagnostics.log(
                 camera,
                 "orientationChange",
@@ -874,7 +981,10 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 .apply()
             applyOrientationProfile(profile, "orientationChange")
             sessionProfileApplied = true
-        } else if (!sessionProfileApplied && camera.currentViewMode == CameraManager.ViewMode.DEFAULT) {
+        } else if (!sessionProfileApplied &&
+            (camera.currentViewMode == CameraManager.ViewMode.DEFAULT ||
+                (isFlatFloorMode && camera.currentViewMode == CameraManager.ViewMode.FLOOR))
+        ) {
             applyOrientationProfile(profile, "orientationChange")
             sessionProfileApplied = true
         } else {
@@ -911,6 +1021,25 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
     }
 
     private fun applyOrientationProfile(profile: ScreenMetrics.DisplayProfile, reason: String) {
+        val prefs = context.getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
+        if (isFlatFloorMode) {
+            applyFlatFloorBounds(profile)
+            val aspect = surfaceWidth.toFloat() / surfaceHeight.coerceAtLeast(1)
+            val bounds = FlatFloorMode.computeFloorBounds(
+                FlatFloorMode.DEFAULT_EYE_Y,
+                FlatFloorMode.DEFAULT_EYE_Z,
+                FlatFloorMode.DEFAULT_FOV,
+                aspect,
+                FlatFloorMode.DEFAULT_ZOOM,
+            )
+            camera.transitionToFlatFloorDefaults(bounds, aspect)
+            CameraDiagnostics.log(
+                camera,
+                reason,
+                "source=flatFloor orientation=${profile.orientationKey} ${profile.widthPx}x${profile.heightPx}"
+            )
+            return
+        }
         val anchor = OrientationCameraAnchor.load(context, profile.orientationKey)
         if (anchor != null) {
             camera.applyAnchor(anchor)
@@ -924,11 +1053,42 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         }
     }
 
-    override fun onSurfaceChanged(unused: GL10, w: Int, h: Int) { 
+    private fun applyFlatFloorBounds(profile: ScreenMetrics.DisplayProfile) {
+        val aspect = if (surfaceWidth > 0 && surfaceHeight > 0) {
+            surfaceWidth.toFloat() / surfaceHeight
+        } else {
+            profile.widthPx.toFloat() / profile.heightPx.coerceAtLeast(1)
+        }
+        val bounds = FlatFloorMode.computeFloorBounds(
+            FlatFloorMode.DEFAULT_EYE_Y,
+            FlatFloorMode.DEFAULT_EYE_Z,
+            FlatFloorMode.DEFAULT_FOV,
+            aspect,
+            FlatFloorMode.DEFAULT_ZOOM,
+        )
+        floorHalfWidth = bounds.halfX
+        floorHalfDepth = bounds.halfZ
+        physicsEngine.floorHalfX = bounds.halfX
+        physicsEngine.floorHalfZ = bounds.halfZ
+        interactionManager.floorHalfX = bounds.halfX
+        interactionManager.floorHalfZ = bounds.halfZ
+        interactionManager.roomSize = bounds.halfX
+        physicsEngine.roomSize = bounds.halfX
+        camera.MAX_X = bounds.halfX - 1f
+        camera.MAX_Z = bounds.halfZ - 1f
+        camera.MIN_X = -bounds.halfX + 1f
+        camera.MIN_Z = -bounds.halfZ + 1f
+    }
+
+    override fun onSurfaceChanged(unused: GL10, w: Int, h: Int) {
         surfaceWidth = w; surfaceHeight = h
         GLES20.glViewport(0, 0, w, h); interactionManager.screenWidth = w; interactionManager.screenHeight = h;
         Matrix.perspectiveM(projectionMatrix, 0, camera.fieldOfView, w.toFloat() / h, 0.1f, 100f)
         CameraDiagnostics.log(camera, "surfaceChanged", "surface=${w}x${h}")
+        if (isFlatFloorMode) {
+            applyFlatFloorBounds(ScreenMetrics.from(context))
+        }
+        syncWallpaperFloorCrop()
         onDisplayProfileChanged()
     }
 }

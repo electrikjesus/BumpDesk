@@ -50,7 +50,9 @@ object TextureUtils {
                 true
             )
             if (scaled !== bitmap) {
-                bitmap.recycle()
+                if (bitmap !== source) {
+                    bitmap.recycle()
+                }
             }
             bitmap = scaled
         }
@@ -81,15 +83,18 @@ object TextureUtils {
         return Bitmap.createBitmap(source, x, y, cropW, cropH)
     }
 
-    /** GL-safe sizing plus center crop for the square floor plane. */
-    fun prepareWallpaperForFloor(source: Bitmap): Bitmap {
+    /** GL-safe sizing plus center crop for the floor plane aspect (width:depth). */
+    fun prepareWallpaperForFloor(
+        source: Bitmap,
+        aspectWidth: Float = 1f,
+        aspectHeight: Float = 1f,
+    ): Bitmap {
         var bitmap = prepareBitmapForGl(source)
-        val cropped = centerCropToAspect(bitmap, 1f, 1f)
-        if (cropped !== bitmap) {
+        val cropped = centerCropToAspect(bitmap, aspectWidth, aspectHeight)
+        if (cropped !== bitmap && bitmap !== source) {
             bitmap.recycle()
-            bitmap = cropped
         }
-        return bitmap
+        return cropped
     }
 
     fun loadSystemWallpaperBitmap(context: Context): Bitmap? {

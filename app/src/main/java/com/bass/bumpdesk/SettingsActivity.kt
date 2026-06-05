@@ -35,7 +35,8 @@ class SettingsActivity : AppCompatActivity() {
             resetWallpaperCheckbox(checkbox ?: findViewById(R.id.cbUseWallpaperAsFloor))
             return@registerForActivityResult
         }
-        if (WallpaperFloorProvider.savePickedWallpaper(this, uri)) {
+        val (cropW, cropH) = FlatFloorMode.floorCropAspectFor(this)
+        if (WallpaperFloorProvider.savePickedWallpaper(this, uri, cropW, cropH)) {
             getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
                 .edit().putBoolean("use_wallpaper_as_floor", true).apply()
             checkbox?.isChecked = true
@@ -71,11 +72,23 @@ class SettingsActivity : AppCompatActivity() {
             }
         }
 
-        findViewById<CheckBox>(R.id.cbInfiniteDesktop).apply {
-            isChecked = prefs.getBoolean("infinite_desktop_mode", false)
-            setOnCheckedChangeListener { _, isChecked -> 
-                prefs.edit().putBoolean("infinite_desktop_mode", isChecked).apply() 
+        val cbInfiniteDesktop = findViewById<CheckBox>(R.id.cbInfiniteDesktop)
+        val cbFlatFloorDesktop = findViewById<CheckBox>(R.id.cbFlatFloorDesktop)
+        cbInfiniteDesktop.isChecked = prefs.getBoolean("infinite_desktop_mode", false)
+        cbFlatFloorDesktop.isChecked = prefs.getBoolean(FlatFloorMode.PREF_KEY, false)
+        cbInfiniteDesktop.setOnCheckedChangeListener { _, isChecked ->
+            if (isChecked) {
+                cbFlatFloorDesktop.isChecked = false
+                prefs.edit().putBoolean(FlatFloorMode.PREF_KEY, false).apply()
             }
+            prefs.edit().putBoolean("infinite_desktop_mode", isChecked).apply()
+        }
+        cbFlatFloorDesktop.setOnCheckedChangeListener { _, isChecked ->
+            if (isChecked) {
+                cbInfiniteDesktop.isChecked = false
+                prefs.edit().putBoolean("infinite_desktop_mode", false).apply()
+            }
+            prefs.edit().putBoolean(FlatFloorMode.PREF_KEY, isChecked).apply()
         }
 
         findViewById<CheckBox>(R.id.cbUseWallpaperAsFloor).apply {
@@ -145,6 +158,7 @@ class SettingsActivity : AppCompatActivity() {
                 putBoolean("show_recent_apps", true)
                 putBoolean("show_app_drawer_icon", true)
                 putBoolean("infinite_desktop_mode", false)
+                putBoolean(FlatFloorMode.PREF_KEY, false)
                 putBoolean("use_wallpaper_as_floor", false)
                 apply()
             }
@@ -192,7 +206,8 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun enableWallpaperFloorPref(checkbox: CheckBox, allowFallbackDialog: Boolean) {
-        WallpaperFloorProvider.refreshWithRetry(this) { loaded ->
+        val (cropW, cropH) = FlatFloorMode.floorCropAspectFor(this)
+        WallpaperFloorProvider.refreshWithRetry(this, cropW, cropH) { loaded ->
             if (loaded) {
                 pendingWallpaperCheckbox = null
                 getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)

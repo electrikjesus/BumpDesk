@@ -56,6 +56,9 @@ class InteractionManager(
     private var lassoStartPoint: Vector3? = null
 
     var isInfiniteMode = false
+    var isFlatFloorMode = false
+    var floorHalfX = 30f
+    var floorHalfZ = 30f
     var roomSize = 30f
     var roomHeight = 30f
 
@@ -445,20 +448,22 @@ class InteractionManager(
 
     fun findWallOrFloorHit(rS: FloatArray, rE: FloatArray, floorY: Float): Pair<BumpItem.Surface, FloatArray>? {
         val surfaces = mutableListOf(BumpItem.Surface.FLOOR)
-        if (!isInfiniteMode) {
+        if (!isInfiniteMode && !isFlatFloorMode) {
             surfaces.addAll(listOf(BumpItem.Surface.BACK_WALL, BumpItem.Surface.LEFT_WALL, BumpItem.Surface.RIGHT_WALL))
         }
         
         var bestSurface: BumpItem.Surface? = null
         var minT = Float.MAX_VALUE
         var bestPos = FloatArray(3)
+        val boundX = if (isFlatFloorMode) floorHalfX else roomSize
+        val boundZ = if (isFlatFloorMode) floorHalfZ else roomSize
         
         surfaces.forEach { surface ->
             val t = when (surface) {
                 BumpItem.Surface.FLOOR -> (floorY - rS[1]) / (rE[1] - rS[1])
-                BumpItem.Surface.BACK_WALL -> (-roomSize + 0.05f - rS[2]) / (rE[2] - rS[2])
-                BumpItem.Surface.LEFT_WALL -> (-roomSize + 0.05f - rS[0]) / (rE[0] - rS[0])
-                BumpItem.Surface.RIGHT_WALL -> (roomSize - 0.05f - rS[0]) / (rE[0] - rS[0])
+                BumpItem.Surface.BACK_WALL -> (-boundZ + 0.05f - rS[2]) / (rE[2] - rS[2])
+                BumpItem.Surface.LEFT_WALL -> (-boundX + 0.05f - rS[0]) / (rE[0] - rS[0])
+                BumpItem.Surface.RIGHT_WALL -> (boundX - 0.05f - rS[0]) / (rE[0] - rS[0])
             }
             if (t > 0 && t < minT) {
                 val hitX = rS[0] + t * (rE[0] - rS[0])
@@ -467,9 +472,14 @@ class InteractionManager(
                 
                 if (isInfiniteMode && surface == BumpItem.Surface.FLOOR) {
                     minT = t; bestSurface = surface; bestPos = floatArrayOf(hitX, hitY, hitZ)
+                } else if (isFlatFloorMode && surface == BumpItem.Surface.FLOOR) {
+                    if (abs(hitX) <= boundX + 0.1f && abs(hitZ) <= boundZ + 0.1f) {
+                        minT = t; bestSurface = surface; bestPos = floatArrayOf(hitX, hitY, hitZ)
+                    }
                 } else if (!isInfiniteMode) {
-                    val margin = roomSize + 0.1f
-                    if (abs(hitX) <= margin && abs(hitZ) <= margin && hitY >= 0f && hitY <= roomHeight) {
+                    val marginX = boundX + 0.1f
+                    val marginZ = boundZ + 0.1f
+                    if (abs(hitX) <= marginX && abs(hitZ) <= marginZ && hitY >= 0f && hitY <= roomHeight) {
                         minT = t; bestSurface = surface; bestPos = floatArrayOf(hitX, hitY, hitZ)
                     }
                 }

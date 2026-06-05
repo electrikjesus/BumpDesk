@@ -166,10 +166,18 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
                 pendingFloorReload = true
                 BumpDeskLog.exit(BumpDeskLog.Tag.CORE, "onSharedPreferenceChanged", "key=$key deferred")
             }
-            "selected_theme", "infinite_desktop_mode" -> {
+            "selected_theme" -> {
                 BumpDeskLog.enter(BumpDeskLog.Tag.CORE, "onSharedPreferenceChanged", "key=$key")
                 ThemeManager.init(this, forceReload = true)
                 pendingThemeReload = true
+                BumpDeskLog.exit(BumpDeskLog.Tag.CORE, "onSharedPreferenceChanged", "key=$key deferred")
+            }
+            "infinite_desktop_mode", FlatFloorMode.PREF_KEY -> {
+                BumpDeskLog.enter(BumpDeskLog.Tag.CORE, "onSharedPreferenceChanged", "key=$key")
+                pendingSettingsUpdate = true
+                if (lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) {
+                    applyPendingPreferenceUpdates(sharedPreferences)
+                }
                 BumpDeskLog.exit(BumpDeskLog.Tag.CORE, "onSharedPreferenceChanged", "key=$key deferred")
             }
             "show_recent_apps" -> {
@@ -235,11 +243,13 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
             onReady?.invoke()
             return
         }
+        val (cropW, cropH) = FlatFloorMode.floorCropAspectFor(this)
         if (WallpaperFloorProvider.hasBitmap()) {
+            WallpaperFloorProvider.updateFloorCropAspect(cropW, cropH)
             onReady?.invoke()
             return
         }
-        WallpaperFloorProvider.refreshWithRetry(this) { loaded ->
+        WallpaperFloorProvider.refreshWithRetry(this, cropW, cropH) { loaded ->
             if (!loaded) {
                 BumpDeskLog.w(
                     BumpDeskLog.Tag.WALLPAPER,
@@ -645,7 +655,9 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
             val prefs = getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
             applyPendingPreferenceUpdates(prefs)
             if (prefs.getBoolean("use_wallpaper_as_floor", false) && !didReloadFloorThisResume) {
+                val (cropW, cropH) = FlatFloorMode.floorCropAspectFor(this)
                 if (WallpaperFloorProvider.hasBitmap()) {
+                    WallpaperFloorProvider.updateFloorCropAspect(cropW, cropH)
                     renderer.reloadFloorTexture()
                 } else {
                     prepareWallpaperFloorIfNeeded(prefs) {

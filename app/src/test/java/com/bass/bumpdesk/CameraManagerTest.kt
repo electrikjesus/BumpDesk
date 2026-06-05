@@ -15,18 +15,17 @@ class CameraManagerTest {
         // New Defaults for 30f room: 
         // targetPos: (0, 12, 25), targetLookAt: (0, 0, 5)
         
-        // Zoom in (zoomLevel < 1.0)
+        // Zoom in (zoomLevel < 1.0); currentZoomLevel eases toward target each frame.
         camera.zoomLevel = 0.5f
         camera.update()
         
         // relPos = targetPos - targetLookAt = (0, 12, 20)
-        // zoomedTargetPos = targetLookAt + relPos * zoomLevel = (0, 0, 5) + (0, 12, 20) * 0.5 = (0, 6, 15)
-        // currentPos starts at (0, 12, 25)
-        // currentPos[1] += (6 - 12) * 0.1 = 11.4
-        // currentPos[2] += (15 - 25) * 0.1 = 24.0
+        // currentZoomLevel after one frame: 1.0 + (0.5 - 1.0) * 0.1 = 0.95
+        // zoomedTargetPos = (0, 11.4, 24.0)
+        // currentPos lerps 10% toward zoomed target from (0, 12, 25)
         
-        assertEquals(11.4f, camera.currentPos[1], 0.01f)
-        assertEquals(24.0f, camera.currentPos[2], 0.01f)
+        assertEquals(11.94f, camera.currentPos[1], 0.01f)
+        assertEquals(24.9f, camera.currentPos[2], 0.01f)
     }
 
     @Test

@@ -19,6 +19,9 @@ class PhysicsEngine {
     val ITEMS_PER_PAGE = 16
 
     var isInfiniteMode = false
+    var isFlatFloorMode = false
+    var floorHalfX = 30.0f
+    var floorHalfZ = 30.0f
 
     fun update(
         items: MutableList<BumpItem>,
@@ -96,11 +99,11 @@ class PhysicsEngine {
         
         when (pile.surface) {
             BumpItem.Surface.FLOOR -> {
-                val limit = if (isInfiniteMode) INFINITE_SIZE else roomSize
-                val bound = limit - halfDim - UI_MARGIN
+                val limitX = floorLimitX(halfDim)
+                val limitZ = floorLimitZ(halfDim)
                 pile.position = pile.position.copy(
-                    x = pile.position.x.coerceIn(-bound, bound),
-                    z = pile.position.z.coerceIn(-bound, bound),
+                    x = pile.position.x.coerceIn(-limitX, limitX),
+                    z = pile.position.z.coerceIn(-limitZ, limitZ),
                     y = 0.05f
                 )
             }
@@ -133,18 +136,18 @@ class PhysicsEngine {
 
     private fun applyConstraints(item: BumpItem, onBump: (Float) -> Unit) {
         val scale = item.transform.scale
-        val limit = if (isInfiniteMode && item.transform.surface == BumpItem.Surface.FLOOR) INFINITE_SIZE - scale - 0.05f else roomSize - scale - 0.05f
-        
         when (item.transform.surface) {
             BumpItem.Surface.FLOOR -> {
+                val limitX = floorLimitX(scale)
+                val limitZ = floorLimitZ(scale)
                 var newVel = item.transform.velocity
                 var newPos = item.transform.position.copy(y = item.transform.position.y.coerceAtLeast(0.05f))
                 var magnitude = 0f
                 
-                if (newPos.x > limit) { newPos = newPos.copy(x = limit); magnitude = abs(newVel.x); newVel = newVel.copy(x = -magnitude * wallBounce) }
-                if (newPos.x < -limit) { newPos = newPos.copy(x = -limit); magnitude = abs(newVel.x); newVel = newVel.copy(x = magnitude * wallBounce) }
-                if (newPos.z > limit) { newPos = newPos.copy(z = limit); magnitude = abs(newVel.z); newVel = newVel.copy(z = -magnitude * wallBounce) }
-                if (newPos.z < -limit) { newPos = newPos.copy(z = -limit); magnitude = abs(newVel.z); newVel = newVel.copy(z = magnitude * wallBounce) }
+                if (newPos.x > limitX) { newPos = newPos.copy(x = limitX); magnitude = abs(newVel.x); newVel = newVel.copy(x = -magnitude * wallBounce) }
+                if (newPos.x < -limitX) { newPos = newPos.copy(x = -limitX); magnitude = abs(newVel.x); newVel = newVel.copy(x = magnitude * wallBounce) }
+                if (newPos.z > limitZ) { newPos = newPos.copy(z = limitZ); magnitude = abs(newVel.z); newVel = newVel.copy(z = -magnitude * wallBounce) }
+                if (newPos.z < -limitZ) { newPos = newPos.copy(z = -limitZ); magnitude = abs(newVel.z); newVel = newVel.copy(z = magnitude * wallBounce) }
                 
                 item.transform.position = newPos
                 item.transform.velocity = newVel
@@ -203,9 +206,8 @@ class PhysicsEngine {
             val halfDim = (side * spacing) / 2f
             val totalHalfDimZ = (side * spacing) / 2f + 0.6f * pile.scale
 
-            val limit = if (isInfiniteMode) INFINITE_SIZE else roomSize
-            val limitX = limit - halfDim - UI_MARGIN
-            val limitZ = limit - totalHalfDimZ - UI_MARGIN
+            val limitX = floorLimitX(halfDim)
+            val limitZ = floorLimitZ(totalHalfDimZ)
             val uiX = pile.position.x.coerceIn(-limitX, limitX)
             val uiZ = pile.position.z.coerceIn(-limitZ, limitZ)
 
@@ -294,4 +296,16 @@ class PhysicsEngine {
     }
 
     fun isInPile(item: BumpItem, piles: List<Pile>) = piles.any { it.items.contains(item) }
+
+    private fun floorLimitX(extraMargin: Float): Float {
+        if (isInfiniteMode) return INFINITE_SIZE - extraMargin - 0.05f
+        if (isFlatFloorMode) return floorHalfX - extraMargin - UI_MARGIN
+        return roomSize - extraMargin - 0.05f
+    }
+
+    private fun floorLimitZ(extraMargin: Float): Float {
+        if (isInfiniteMode) return INFINITE_SIZE - extraMargin - 0.05f
+        if (isFlatFloorMode) return floorHalfZ - extraMargin - UI_MARGIN
+        return roomSize - extraMargin - 0.05f
+    }
 }

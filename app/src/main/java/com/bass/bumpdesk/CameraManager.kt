@@ -23,14 +23,22 @@ class CameraManager {
     var targetLookAt = customDefaultLookAt.clone()
     var currentLookAt = customDefaultLookAt.clone()
     var zoomLevel = 1.0f
+    var currentZoomLevel = 1.0f
+        private set
     var fieldOfView = 60f
     var baseFieldOfView = 60f
     var customDefaultZoomLevel = 1.0f
     var isInfiniteMode = false
+    var isFlatFloorMode = false
 
     private var savedPos = customDefaultPos.clone()
     private var savedLookAt = customDefaultLookAt.clone()
     private var savedViewMode = ViewMode.DEFAULT
+    private var savedZoomLevel = 1.0f
+    private var savedFieldOfView = 60f
+
+    private var animationLogFrames = 0
+    private var wasAnimating = false
 
     var onBoundaryHit: (() -> Unit)? = null
     private var wasAtBoundary = false
@@ -66,13 +74,15 @@ class CameraManager {
             wasAtBoundary = false
         }
 
+        currentZoomLevel += (zoomLevel - currentZoomLevel) * 0.1f
+
         val relX = targetPos[0] - targetLookAt[0]
         val relY = targetPos[1] - targetLookAt[1]
         val relZ = targetPos[2] - targetLookAt[2]
         
-        val zoomedTargetPosX = targetLookAt[0] + relX * zoomLevel
-        val zoomedTargetPosY = targetLookAt[1] + relY * zoomLevel
-        val zoomedTargetPosZ = targetLookAt[2] + relZ * zoomLevel
+        val zoomedTargetPosX = targetLookAt[0] + relX * currentZoomLevel
+        val zoomedTargetPosY = targetLookAt[1] + relY * currentZoomLevel
+        val zoomedTargetPosZ = targetLookAt[2] + relZ * currentZoomLevel
 
         for (i in 0..2) {
             val targetP = when(i) {
@@ -83,6 +93,47 @@ class CameraManager {
             currentPos[i] += (targetP - currentPos[i]) * 0.1f
             currentLookAt[i] += (targetLookAt[i] - currentLookAt[i]) * 0.1f
         }
+
+        trackAnimation()
+    }
+
+    fun isAnimating(): Boolean {
+        val zoomed = zoomedEyePosition()
+        return distance(currentPos, zoomed) > 0.05f ||
+            distance(currentLookAt, targetLookAt) > 0.05f ||
+            abs(currentZoomLevel - zoomLevel) > 0.005f
+    }
+
+    private fun zoomedEyePosition(): FloatArray {
+        val relX = targetPos[0] - targetLookAt[0]
+        val relY = targetPos[1] - targetLookAt[1]
+        val relZ = targetPos[2] - targetLookAt[2]
+        return floatArrayOf(
+            targetLookAt[0] + relX * currentZoomLevel,
+            targetLookAt[1] + relY * currentZoomLevel,
+            targetLookAt[2] + relZ * currentZoomLevel,
+        )
+    }
+
+    private fun distance(a: FloatArray, b: FloatArray): Float {
+        val dx = a[0] - b[0]
+        val dy = a[1] - b[1]
+        val dz = a[2] - b[2]
+        return sqrt(dx * dx + dy * dy + dz * dz)
+    }
+
+    private fun trackAnimation() {
+        val animating = isAnimating()
+        if (animating) {
+            animationLogFrames++
+            if (animationLogFrames == 1 || animationLogFrames % 8 == 0) {
+                CameraDiagnostics.logAnimation(this, "progress")
+            }
+        } else if (wasAnimating) {
+            CameraDiagnostics.logAnimation(this, "complete")
+            animationLogFrames = 0
+        }
+        wasAnimating = animating
     }
 
     fun setViewMatrix(viewMatrix: FloatArray) {
@@ -97,7 +148,7 @@ class CameraManager {
         targetLookAt = customDefaultLookAt.clone()
         zoomLevel = customDefaultZoomLevel
         fieldOfView = baseFieldOfView
-        currentViewMode = ViewMode.DEFAULT
+        currentViewMode = if (isFlatFloorMode) ViewMode.FLOOR else ViewMode.DEFAULT
         snapToTargets()
     }
 
@@ -106,10 +157,11 @@ class CameraManager {
         val relX = targetPos[0] - targetLookAt[0]
         val relY = targetPos[1] - targetLookAt[1]
         val relZ = targetPos[2] - targetLookAt[2]
-        currentPos[0] = targetLookAt[0] + relX * zoomLevel
-        currentPos[1] = targetLookAt[1] + relY * zoomLevel
-        currentPos[2] = targetLookAt[2] + relZ * zoomLevel
+        currentPos[0] = targetLookAt[0] + relX * currentZoomLevel
+        currentPos[1] = targetLookAt[1] + relY * currentZoomLevel
+        currentPos[2] = targetLookAt[2] + relZ * currentZoomLevel
         currentLookAt = targetLookAt.clone()
+        currentZoomLevel = zoomLevel
     }
 
     private fun clampTargetToRoom() {
@@ -140,6 +192,39 @@ class CameraManager {
         )
     }
 
+    fun transitionToFlatFloorDefaults(bounds: FlatFloorMode.Bounds, aspect: Float) {
+        val pos = FlatFloorMode.defaultEyePosition()
+        val lookAt = FlatFloorMode.defaultLookAt()
+        customDefaultPos = pos.clone()
+        customDefaultLookAt = lookAt.clone()
+        customDefaultZoomLevel = FlatFloorMode.DEFAULT_CAMERA_ZOOM
+        baseFieldOfView = FlatFloorMode.DEFAULT_FOV
+        targetPos = pos.clone()
+        targetLookAt = lookAt.clone()
+        zoomLevel = customDefaultZoomLevel
+        fieldOfView = baseFieldOfView
+        currentViewMode = ViewMode.FLOOR
+        MAX_X = bounds.halfX - 1f
+        MAX_Z = bounds.halfZ - 1f
+        MIN_X = -bounds.halfX + 1f
+        MIN_Z = -bounds.halfZ + 1f
+        CameraDiagnostics.logTransition(
+            this,
+            "flatFloorDefaults",
+            "snap=false aspect=${"%.2f".format(aspect)} bounds=${bounds.halfX}x${bounds.halfZ}"
+        )
+    }
+
+    fun applyFlatFloorDefaults(bounds: FlatFloorMode.Bounds, aspect: Float) {
+        transitionToFlatFloorDefaults(bounds, aspect)
+        snapToTargets()
+        CameraDiagnostics.logTransition(
+            this,
+            "flatFloorDefaults",
+            "snap=true aspect=${"%.2f".format(aspect)} bounds=${bounds.halfX}x${bounds.halfZ}"
+        )
+    }
+
     fun saveAsDefault() {
         customDefaultPos = targetPos.clone()
         customDefaultLookAt = targetLookAt.clone()
@@ -157,8 +242,13 @@ class CameraManager {
         targetPos = savedPos.clone()
         targetLookAt = savedLookAt.clone()
         currentViewMode = savedViewMode
-        zoomLevel = 1.0f
-        fieldOfView = 60f
+        zoomLevel = savedZoomLevel
+        fieldOfView = savedFieldOfView
+        CameraDiagnostics.logTransition(
+            this,
+            "restorePrevious",
+            "mode=$savedViewMode zoom=$savedZoomLevel"
+        )
     }
 
     private fun saveCurrentView() {
@@ -166,6 +256,8 @@ class CameraManager {
             savedPos = targetPos.clone()
             savedLookAt = targetLookAt.clone()
             savedViewMode = currentViewMode
+            savedZoomLevel = zoomLevel
+            savedFieldOfView = fieldOfView
         }
     }
 
@@ -235,15 +327,17 @@ class CameraManager {
         currentViewMode = wall
         zoomLevel = zoom
         fieldOfView = 60f
+        CameraDiagnostics.logTransition(this, "focusWall", "mode=$wall zoom=$zoom")
     }
 
     fun focusOnFloor() {
         saveCurrentView()
-        targetPos = floatArrayOf(0f, 20f, 0.1f)
-        targetLookAt = floatArrayOf(0f, 0f, 0f)
+        targetPos = FlatFloorMode.defaultEyePosition().clone()
+        targetLookAt = FlatFloorMode.defaultLookAt().clone()
         currentViewMode = ViewMode.FLOOR
-        zoomLevel = 1.0f
-        fieldOfView = 60f
+        zoomLevel = FlatFloorMode.DEFAULT_CAMERA_ZOOM
+        fieldOfView = FlatFloorMode.DEFAULT_FOV
+        CameraDiagnostics.logTransition(this, "focusFloor", "zoom=$zoomLevel")
     }
 
     fun focusOnFolder(folderPos: FloatArray, scale: Float = 1.0f) {
@@ -255,6 +349,11 @@ class CameraManager {
         currentViewMode = ViewMode.FOLDER_EXPANDED
         zoomLevel = 1.0f
         fieldOfView = 60f
+        CameraDiagnostics.logTransition(
+            this,
+            "focusFolder",
+            "pos=(${folderPos[0]},${folderPos[1]},${folderPos[2]}) scale=$scale"
+        )
     }
 
     fun focusOnWidget(widget: WidgetItem) {

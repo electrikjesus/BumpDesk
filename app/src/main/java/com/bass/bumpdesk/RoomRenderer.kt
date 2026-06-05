@@ -21,6 +21,8 @@ class RoomRenderer(private val shader: DefaultShader) {
         isInfiniteMode: Boolean = false,
         roomSize: Float = 30f,
         roomHeight: Float = 30f,
+        floorHalfWidth: Float = roomSize,
+        floorHalfDepth: Float = roomSize,
         time: Float = 0f,
         isAnimated: Boolean = false
     ) {
@@ -29,7 +31,7 @@ class RoomRenderer(private val shader: DefaultShader) {
         if (isInfiniteMode) {
             Matrix.scaleM(modelMatrix, 0, 100f, 1f, 100f)
         } else {
-            Matrix.scaleM(modelMatrix, 0, roomSize, 1f, roomSize)
+            Matrix.scaleM(modelMatrix, 0, floorHalfWidth, 1f, floorHalfDepth)
         }
         floor.updateUVs(1.0f, 1.0f)
         floor.draw(vPMatrix, modelMatrix, floatArrayOf(0.4f, 0.4f, 0.4f, 1.0f), floorTexture, lightPos, 0.3f, true, time, isAnimated)
@@ -44,33 +46,33 @@ class RoomRenderer(private val shader: DefaultShader) {
 
             // Back Wall
             Matrix.setIdentityM(modelMatrix, 0)
-            Matrix.translateM(modelMatrix, 0, 0f, roomHeight / 2f, -roomSize)
+            Matrix.translateM(modelMatrix, 0, 0f, roomHeight / 2f, -floorHalfDepth)
             Matrix.rotateM(modelMatrix, 0, 90f, 1f, 0f, 0f)
-            Matrix.scaleM(modelMatrix, 0, roomSize, 1f, roomHeight / 2f)
+            Matrix.scaleM(modelMatrix, 0, floorHalfWidth, 1f, roomHeight / 2f)
             wallBack.updateUVs(wallUVScaleX, wallUVScaleY)
             wallBack.draw(vPMatrix, modelMatrix, floatArrayOf(0.5f, 0.5f, 0.5f, 1.0f), wallTextures[0], lightPos, 0.2f, true, time, isAnimated)
             
             // Front Wall
             Matrix.setIdentityM(modelMatrix, 0)
-            Matrix.translateM(modelMatrix, 0, 0f, roomHeight / 2f, roomSize)
+            Matrix.translateM(modelMatrix, 0, 0f, roomHeight / 2f, floorHalfDepth)
             Matrix.rotateM(modelMatrix, 0, -90f, 1f, 0f, 0f)
-            Matrix.scaleM(modelMatrix, 0, roomSize, 1f, roomHeight / 2f)
+            Matrix.scaleM(modelMatrix, 0, floorHalfWidth, 1f, roomHeight / 2f)
             wallFront.updateUVs(wallUVScaleX, wallUVScaleY)
             wallFront.draw(vPMatrix, modelMatrix, floatArrayOf(0.5f, 0.5f, 0.5f, 1.0f), wallTextures[0], lightPos, 0.2f, true, time, isAnimated)
             
             // Left Wall
             Matrix.setIdentityM(modelMatrix, 0)
-            Matrix.translateM(modelMatrix, 0, -roomSize, roomHeight / 2f, 0f)
+            Matrix.translateM(modelMatrix, 0, -floorHalfWidth, roomHeight / 2f, 0f)
             Matrix.rotateM(modelMatrix, 0, -90f, 0f, 0f, 1f)
-            Matrix.scaleM(modelMatrix, 0, roomHeight / 2f, 1f, roomSize)
+            Matrix.scaleM(modelMatrix, 0, roomHeight / 2f, 1f, floorHalfDepth)
             wallLeft.updateUVs(wallUVScaleX, wallUVScaleY)
             wallLeft.draw(vPMatrix, modelMatrix, floatArrayOf(0.5f, 0.5f, 0.5f, 1.0f), wallTextures[1], lightPos, 0.2f, true, time, isAnimated)
             
             // Right Wall
             Matrix.setIdentityM(modelMatrix, 0)
-            Matrix.translateM(modelMatrix, 0, roomSize, roomHeight / 2f, 0f)
+            Matrix.translateM(modelMatrix, 0, floorHalfWidth, roomHeight / 2f, 0f)
             Matrix.rotateM(modelMatrix, 0, 90f, 0f, 0f, 1f)
-            Matrix.scaleM(modelMatrix, 0, roomHeight / 2f, 1f, roomSize)
+            Matrix.scaleM(modelMatrix, 0, roomHeight / 2f, 1f, floorHalfDepth)
             wallRight.updateUVs(wallUVScaleX, wallUVScaleY)
             wallRight.draw(vPMatrix, modelMatrix, floatArrayOf(0.5f, 0.5f, 0.5f, 1.0f), wallTextures[2], lightPos, 0.2f, true, time, isAnimated)
 
@@ -78,7 +80,7 @@ class RoomRenderer(private val shader: DefaultShader) {
             Matrix.setIdentityM(modelMatrix, 0)
             Matrix.translateM(modelMatrix, 0, 0f, roomHeight, 0f)
             Matrix.rotateM(modelMatrix, 0, 180f, 1f, 0f, 0f)
-            Matrix.scaleM(modelMatrix, 0, roomSize, 1f, roomSize)
+            Matrix.scaleM(modelMatrix, 0, floorHalfWidth, 1f, floorHalfDepth)
             wallTop.updateUVs(1.0f, 1.0f)
             wallTop.draw(vPMatrix, modelMatrix, floatArrayOf(0.3f, 0.3f, 0.3f, 1.0f), wallTextures[3], lightPos, 0.1f, true, time, isAnimated)
 
