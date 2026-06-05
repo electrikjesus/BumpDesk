@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <style name="TextAppearance.BumpDesk.Settings.Headline" parent="TextAppearance.Material3.HeadlineMedium">
+        <item name="android:textColor">@color/m3_on_surface</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="TextAppearance.BumpDesk.Settings.Section" parent="TextAppearance.Material3.TitleMedium">
+        <item name="android:textColor">@color/m3_primary</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:letterSpacing">0.02</item>
+    </style>
+
+    <style name="TextAppearance.BumpDesk.Settings.Body" parent="TextAppearance.Material3.BodyMedium">
+        <item name="android:textColor">@color/m3_on_surface_variant</item>
+    </style>
+
+    <style name="TextAppearance.BumpDesk.Settings.Label" parent="TextAppearance.Material3.LabelLarge">
+        <item name="android:textColor">@color/m3_on_surface</item>
+    </style>
+
+    <style name="Widget.BumpDesk.Settings.Card" parent="Widget.Material3.CardView.Elevated">
+        <item name="cardBackgroundColor">@color/m3_surface_container_high</item>
+        <item name="cardCornerRadius">28dp</item>
+        <item name="cardElevation">0dp</item>
+        <item name="strokeWidth">0dp</item>
+    </style>
+
+    <style name="Widget.BumpDesk.Settings.DesktopOptionCard" parent="Widget.Material3.CardView.Outlined">
+        <item name="cardBackgroundColor">@color/m3_surface_container</item>
+        <item name="cardCornerRadius">20dp</item>
+        <item name="cardElevation">0dp</item>
+        <item name="strokeColor">@color/m3_outline_variant</item>
+        <item name="strokeWidth">1dp</item>
+    </style>
+
+    <style name="Widget.BumpDesk.Settings.Switch" parent="Widget.Material3.CompoundButton.MaterialSwitch">
+        <item name="materialThemeOverlay">@style/ThemeOverlay.BumpDesk.Settings</item>
+    </style>
+
+    <style name="Widget.BumpDesk.Settings.Slider" parent="Widget.Material3.Slider">
+        <item name="materialThemeOverlay">@style/ThemeOverlay.BumpDesk.Settings</item>
+    </style>
+
+    <style name="ThemeOverlay.BumpDesk.Settings" parent="">
+        <item name="colorPrimary">@color/m3_primary</item>
+        <item name="colorOnPrimary">@color/m3_on_primary</item>
+        <item name="colorSecondary">@color/m3_secondary</item>
+    </style>
+
+</resources>

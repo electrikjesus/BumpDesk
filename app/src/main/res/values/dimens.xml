@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="settings_desktop_card_stroke_default">1dp</dimen>
+    <dimen name="settings_desktop_card_stroke_selected">2dp</dimen>
+    <dimen name="settings_desktop_card_gap">12dp</dimen>
+</resources>

@@ -3,4 +3,45 @@
     <string name="recents_snapshots_available">Task previews: Available on this install</string>
     <string name="recents_snapshots_unavailable">Task previews: Not available on this install</string>
     <string name="recents_snapshots_unknown">Task previews: Unknown (open Recents once)</string>
+
+    <string name="settings_title">Settings</string>
+    <string name="settings_headline">Tune your desk</string>
+    <string name="settings_section_desktop">Desktop type</string>
+    <string name="settings_section_apps">Apps &amp; recents</string>
+    <string name="settings_section_appearance">Appearance</string>
+    <string name="settings_section_physics">Physics</string>
+    <string name="settings_section_layout">Layout &amp; scaling</string>
+    <string name="settings_section_maintenance">Maintenance</string>
+
+    <string name="settings_desktop_hint">Choose how BumpDesk lays out space. Only one mode is active at a time.</string>
+    <string name="settings_desktop_room_title">Room desktop</string>
+    <string name="settings_desktop_room_subtitle">Classic 3D room with walls, floor, and wall pinning.</string>
+    <string name="settings_desktop_infinite_title">Infinite desktop</string>
+    <string name="settings_desktop_infinite_subtitle">Endless floor plane — no walls, icons spread without bounds.</string>
+    <string name="settings_desktop_flat_floor_title">Flat floor</string>
+    <string name="settings_desktop_flat_floor_subtitle">Top-down view with a fixed floor canvas and wallpaper support.</string>
+
+    <string name="settings_show_recents">Show Recents pile</string>
+    <string name="settings_recents_view_label">Expanded Recents layout</string>
+    <string name="settings_recents_view_icons">Icon grid (recommended)</string>
+    <string name="settings_recents_view_cards">Task cards (experimental)</string>
+    <string name="settings_show_all_apps">Show All Apps icon</string>
+    <string name="settings_wallpaper_floor">Use system wallpaper as floor</string>
+    <string name="settings_wallpaper_floor_hint">Available in Flat floor mode. May require storage permission on Android 13–14.</string>
+
+    <string name="settings_theme_hint">Swap room textures, floor art, and icon styling.</string>
+    <string name="settings_select_theme">Select visual theme</string>
+    <string name="settings_friction">Friction</string>
+    <string name="settings_bounciness">Bounciness</string>
+    <string name="settings_gravity">Wall gravity</string>
+    <string name="settings_item_scale">Global item scale</string>
+    <string name="settings_grid_spacing">Grid spacing</string>
+    <string name="settings_room_size">Room size</string>
+    <string name="settings_reset_camera">Reset camera defaults</string>
+    <string name="settings_reset_desktop_layout">Reset desktop icons</string>
+    <string name="settings_reset_desktop_layout_message">Remove all floor icons and folders? Widgets and the All Apps icon are kept.</string>
+    <string name="settings_reset_desktop_layout_done">Desktop icons cleared.</string>
+    <string name="settings_clear_cache">Clear cache</string>
+    <string name="settings_reset_all">Reset all settings</string>
+    <string name="settings_save_apply">Save &amp; apply</string>
 </resources>

@@ -77,7 +77,7 @@
             android:name=".SettingsActivity"
             android:exported="false"
             android:label="BumpDesk Settings"
-            android:theme="@style/Theme.MaterialComponents.DayNight.DarkActionBar" />
+            android:theme="@style/Theme.BumpDesk.Settings" />
     </application>
 
 </manifest>

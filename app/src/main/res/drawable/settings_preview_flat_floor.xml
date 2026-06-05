@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="160dp"
+    android:height="120dp"
+    android:viewportWidth="160"
+    android:viewportHeight="120">
+
+    <path
+        android:fillColor="@color/settings_preview_bg"
+        android:pathData="M0,0h160v120H0z" />
+
+    <!-- Top-down floor canvas -->
+    <path
+        android:fillColor="@color/settings_preview_floor"
+        android:pathData="M20,16h120a12,12 0 0 1 12,12v64a12,12 0 0 1 -12,12H20a12,12 0 0 1 -12,-12V28a12,12 0 0 1 12,-12z" />
+
+    <!-- Grid -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:pathData="M20,44h120 M20,72h120 M20,100h120 M50,16v88 M80,16v88 M110,16v88"
+        android:strokeColor="@color/settings_preview_grid"
+        android:strokeWidth="1"
+        android:strokeLineCap="round" />
+
+    <!-- Icon tiles -->
+    <path
+        android:fillColor="@color/settings_preview_icon"
+        android:pathData="M28,24h16v16H28z" />
+    <path
+        android:fillColor="@color/settings_preview_accent"
+        android:pathData="M56,24h16v16H56z" />
+    <path
+        android:fillColor="@color/settings_preview_icon"
+        android:pathData="M84,24h16v16H84z" />
+    <path
+        android:fillColor="@color/settings_preview_accent"
+        android:pathData="M112,24h16v16h-16z" />
+    <path
+        android:fillColor="@color/settings_preview_icon"
+        android:pathData="M28,52h16v16H28z" />
+    <path
+        android:fillColor="@color/settings_preview_accent"
+        android:pathData="M56,52h16v16H56z" />
+    <path
+        android:fillColor="@color/settings_preview_icon"
+        android:pathData="M84,52h16v16H84z" />
+    <path
+        android:fillColor="@color/settings_preview_accent"
+        android:pathData="M112,52h16v16h-16z" />
+
+    <!-- Top-down camera glyph -->
+    <path
+        android:fillColor="@color/m3_primary"
+        android:pathData="M118,6 L128,6 A5,5 0 0 1 133,11 L133,16 L113,16 L113,11 A5,5 0 0 1 118,6 Z" />
+    <path
+        android:fillColor="@color/m3_on_primary"
+        android:pathData="M123,9 m-2.5,0 a2.5,2.5 0 1,0 5,0 a2.5,2.5 0 1,0 -5,0" />
+</vector>

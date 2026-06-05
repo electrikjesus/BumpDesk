@@ -1,10 +1,52 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="purple_200">#FFBB86FC</color>
-    <color name="purple_500">#FF6200EE</color>
-    <color name="purple_700">#FF3700B3</color>
-    <color name="teal_200">#FF03DAC5</color>
-    <color name="teal_700">#FF018786</color>
+    <!-- Legacy aliases kept for compatibility -->
+    <color name="purple_200">#FF90CAF9</color>
+    <color name="purple_500">#FF1976D2</color>
+    <color name="purple_700">#FF0D47A1</color>
+    <color name="teal_200">#FF80DEEA</color>
+    <color name="teal_700">#FF00838F</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <!-- BumpDesk brand blues (app UI — not wallpaper-driven yet) -->
+    <color name="blue_200">#90CAF9</color>
+    <color name="blue_500">#42A5F5</color>
+    <color name="blue_700">#1565C0</color>
+    <color name="blue_900">#0D47A1</color>
+    <color name="cyan_200">#80DEEA</color>
+    <color name="cyan_700">#00838F</color>
+
+    <!-- Material 3 dark palette — blue primary / cyan secondary -->
+    <color name="m3_primary">#A8C7FA</color>
+    <color name="m3_on_primary">#062E6F</color>
+    <color name="m3_primary_container">#004785</color>
+    <color name="m3_on_primary_container">#D5E3FF</color>
+    <color name="m3_secondary">#7FC8F8</color>
+    <color name="m3_on_secondary">#003546</color>
+    <color name="m3_secondary_container">#004E63</color>
+    <color name="m3_on_secondary_container">#BEE9FF</color>
+    <color name="m3_tertiary">#6DD5FA</color>
+    <color name="m3_on_tertiary">#003545</color>
+    <color name="m3_tertiary_container">#004D63</color>
+    <color name="m3_on_tertiary_container">#C2E8FF</color>
+    <color name="m3_error">#FFB4AB</color>
+    <color name="m3_on_error">#690005</color>
+    <color name="m3_surface">#0F1419</color>
+    <color name="m3_on_surface">#E2E2E6</color>
+    <color name="m3_on_surface_variant">#C2C7CF</color>
+    <color name="m3_outline">#8C9199</color>
+    <color name="m3_outline_variant">#42474E</color>
+    <color name="m3_surface_container_low">#161C22</color>
+    <color name="m3_surface_container">#1A2128</color>
+    <color name="m3_surface_container_high">#252C34</color>
+    <color name="m3_surface_container_highest">#303841</color>
+    <color name="settings_preview_bg">#1A2330</color>
+    <color name="settings_preview_accent">#64B5F6</color>
+    <color name="settings_preview_floor">#2C3E50</color>
+    <color name="settings_preview_wall">#3D5266</color>
+    <color name="settings_preview_icon">#90CAF9</color>
+    <color name="settings_preview_grid">#4A6075</color>
+    <color name="settings_preview_sky">#0D1520</color>
+    <color name="settings_card_selected_stroke">#A8C7FA</color>
 </resources>
