@@ -726,42 +726,73 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
     }
 
     fun gridSelectedItems(items: List<BumpItem>, mode: GridLayout) {
-        if (items.isEmpty()) return
-        val maxScale = items.maxOf { it.transform.scale }
-        val spacing = when (mode) {
-            GridLayout.ROW -> maxOf(physicsEngine.gridSpacingBase, maxScale * 2.55f)
-            GridLayout.COLUMN -> maxOf(physicsEngine.gridSpacingBase, maxScale * 3.25f)
-            GridLayout.GRID -> maxOf(physicsEngine.gridSpacingBase, maxScale * 2.55f)
-        }
-        val startX = items.map { it.transform.position.x }.average().toFloat()
-        val startZ = items.map { it.transform.position.z }.average().toFloat()
-        when (mode) {
-            GridLayout.GRID -> {
-                val side = Math.ceil(Math.sqrt(items.size.toDouble())).toInt(); val offset = (side * spacing) / 2f
-                items.forEachIndexed { i, item -> 
-                    item.transform.position = Vector3((startX - offset) + (i % side) * spacing, 0.05f, (startZ - offset) + (i / side) * spacing)
-                    item.transform.surface = BumpItem.Surface.FLOOR
-                    item.transform.velocity = Vector3()
+        BumpDeskLog.enter(BumpDeskLog.Tag.ICON_GROUP, "gridSelectedItems", "requested=${items.size} mode=$mode")
+        sceneState.withWriteLock {
+            val targets = PileOperations.releaseItemsToDesktopUnlocked(sceneState, items)
+            if (targets.size < 2) {
+                BumpDeskLog.w(
+                    BumpDeskLog.Tag.ICON_GROUP,
+                    "gridSelectedItems",
+                    "skipped | need at least 2 items, got ${targets.size}",
+                )
+                return@withWriteLock
+            }
+
+            val maxScale = targets.maxOf { it.transform.scale }
+            val spacing = when (mode) {
+                GridLayout.ROW -> maxOf(physicsEngine.gridSpacingBase, maxScale * 2.55f)
+                GridLayout.COLUMN -> maxOf(physicsEngine.gridSpacingBase, maxScale * 3.25f)
+                GridLayout.GRID -> maxOf(physicsEngine.gridSpacingBase, maxScale * 2.55f)
+            }
+            val startX = targets.map { it.transform.position.x }.average().toFloat()
+            val startZ = targets.map { it.transform.position.z }.average().toFloat()
+            when (mode) {
+                GridLayout.GRID -> {
+                    val side = Math.ceil(Math.sqrt(targets.size.toDouble())).toInt()
+                    val offset = (side * spacing) / 2f
+                    targets.forEachIndexed { i, item ->
+                        item.transform.position = Vector3(
+                            (startX - offset) + (i % side) * spacing,
+                            0.05f,
+                            (startZ - offset) + (i / side) * spacing,
+                        )
+                        item.transform.surface = BumpItem.Surface.FLOOR
+                        item.transform.velocity = Vector3()
+                    }
+                }
+                GridLayout.ROW -> {
+                    val offset = (targets.size * spacing) / 2f
+                    targets.forEachIndexed { i, item ->
+                        item.transform.position = Vector3(
+                            (startX - offset) + i * spacing,
+                            0.05f,
+                            startZ,
+                        )
+                        item.transform.surface = BumpItem.Surface.FLOOR
+                        item.transform.velocity = Vector3()
+                    }
+                }
+                GridLayout.COLUMN -> {
+                    val offset = (targets.size * spacing) / 2f
+                    targets.forEachIndexed { i, item ->
+                        item.transform.position = Vector3(
+                            startX,
+                            0.05f,
+                            (startZ - offset) + i * spacing,
+                        )
+                        item.transform.surface = BumpItem.Surface.FLOOR
+                        item.transform.velocity = Vector3()
+                    }
                 }
             }
-            GridLayout.ROW -> {
-                val offset = (items.size * spacing) / 2f
-                items.forEachIndexed { i, item -> 
-                    item.transform.position = Vector3((startX - offset) + i * spacing, 0.05f, startZ)
-                    item.transform.surface = BumpItem.Surface.FLOOR
-                    item.transform.velocity = Vector3()
-                }
-            }
-            GridLayout.COLUMN -> {
-                val offset = (items.size * spacing) / 2f
-                items.forEachIndexed { i, item -> 
-                    item.transform.position = Vector3(startX, 0.05f, (startZ - offset) + i * spacing)
-                    item.transform.surface = BumpItem.Surface.FLOOR
-                    item.transform.velocity = Vector3()
-                }
-            }
+            BumpDeskLog.exit(
+                BumpDeskLog.Tag.ICON_GROUP,
+                "gridSelectedItems",
+                "mode=$mode items=${targets.size} spacing=${"%.2f".format(spacing)} center=(${"%.1f".format(startX)},${"%.1f".format(startZ)})",
+            )
         }
         saveState()
+        glSurfaceView?.requestRender()
     }
 
     fun handleSingleTap(x: Float, y: Float) {
@@ -873,7 +904,11 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 } else {
                     sceneState.piles.forEach { it.isExpanded = false }
                     pile.isExpanded = true
-                    camera.focusOnFolder(pile.position.toFloatArray(), pile.scale) 
+                    camera.focusOnFolder(
+                        pile.position.toFloatArray(),
+                        pile.scale,
+                        folderPanelHalfExtent(pile),
+                    )
                 }
                 (context as? LauncherActivity)?.showResetButton(true); return
             }
@@ -892,7 +927,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                     )
                     dp.nameTextureId = -1
                     dp.scrollIndex = 0
-                    sceneState.piles.forEach { it.isExpanded = false }; dp.isExpanded = true; sceneState.piles.add(dp); camera.focusOnFolder(p.toFloatArray(), dp.scale); (context as? LauncherActivity)?.showResetButton(true)
+                    sceneState.piles.forEach { it.isExpanded = false }; dp.isExpanded = true; sceneState.piles.add(dp); camera.focusOnFolder(p.toFloatArray(), dp.scale, folderPanelHalfExtent(dp)); (context as? LauncherActivity)?.showResetButton(true)
                 }
                 return
             }
@@ -974,8 +1009,11 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
     }
 
     private fun breakPile(pile: Pile) {
-        PileOperations.breakPile(sceneState, pile)
+        val maxScale = pile.items.maxOfOrNull { it.transform.scale } ?: physicsEngine.defaultScale
+        val spacing = maxOf(physicsEngine.gridSpacingBase, maxScale * 2.55f)
+        PileOperations.breakPile(sceneState, pile, spacing)
         saveState()
+        glSurfaceView?.requestRender()
     }
     fun resetView() {
         sceneState.piles.removeAll { it.isSystem && it.name == "All Apps" }
@@ -1103,6 +1141,11 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         } else {
             camera.applyProfileDefaults(profile)
         }
+    }
+
+    private fun folderPanelHalfExtent(pile: Pile): Float {
+        if (pile.surface != BumpItem.Surface.FLOOR) return 0f
+        return (FolderDrawerStyle.halfDimX(pile.scale) + FolderDrawerStyle.halfDimZ(pile.scale)) * 0.5f
     }
 
     private fun applyFlatFloorBounds(profile: ScreenMetrics.DisplayProfile) {

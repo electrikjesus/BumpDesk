@@ -286,9 +286,16 @@ class InteractionManager(
                 }
             }
         } else if (isDragging && (camera.currentViewMode == CameraManager.ViewMode.DEFAULT || camera.currentViewMode == CameraManager.ViewMode.FLOOR) && lassoPoints.isNotEmpty()) {
-            val capturedItems = sceneState.bumpItems.filter { isPointInPolygon(it.transform.position.x, it.transform.position.z, lassoPoints) }
+            val capturedItems = captureLassoItems(sceneState)
+            BumpDeskLog.d(
+                BumpDeskLog.Tag.GESTURE,
+                "lassoCapture",
+                "count=${capturedItems.size} points=${lassoPoints.size}",
+            )
             if (capturedItems.size > 1) {
                 onCaptured(capturedItems)
+            } else if (capturedItems.isNotEmpty()) {
+                BumpDeskLog.d(BumpDeskLog.Tag.GESTURE, "lassoCapture", "skipped | need at least 2 items")
             }
         }
         sceneState.selectedItem = null
@@ -508,6 +515,28 @@ class InteractionManager(
         if (abs(rE[1] - rS[1]) < 0.0001f) return Vector3(0f, 0.05f, 0f)
         val t = -rS[1] / (rE[1] - rS[1])
         return Vector3(rS[0] + t * (rE[0] - rS[0]), 0.05f, rS[2] + t * (rE[2] - rS[2]))
+    }
+
+    private fun captureLassoItems(sceneState: SceneState): List<BumpItem> {
+        if (lassoPoints.size < 3) return emptyList()
+
+        val captured = linkedSetOf<BumpItem>()
+        sceneState.bumpItems.forEach { item ->
+            if (sceneState.getPileOf(item) != null) return@forEach
+            if (isPointInPolygon(item.transform.position.x, item.transform.position.z, lassoPoints)) {
+                captured.add(item)
+            }
+        }
+        sceneState.piles.forEach { pile ->
+            if (pile.isSystem || pile.isExpanded) return@forEach
+            pile.items.forEach { item ->
+                if (item.transform.surface != BumpItem.Surface.FLOOR) return@forEach
+                if (isPointInPolygon(item.transform.position.x, item.transform.position.z, lassoPoints)) {
+                    captured.add(item)
+                }
+            }
+        }
+        return captured.toList()
     }
 
     private fun isPointInPolygon(x: Float, z: Float, poly: List<Vector3>): Boolean {

@@ -46,6 +46,11 @@ class CameraManager {
     enum class ViewMode { DEFAULT, FLOOR, BACK_WALL, LEFT_WALL, RIGHT_WALL, FOLDER_EXPANDED, WIDGET_FOCUS }
     var currentViewMode = ViewMode.DEFAULT
 
+    /** Eye distance when focusing an expanded folder (was 14f; drawer chrome needs more margin). */
+    private val folderFocusDistanceBase = 18f
+    /** Slight zoom-out so the drawer grid fits phone/tablet screens without crowding edges. */
+    private val folderFocusZoom = 1.06f
+
     fun update() {
         // Apply focal length shift (FOV) when boundaries are reached in any mode
         if (!isInfiniteMode) {
@@ -340,19 +345,18 @@ class CameraManager {
         CameraDiagnostics.logTransition(this, "focusFloor", "zoom=$zoomLevel")
     }
 
-    fun focusOnFolder(folderPos: FloatArray, scale: Float = 1.0f) {
+    fun focusOnFolder(folderPos: FloatArray, scale: Float = 1.0f, panelHalfExtent: Float = 0f) {
         saveCurrentView()
-        // 14f distance satisfies 2/3 rule and leaves enough gap above/below
-        val focusDist = 14f * scale 
+        val focusDist = (folderFocusDistanceBase + panelHalfExtent * 0.38f) * scale
         targetPos = floatArrayOf(folderPos[0], folderPos[1] + focusDist, folderPos[2] + focusDist * 0.5f)
         targetLookAt = floatArrayOf(folderPos[0], folderPos[1], folderPos[2])
         currentViewMode = ViewMode.FOLDER_EXPANDED
-        zoomLevel = 1.0f
+        zoomLevel = folderFocusZoom
         fieldOfView = 60f
         CameraDiagnostics.logTransition(
             this,
             "focusFolder",
-            "pos=(${folderPos[0]},${folderPos[1]},${folderPos[2]}) scale=$scale"
+            "pos=(${folderPos[0]},${folderPos[1]},${folderPos[2]}) scale=$scale dist=${"%.1f".format(focusDist)} zoom=$folderFocusZoom panelHalf=${"%.1f".format(panelHalfExtent)}",
         )
     }
 

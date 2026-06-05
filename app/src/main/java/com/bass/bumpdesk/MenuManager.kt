@@ -191,14 +191,17 @@ class MenuManager(
         
         val gridSubItems = listOf(
             RadialMenuItem("Grid", android.R.drawable.ic_menu_sort_by_size) {
+                BumpDeskLog.enter(BumpDeskLog.Tag.ICON_GROUP, "lassoLayout", "mode=GRID count=${selectedItems.size}")
                 glSurfaceView.queueEvent { renderer.gridSelectedItems(selectedItems, BumpRenderer.GridLayout.GRID) }
             },
             RadialMenuItem("Row", android.R.drawable.ic_menu_sort_alphabetically) {
+                BumpDeskLog.enter(BumpDeskLog.Tag.ICON_GROUP, "lassoLayout", "mode=ROW count=${selectedItems.size}")
                 glSurfaceView.queueEvent { renderer.gridSelectedItems(selectedItems, BumpRenderer.GridLayout.ROW) }
             },
             RadialMenuItem("Column", android.R.drawable.ic_menu_sort_alphabetically) {
+                BumpDeskLog.enter(BumpDeskLog.Tag.ICON_GROUP, "lassoLayout", "mode=COLUMN count=${selectedItems.size}")
                 glSurfaceView.queueEvent { renderer.gridSelectedItems(selectedItems, BumpRenderer.GridLayout.COLUMN) }
-            }
+            },
         )
         menuItems.add(RadialMenuItem("Layout", android.R.drawable.ic_menu_sort_by_size, subItems = gridSubItems))
 

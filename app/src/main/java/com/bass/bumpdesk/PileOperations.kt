@@ -72,7 +72,7 @@ object PileOperations {
         }
     }
 
-    fun breakPile(sceneState: SceneState, pile: Pile): Int {
+    fun breakPile(sceneState: SceneState, pile: Pile, releaseSpacing: Float = 0f): Int {
         BumpDeskLog.enter(BumpDeskLog.Tag.ICON_GROUP, "breakPile", "pile=${pile.name} items=${pile.items.size}")
         if (pile.isSystem) {
             BumpDeskLog.w(BumpDeskLog.Tag.ICON_GROUP, "breakPile", "skipped | system pile")
@@ -84,21 +84,62 @@ object PileOperations {
             sceneState.piles.remove(pile)
             pile.isExpanded = false
 
-            items.forEach { item ->
+            val spacing = releaseSpacing.coerceAtLeast(0f)
+            val rowOffset = if (spacing > 0f && items.isNotEmpty()) {
+                (items.size - 1) * spacing / 2f
+            } else {
+                0f
+            }
+
+            items.forEachIndexed { index, item ->
                 if (!sceneState.bumpItems.contains(item)) {
                     sceneState.bumpItems.add(item)
                 }
                 item.transform.surface = BumpItem.Surface.FLOOR
-                item.transform.position = item.transform.position.copy(
-                    y = 0.05f,
-                    x = item.transform.position.x + (Math.random().toFloat() - 0.5f) * 2f,
-                    z = item.transform.position.z + (Math.random().toFloat() - 0.5f) * 2f
-                )
+                item.transform.isPinned = false
+                item.transform.velocity = Vector3()
+                item.transform.position = if (spacing > 0f) {
+                    Vector3(
+                        pile.position.x - rowOffset + index * spacing,
+                        0.05f,
+                        pile.position.z,
+                    )
+                } else {
+                    item.transform.position.copy(
+                        y = 0.05f,
+                        x = item.transform.position.x + (Math.random().toFloat() - 0.5f) * 2f,
+                        z = item.transform.position.z + (Math.random().toFloat() - 0.5f) * 2f,
+                    )
+                }
             }
 
-            BumpDeskLog.exit(BumpDeskLog.Tag.ICON_GROUP, "breakPile", "released=${items.size}")
+            BumpDeskLog.exit(
+                BumpDeskLog.Tag.ICON_GROUP,
+                "breakPile",
+                "released=${items.size} spacing=${"%.2f".format(spacing)}",
+            )
             items.size
         }
+    }
+
+    /** Pulls items off piles and back onto the desktop list before layout or similar ops. */
+    fun releaseItemsToDesktop(sceneState: SceneState, items: List<BumpItem>): List<BumpItem> {
+        return sceneState.withWriteLockResult {
+            releaseItemsToDesktopUnlocked(sceneState, items)
+        }
+    }
+
+    internal fun releaseItemsToDesktopUnlocked(sceneState: SceneState, items: List<BumpItem>): List<BumpItem> {
+        val targets = items.distinct()
+        targets.forEach { item ->
+            sceneState.piles.forEach { pile -> pile.items.remove(item) }
+            if (!sceneState.bumpItems.contains(item)) {
+                sceneState.bumpItems.add(item)
+            }
+            item.transform.isPinned = false
+        }
+        pruneEmptyPilesUnlocked(sceneState)
+        return targets
     }
 
     fun removeItemFromExpandedPile(sceneState: SceneState, pile: Pile, item: BumpItem): Boolean {

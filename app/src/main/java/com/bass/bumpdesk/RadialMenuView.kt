@@ -101,9 +101,12 @@ class RadialMenuView @JvmOverloads constructor(
     }
 
     private fun drawSubItems(canvas: Canvas, subItems: List<RadialMenuItem>, parentAngle: Float) {
-        val subSweep = (layout.sweepAngle / subItems.size).coerceAtLeast(RadialMenuStyle.MIN_SUB_SWEEP_DEG)
-        val subArc = subSweep * subItems.size
-        val subStart = parentAngle + (layout.sweepAngle - subArc) / 2f
+        val subLayout = RadialMenuGeometry.subMenuLayout(
+            parentAngle,
+            layout.sweepAngle,
+            subItems.size,
+            RadialMenuStyle.MIN_SUB_SWEEP_DEG,
+        )
         val subRect = RectF(
             centerX - layout.secondaryOuterRadius,
             centerY - layout.secondaryOuterRadius,
@@ -117,8 +120,8 @@ class RadialMenuView @JvmOverloads constructor(
             centerY + (layout.outerRadius + 8f),
         )
         for (j in subItems.indices) {
-            val subAngle = subStart + j * subSweep
-            drawItem(canvas, subItems[j], subAngle, subSweep, subRect, subInnerRect, j == selectedSubIndex, true)
+            val subAngle = subLayout.subStart + j * subLayout.subSweep
+            drawItem(canvas, subItems[j], subAngle, subLayout.subSweep, subRect, subInnerRect, j == selectedSubIndex, true)
         }
     }
 
@@ -240,7 +243,13 @@ class RadialMenuView @JvmOverloads constructor(
             }
             MotionEvent.ACTION_UP -> {
                 if (selectedSubIndex != -1 && selectedIndex != -1) {
-                    items[selectedIndex].subItems!![selectedSubIndex].action?.invoke()
+                    val subItem = items[selectedIndex].subItems!![selectedSubIndex]
+                    BumpDeskLog.d(
+                        BumpDeskLog.Tag.RADIAL_MENU,
+                        "selectSubItem",
+                        "parent=${items[selectedIndex].label} sub=${subItem.label}",
+                    )
+                    subItem.action?.invoke()
                     dismiss()
                 } else if (selectedIndex != -1) {
                     val item = items[selectedIndex]
@@ -298,30 +307,28 @@ class RadialMenuView @JvmOverloads constructor(
             return
         }
 
-        val parentIndex = (normalizedAngle / layout.sweepAngle).toInt().coerceIn(0, items.size - 1)
-        val subItems = items[parentIndex].subItems
-        selectedIndex = parentIndex
-
-        if (subItems == null) {
-            selectedSubIndex = -1
-            invalidate()
-            return
-        }
-
-        val subSweep = (layout.sweepAngle / subItems.size).coerceAtLeast(RadialMenuStyle.MIN_SUB_SWEEP_DEG)
-        val subArc = subSweep * subItems.size
-        val parentStart = parentIndex * layout.sweepAngle
-        val relInParent = normalizedAngle - parentStart
-        selectedSubIndex = if (relInParent in 0f..layout.sweepAngle) {
-            val subRel = relInParent - (layout.sweepAngle - subArc) / 2f
-            if (subRel in 0f..subArc) {
-                (subRel / subSweep).toInt().coerceIn(0, subItems.size - 1)
-            } else {
-                -1
+        // Outer ring: match drawn sub-item segments (Column/Grid/Row share one parent wedge).
+        for (i in items.indices) {
+            val subItems = items[i].subItems ?: continue
+            val parentAngle = layout.startAngle + i * layout.sweepAngle
+            val subLayout = RadialMenuGeometry.subMenuLayout(
+                parentAngle,
+                layout.sweepAngle,
+                subItems.size,
+                RadialMenuStyle.MIN_SUB_SWEEP_DEG,
+            )
+            val hit = RadialMenuGeometry.hitSubMenuItem(angle, subLayout, subItems.size)
+            if (hit >= 0) {
+                selectedIndex = i
+                selectedSubIndex = hit
+                invalidate()
+                return
             }
-        } else {
-            -1
         }
+
+        val parentIndex = (normalizedAngle / layout.sweepAngle).toInt().coerceIn(0, items.size - 1)
+        selectedIndex = parentIndex
+        selectedSubIndex = -1
         invalidate()
     }
 

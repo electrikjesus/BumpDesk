@@ -75,12 +75,14 @@ class PileOperationsTest {
         val pile = Pile(mutableListOf(a, b), Vector3(0f, 0.05f, 0f))
         sceneState.piles.add(pile)
 
-        val released = PileOperations.breakPile(sceneState, pile)
+        val released = PileOperations.breakPile(sceneState, pile, releaseSpacing = 2.5f)
 
         assertEquals(2, released)
         assertTrue(sceneState.piles.isEmpty())
         assertTrue(sceneState.bumpItems.contains(a))
         assertTrue(sceneState.bumpItems.contains(b))
+        assertTrue(kotlin.math.abs(a.transform.position.x - (-1.25f)) < 0.01f)
+        assertTrue(kotlin.math.abs(b.transform.position.x - 1.25f) < 0.01f)
     }
 
     @Test
