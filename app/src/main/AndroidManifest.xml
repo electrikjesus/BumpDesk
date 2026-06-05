@@ -15,7 +15,7 @@
 
     <!-- Read system wallpaper for floor texture -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
-    <!-- Some API 33–34 ROMs still gate WallpaperManager on legacy storage at the binder. -->
+    <!-- WallpaperManager on API 33–34 still checks READ_EXTERNAL_STORAGE at the binder (not Photos). -->
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="34" />

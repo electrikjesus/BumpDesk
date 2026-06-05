@@ -81,7 +81,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Photos Access: To use your system wallpaper as the floor."
+            android:text="Storage Access: Required on Android 13+ to read the system wallpaper for the floor."
             android:textColor="#FFFFFF"
             android:layout_marginStart="16dp" />
     </LinearLayout>

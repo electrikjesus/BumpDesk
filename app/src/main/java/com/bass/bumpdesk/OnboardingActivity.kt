@@ -14,12 +14,6 @@ class OnboardingActivity : AppCompatActivity() {
     private val usageAccessLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) {
-        requestWallpaperPermissionIfNeeded()
-    }
-
-    private val wallpaperPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) {
         completeOnboarding()
     }
 
@@ -50,7 +44,7 @@ class OnboardingActivity : AppCompatActivity() {
         if (!appManager.hasUsageStatsPermission()) {
             showUsageStatsPrompt()
         } else {
-            requestWallpaperPermissionIfNeeded()
+            completeOnboarding()
         }
     }
 
@@ -63,30 +57,8 @@ class OnboardingActivity : AppCompatActivity() {
                     usageAccessLauncher.launch(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
                 } catch (e: Exception) {
                     Toast.makeText(this, "Could not open settings", Toast.LENGTH_SHORT).show()
-                    requestWallpaperPermissionIfNeeded()
+                    completeOnboarding()
                 }
-            }
-            .setNegativeButton("Skip") { _, _ ->
-                requestWallpaperPermissionIfNeeded()
-            }
-            .setCancelable(false)
-            .show()
-    }
-
-    private fun requestWallpaperPermissionIfNeeded() {
-        if (WallpaperPermissions.hasAccess(this)) {
-            completeOnboarding()
-            return
-        }
-
-        androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("Photos Access")
-            .setMessage(
-                "BumpDesk can use your system wallpaper as the floor texture. " +
-                    "Allow photos/media access so that option works from Settings."
-            )
-            .setPositiveButton("Allow") { _, _ ->
-                wallpaperPermissionLauncher.launch(WallpaperPermissions.requiredPermissions())
             }
             .setNegativeButton("Skip") { _, _ ->
                 completeOnboarding()

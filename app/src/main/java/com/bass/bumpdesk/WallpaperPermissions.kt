@@ -38,18 +38,25 @@ object WallpaperPermissions {
         ) == PackageManager.PERMISSION_GRANTED
     }
 
-    /** WallpaperManager binder still checks legacy storage on many API 33–34 ROMs. */
-    fun needsLegacyStoragePrompt(context: Context): Boolean {
+    /**
+     * On API 33+, [WallpaperManager] still checks [READ_EXTERNAL_STORAGE] at the binder.
+     * [READ_MEDIA_IMAGES] alone does not satisfy that check.
+     */
+    fun needsStorageForWallpaper(context: Context): Boolean {
         return Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            hasRuntimePermission(context) &&
+            Build.VERSION.SDK_INT <= 34 &&
             !hasLegacyStorage(context)
     }
 
-    fun canAttemptWallpaperRead(context: Context): Boolean {
+    fun canReadWallpaperFile(context: Context): Boolean {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            return hasRuntimePermission(context) && hasLegacyStorage(context)
+            return hasLegacyStorage(context)
         }
-        return hasRuntimePermission(context)
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            hasRuntimePermission(context)
+        } else {
+            true
+        }
     }
 
     fun hasAppOpAccess(context: Context): Boolean {
@@ -94,7 +101,7 @@ object WallpaperPermissions {
             tag,
             "READ_MEDIA_IMAGES=$imagesGranted READ_EXTERNAL_STORAGE=$storageGranted " +
                 "appOp=${if (hasAppOpAccess(context)) "allowed" else "blocked"} " +
-                "canAttempt=${canAttemptWallpaperRead(context)}"
+                "canReadFile=${canReadWallpaperFile(context)}"
         )
     }
 

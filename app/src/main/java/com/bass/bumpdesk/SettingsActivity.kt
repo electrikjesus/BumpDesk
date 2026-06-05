@@ -10,39 +10,20 @@ import android.widget.*
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
 
 class SettingsActivity : AppCompatActivity() {
     private lateinit var appManager: AppManager
     private var pendingWallpaperCheckbox: CheckBox? = null
-
-    private val wallpaperPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { results ->
-        val checkbox = pendingWallpaperCheckbox ?: findViewById(R.id.cbUseWallpaperAsFloor)
-        if (!WallpaperPermissions.permissionsGranted(results)) {
-            resetWallpaperCheckbox(checkbox)
-            Toast.makeText(
-                this,
-                "Photos/media permission is required to use the system wallpaper on the floor.",
-                Toast.LENGTH_LONG
-            ).show()
-            pendingWallpaperCheckbox = null
-            return@registerForActivityResult
-        }
-        continueWallpaperSetup(checkbox)
-    }
 
     private val storagePermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         val checkbox = pendingWallpaperCheckbox ?: return@registerForActivityResult
         if (granted) {
-            enableWallpaperFloorPref(checkbox)
+            enableWallpaperFloorPref(checkbox, allowFallbackDialog = true)
         } else {
             showWallpaperFallbackDialog(checkbox)
         }
-        pendingWallpaperCheckbox = null
     }
 
     private val pickWallpaperLauncher = registerForActivityResult(
@@ -178,50 +159,51 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun beginWallpaperSetup(checkbox: CheckBox) {
         pendingWallpaperCheckbox = checkbox
-        if (!WallpaperPermissions.hasAccess(this)) {
+        if (WallpaperPermissions.needsStorageForWallpaper(this)) {
             checkbox.isChecked = false
-            wallpaperPermissionLauncher.launch(WallpaperPermissions.requiredPermissions())
+            requestStorageForWallpaper(checkbox)
             return
         }
-        continueWallpaperSetup(checkbox)
+        enableWallpaperFloorPref(checkbox, allowFallbackDialog = true)
     }
 
-    private fun continueWallpaperSetup(checkbox: CheckBox) {
-        pendingWallpaperCheckbox = checkbox
-        if (WallpaperPermissions.needsLegacyStoragePrompt(this)) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
-                shouldShowRequestPermissionRationale(Manifest.permission.READ_EXTERNAL_STORAGE)
-            ) {
-                androidx.appcompat.app.AlertDialog.Builder(this)
-                    .setTitle("Storage Permission Needed")
-                    .setMessage(
-                        "Android also requires legacy Storage permission so BumpDesk can read " +
-                            "the system wallpaper file on this device."
-                    )
-                    .setPositiveButton("Continue") { _, _ ->
-                        storagePermissionLauncher.launch(Manifest.permission.READ_EXTERNAL_STORAGE)
-                    }
-                    .setNegativeButton("Cancel") { _, _ ->
-                        showWallpaperFallbackDialog(checkbox)
-                    }
-                    .show()
-            } else {
-                storagePermissionLauncher.launch(Manifest.permission.READ_EXTERNAL_STORAGE)
-            }
-            return
+    private fun requestStorageForWallpaper(checkbox: CheckBox) {
+        val launchRequest = {
+            storagePermissionLauncher.launch(Manifest.permission.READ_EXTERNAL_STORAGE)
         }
-        pendingWallpaperCheckbox = null
-        enableWallpaperFloorPref(checkbox)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+            shouldShowRequestPermissionRationale(Manifest.permission.READ_EXTERNAL_STORAGE)
+        ) {
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("Storage Permission Required")
+                .setMessage(
+                    "On Android 13 and 14, the system wallpaper API requires the Storage permission. " +
+                        "Photos access alone is not enough. You can also pick the wallpaper image manually."
+                )
+                .setPositiveButton("Allow Storage") { _, _ -> launchRequest() }
+                .setNeutralButton("Pick Image") { _, _ -> showWallpaperFallbackDialog(checkbox) }
+                .setNegativeButton("Cancel") { _, _ ->
+                    pendingWallpaperCheckbox = null
+                }
+                .show()
+        } else {
+            launchRequest()
+        }
     }
 
-    private fun enableWallpaperFloorPref(checkbox: CheckBox) {
+    private fun enableWallpaperFloorPref(checkbox: CheckBox, allowFallbackDialog: Boolean) {
         WallpaperFloorProvider.refreshWithRetry(this) { loaded ->
             if (loaded) {
+                pendingWallpaperCheckbox = null
                 getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
                     .edit().putBoolean("use_wallpaper_as_floor", true).apply()
+                checkbox.isChecked = true
                 Toast.makeText(this, "Wallpaper floor enabled.", Toast.LENGTH_SHORT).show()
-            } else {
-                resetWallpaperCheckbox(checkbox)
+                return@refreshWithRetry
+            }
+            pendingWallpaperCheckbox = null
+            resetWallpaperCheckbox(checkbox)
+            if (allowFallbackDialog) {
                 showWallpaperFallbackDialog(checkbox)
             }
         }
@@ -235,18 +217,11 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun showWallpaperFallbackDialog(checkbox: CheckBox) {
         pendingWallpaperCheckbox = checkbox
-        val needsStorage = WallpaperPermissions.needsLegacyStoragePrompt(this)
         androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("Cannot Read System Wallpaper")
+            .setTitle("Use Wallpaper Image")
             .setMessage(
-                if (needsStorage) {
-                    "Photos access is granted, but Android also blocked legacy Storage access " +
-                        "needed to read the wallpaper file on this device. Enable Storage in app " +
-                        "settings, or pick the same wallpaper image from Photos."
-                } else {
-                    "Android blocked direct access to the system wallpaper on this device. " +
-                        "Pick your wallpaper image from Photos to use it on the floor."
-                }
+                "BumpDesk could not read the live system wallpaper on this device. " +
+                    "Pick the same image from Photos to use it on the floor."
             )
             .setPositiveButton("Pick Image") { _, _ ->
                 pickWallpaperLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))

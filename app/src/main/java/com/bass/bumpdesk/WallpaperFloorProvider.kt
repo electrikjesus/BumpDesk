@@ -41,7 +41,7 @@ object WallpaperFloorProvider {
         return try {
             context.contentResolver.openInputStream(uri)?.use { input ->
                 val decoded = BitmapFactory.decodeStream(input) ?: return false
-                val prepared = TextureUtils.prepareBitmapForGl(decoded)
+                val prepared = TextureUtils.prepareWallpaperForFloor(decoded)
                 if (prepared !== decoded) {
                     decoded.recycle()
                 }
@@ -78,14 +78,21 @@ object WallpaperFloorProvider {
     }
 
     private fun loadBitmap(bitmap: Bitmap?): Boolean {
+        val prepared = bitmap?.let { raw ->
+            val floorReady = TextureUtils.prepareWallpaperForFloor(raw)
+            if (floorReady !== raw) {
+                raw.recycle()
+            }
+            floorReady
+        }
         val usable = when {
-            bitmap == null -> null
-            TextureUtils.isMostlyBlank(bitmap) -> {
+            prepared == null -> null
+            TextureUtils.isMostlyBlank(prepared) -> {
                 BumpDeskLog.w(BumpDeskLog.Tag.WALLPAPER, "refresh", "rejected blank wallpaper bitmap")
-                bitmap.recycle()
+                prepared.recycle()
                 null
             }
-            else -> bitmap
+            else -> prepared
         }
         val previous = cachedBitmap
         cachedBitmap = usable

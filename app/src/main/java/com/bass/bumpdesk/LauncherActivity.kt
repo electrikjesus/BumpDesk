@@ -235,20 +235,6 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
             onReady?.invoke()
             return
         }
-        if (!WallpaperPermissions.canAttemptWallpaperRead(this)) {
-            WallpaperFloorProvider.clear()
-            BumpDeskLog.w(
-                BumpDeskLog.Tag.WALLPAPER,
-                "prepareWallpaperFloorIfNeeded",
-                when {
-                    WallpaperPermissions.needsLegacyStoragePrompt(this) ->
-                        "toggle on but READ_EXTERNAL_STORAGE not granted for WallpaperManager"
-                    else -> "toggle on but photos/media permission not granted"
-                }
-            )
-            onReady?.invoke()
-            return
-        }
         if (WallpaperFloorProvider.hasBitmap()) {
             onReady?.invoke()
             return

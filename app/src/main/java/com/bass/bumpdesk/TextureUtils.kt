@@ -8,6 +8,7 @@ import android.os.Build
 import android.app.WallpaperManager
 import android.opengl.GLES20
 import android.opengl.GLUtils
+import kotlin.math.abs
 import kotlin.math.max
 import android.graphics.BitmapFactory
 import com.caverock.androidsvg.PreserveAspectRatio
@@ -56,27 +57,59 @@ object TextureUtils {
         return bitmap
     }
 
+    /**
+     * Center-crops like CSS `object-fit: cover` so the floor keeps aspect ratio
+     * instead of stretching the wallpaper to the square plane.
+     */
+    fun centerCropToAspect(source: Bitmap, aspectWidth: Float, aspectHeight: Float): Bitmap {
+        if (aspectWidth <= 0f || aspectHeight <= 0f) return source
+        val targetAspect = aspectWidth / aspectHeight
+        val srcAspect = source.width.toFloat() / source.height.toFloat()
+        if (abs(srcAspect - targetAspect) < 0.001f) return source
+
+        val cropW: Int
+        val cropH: Int
+        if (srcAspect > targetAspect) {
+            cropH = source.height
+            cropW = (cropH * targetAspect).toInt().coerceIn(1, source.width)
+        } else {
+            cropW = source.width
+            cropH = (cropW / targetAspect).toInt().coerceIn(1, source.height)
+        }
+        val x = ((source.width - cropW) / 2).coerceAtLeast(0)
+        val y = ((source.height - cropH) / 2).coerceAtLeast(0)
+        return Bitmap.createBitmap(source, x, y, cropW, cropH)
+    }
+
+    /** GL-safe sizing plus center crop for the square floor plane. */
+    fun prepareWallpaperForFloor(source: Bitmap): Bitmap {
+        var bitmap = prepareBitmapForGl(source)
+        val cropped = centerCropToAspect(bitmap, 1f, 1f)
+        if (cropped !== bitmap) {
+            bitmap.recycle()
+            bitmap = cropped
+        }
+        return bitmap
+    }
+
     fun loadSystemWallpaperBitmap(context: Context): Bitmap? {
         loadCachedPickedWallpaper(context)?.let { return it }
 
-        if (!WallpaperPermissions.canAttemptWallpaperRead(context)) {
-            if (WallpaperPermissions.needsLegacyStoragePrompt(context)) {
-                BumpDeskLog.w(
-                    BumpDeskLog.Tag.WALLPAPER,
-                    "loadSystemWallpaperBitmap",
-                    "READ_EXTERNAL_STORAGE required for WallpaperManager on this Android version"
-                )
-            } else if (!WallpaperPermissions.hasRuntimePermission(context)) {
-                BumpDeskLog.w(
-                    BumpDeskLog.Tag.WALLPAPER,
-                    "loadSystemWallpaperBitmap",
-                    "photos/media permission not granted"
-                )
-            }
+        val wm = WallpaperManager.getInstance(context)
+
+        // On API 33+, WallpaperManager's binder still checks READ_EXTERNAL_STORAGE (not Photos).
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N &&
+            WallpaperPermissions.canReadWallpaperFile(context)
+        ) {
+            loadWallpaperFromFile(wm)?.let { return validateWallpaperBitmap(it, "getWallpaperFile") }
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            BumpDeskLog.d(
+                BumpDeskLog.Tag.WALLPAPER,
+                "loadSystemWallpaperBitmap",
+                "skipping WallpaperManager (READ_EXTERNAL_STORAGE not granted on API 33+)"
+            )
             return null
         }
-
-        val wm = WallpaperManager.getInstance(context)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             loadWallpaperFromManager(context, "getDrawable(FLAG_SYSTEM)") {
@@ -90,14 +123,10 @@ object TextureUtils {
         loadWallpaperFromManager(context, "drawable") { wm.drawable }
             ?.let { return validateWallpaperBitmap(it, "drawable") }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            loadWallpaperFromFile(wm)?.let { return validateWallpaperBitmap(it, "getWallpaperFile") }
-        }
-
         BumpDeskLog.w(
             BumpDeskLog.Tag.WALLPAPER,
             "loadSystemWallpaperBitmap",
-            "WallpaperManager blocked; pick wallpaper image in Settings"
+            "WallpaperManager unavailable; grant Storage in Settings or pick a wallpaper image"
         )
         return null
     }
@@ -130,26 +159,25 @@ object TextureUtils {
         return bitmap
     }
 
+    /** Rejects uniform near-black captures (e.g. failed window copy), not legitimate dark wallpapers. */
     fun isMostlyBlank(bitmap: Bitmap): Boolean {
         val stepX = (bitmap.width / 8).coerceAtLeast(1)
         val stepY = (bitmap.height / 8).coerceAtLeast(1)
-        var darkPixels = 0
-        var total = 0
+        var minLuminance = 255
+        var maxLuminance = 0
         var y = 0
         while (y < bitmap.height) {
             var x = 0
             while (x < bitmap.width) {
                 val pixel = bitmap.getPixel(x, y)
-                val luminance = (android.graphics.Color.red(pixel) +
-                    android.graphics.Color.green(pixel) +
-                    android.graphics.Color.blue(pixel)) / 3
-                if (luminance < 16) darkPixels++
-                total++
+                val luminance = (Color.red(pixel) + Color.green(pixel) + Color.blue(pixel)) / 3
+                minLuminance = minOf(minLuminance, luminance)
+                maxLuminance = maxOf(maxLuminance, luminance)
                 x += stepX
             }
             y += stepY
         }
-        return total > 0 && darkPixels.toFloat() / total > 0.95f
+        return maxLuminance < 8 || (maxLuminance - minLuminance < 4 && maxLuminance < 16)
     }
 
     private fun loadWallpaperFromManager(
