@@ -40,13 +40,7 @@ object WidgetHandleStyle {
     fun handleHitUv(widget: WidgetItem, kind: Kind): Pair<Float, Float> {
         val size = widget.displayHalfSize()
         val (cx, _, cz) = handleCenter(size, kind)
-        val uNorm = (cx + size.x) / (2f * size.x)
-        val vNorm = (cz + size.z) / (2f * size.z)
-        return when (widget.surface) {
-            BumpItem.Surface.FLOOR -> uNorm to vNorm
-            BumpItem.Surface.BACK_WALL, BumpItem.Surface.LEFT_WALL -> uNorm to (1f - vNorm)
-            BumpItem.Surface.RIGHT_WALL -> (1f - uNorm) to (1f - vNorm)
-        }
+        return WidgetSurfaceTransform.localQuadToTextureUv(widget.surface, cx, cz, size.x, size.z)
     }
 
     fun hitRadiusUv(size: Vector3): Pair<Float, Float> {

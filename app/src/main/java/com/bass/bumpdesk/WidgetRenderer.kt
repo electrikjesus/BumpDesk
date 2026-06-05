@@ -210,26 +210,19 @@ class WidgetRenderer(
 
     private fun widgetBaseMatrix(widget: WidgetItem): FloatArray {
         Matrix.setIdentityM(modelMatrix, 0)
-        val zOffset = 0.02f
+        val (posX, posY, posZ) = SurfaceRenderDepth.offsetDrawPosition(
+            widget.surface,
+            widget.position.x,
+            widget.position.y,
+            widget.position.z,
+        )
+        Matrix.translateM(modelMatrix, 0, posX, posY, posZ)
         when (widget.surface) {
-            BumpItem.Surface.BACK_WALL -> {
-                Matrix.translateM(modelMatrix, 0, widget.position.x, widget.position.y, widget.position.z + zOffset)
-                Matrix.rotateM(modelMatrix, 0, 180f, 0f, 1f, 0f)
-                Matrix.rotateM(modelMatrix, 0, 90f, 1f, 0f, 0f)
-            }
-            BumpItem.Surface.LEFT_WALL -> {
-                Matrix.translateM(modelMatrix, 0, widget.position.x + zOffset, widget.position.y, widget.position.z)
-                Matrix.rotateM(modelMatrix, 0, 90f, 0f, 1f, 0f)
-                Matrix.rotateM(modelMatrix, 0, 90f, 1f, 0f, 0f)
-            }
-            BumpItem.Surface.RIGHT_WALL -> {
-                Matrix.translateM(modelMatrix, 0, widget.position.x - zOffset, widget.position.y, widget.position.z)
-                Matrix.rotateM(modelMatrix, 0, -90f, 0f, 1f, 0f)
-                Matrix.rotateM(modelMatrix, 0, 90f, 1f, 0f, 0f)
-            }
-            BumpItem.Surface.FLOOR -> {
-                Matrix.translateM(modelMatrix, 0, widget.position.x, widget.position.y + zOffset, widget.position.z)
-            }
+            BumpItem.Surface.BACK_WALL,
+            BumpItem.Surface.LEFT_WALL,
+            BumpItem.Surface.RIGHT_WALL,
+            -> WidgetSurfaceTransform.applyModelRotation(widget.surface, modelMatrix)
+            BumpItem.Surface.FLOOR -> Unit
         }
         return modelMatrix.clone()
     }
