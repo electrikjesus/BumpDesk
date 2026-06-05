@@ -126,21 +126,6 @@ class MenuManager(
             glSurfaceView.queueEvent { renderer.toggleRecentsPinnedOpen() }
         })
 
-        val viewText = if (pile.recentsViewMode == Pile.RecentsViewMode.TASK_CARDS) {
-            "Show Icons"
-        } else {
-            "Show Task Cards"
-        }
-        menuItems.add(RadialMenuItem(viewText, android.R.drawable.ic_menu_gallery) {
-            glSurfaceView.queueEvent {
-                RecentsPreferences.toggleViewMode(pile, context)
-                if (pile.isPinnedOpen) {
-                    pile.isExpanded = true
-                }
-                glSurfaceView.requestRender()
-            }
-        })
-
         if (pile.layoutAsExpandedDrawer()) {
             menuItems.add(RadialMenuItem("Collapse", android.R.drawable.ic_menu_close_clear_cancel) {
                 glSurfaceView.queueEvent { renderer.collapseRecentsDrawer() }
@@ -152,18 +137,63 @@ class MenuManager(
         }
 
         menuItems.add(RadialMenuItem("Grow", android.R.drawable.ic_input_add) {
-            glSurfaceView.queueEvent {
-                pile.scale = (pile.scale * 1.25f).coerceAtMost(3.0f)
-                RecentsPreferences.saveFromPile(pile, context.getSharedPreferences("bump_prefs", Context.MODE_PRIVATE))
-                glSurfaceView.requestRender()
-            }
+            glSurfaceView.queueEvent { applyRecentsDrawerScale(pile, 1.25f) }
         })
         menuItems.add(RadialMenuItem("Shrink", android.R.drawable.ic_input_delete) {
-            glSurfaceView.queueEvent {
-                pile.scale = (pile.scale / 1.25f).coerceAtLeast(0.5f)
-                RecentsPreferences.saveFromPile(pile, context.getSharedPreferences("bump_prefs", Context.MODE_PRIVATE))
-                glSurfaceView.requestRender()
-            }
+            glSurfaceView.queueEvent { applyRecentsDrawerScale(pile, 1f / 1.25f) }
+        })
+
+        radialMenu.setItems(menuItems, x, y, { it.action?.invoke() }, {})
+    }
+
+    /** Grow/shrink scales the whole drawer (panel, icons, chrome) without changing grid size. */
+    private fun applyRecentsDrawerScale(pile: Pile, factor: Float) {
+        val newScale = (pile.scale * factor).coerceIn(0.5f, 3.0f)
+        if (newScale == pile.scale) return
+        pile.scale = newScale
+        pile.nameTextureId = -1
+        pile.items.forEach { it.appearance.textureId = -1 }
+        FolderDrawerStyle.syncRecentsDrawerItemScales(pile)
+        pile.previewTextureId = -1
+        pile.previewSignature = ""
+        RecentsPreferences.saveFromPile(pile, context.getSharedPreferences("bump_prefs", Context.MODE_PRIVATE))
+        glSurfaceView.requestRender()
+    }
+
+    fun showRecentsTaskMenu(x: Float, y: Float, item: BumpItem) {
+        val appInfo = item.appData?.appInfo ?: return
+        val menuItems = mutableListOf<RadialMenuItem>()
+
+        menuItems.add(RadialMenuItem("Open", android.R.drawable.ic_menu_send) {
+            launcher.launchApp(item)
+        })
+
+        val openAsSubItems = listOf(
+            RadialMenuItem("Fullscreen", android.R.drawable.ic_menu_zoom) {
+                launcher.launchApp(item, LauncherActivity.WINDOWING_MODE_FULLSCREEN)
+            },
+            RadialMenuItem("Freeform", android.R.drawable.ic_menu_crop) {
+                launcher.launchApp(item, LauncherActivity.WINDOWING_MODE_FREEFORM)
+            },
+            RadialMenuItem("Pinned", android.R.drawable.ic_lock_lock) {
+                launcher.launchApp(item, LauncherActivity.WINDOWING_MODE_PINNED)
+            },
+        )
+        menuItems.add(RadialMenuItem("Open As...", android.R.drawable.ic_menu_more, subItems = openAsSubItems))
+
+        if (appInfo.taskId != -1) {
+            menuItems.add(RadialMenuItem("Minimize", android.R.drawable.ic_menu_revert) {
+                launcher.minimizeTask(appInfo.taskId)
+            })
+            menuItems.add(RadialMenuItem("Close", android.R.drawable.ic_menu_close_clear_cancel) {
+                launcher.closeRecentTask(item)
+            })
+        }
+
+        menuItems.add(RadialMenuItem("App Info", android.R.drawable.ic_menu_info_details) {
+            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+            intent.data = android.net.Uri.fromParts("package", appInfo.packageName, null)
+            context.startActivity(intent)
         })
 
         radialMenu.setItems(menuItems, x, y, { it.action?.invoke() }, {})

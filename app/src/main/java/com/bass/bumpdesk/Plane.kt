@@ -64,11 +64,19 @@ class Plane(private val shader: DefaultShader) {
     }
 
     fun updateUVs(scaleX: Float, scaleY: Float = scaleX) {
+        updateUVRect(0f, 0f, scaleX, scaleY)
+    }
+
+    fun resetUVs() {
+        updateUVRect(0f, 0f, 1f, 1f)
+    }
+
+    fun updateUVRect(u0: Float, v0: Float, u1: Float, v1: Float) {
         val newTexCoords = floatArrayOf(
-            0.0f, 0.0f,
-            0.0f, scaleY,
-            scaleX, scaleY,
-            scaleX, 0.0f
+            u0, v0,
+            u0, v1,
+            u1, v1,
+            u1, v0,
         )
         val texCoordBuffer = ByteBuffer.allocateDirect(newTexCoords.size * 4).run {
             order(ByteOrder.nativeOrder())

@@ -23,8 +23,12 @@ data class Pile(
     enum class RecentsViewMode { ICONS, TASK_CARDS }
 
     var recentsViewMode: RecentsViewMode = RecentsViewMode.ICONS
-    /** When true, Recents stays expanded on the floor at the normal camera view. */
+    /** When true, Recents stays expanded at the normal camera view (floor or wall). */
     var isPinnedOpen: Boolean = false
+    /** Pinned Recents drawer grid width in cells (1–12). */
+    var drawerGridColumns: Int = 2
+    /** Pinned Recents drawer grid height in cells (1–4). */
+    var drawerGridRows: Int = 2
 
     /** Collapsed floor pile shown as a single 2×2 app preview (no labels). */
     fun showsFolderPreview(): Boolean =
@@ -35,38 +39,44 @@ data class Pile(
 
     fun isRecentsPile(): Boolean = isSystem && name == "Recents"
 
+    fun recentsOnWall(): Boolean =
+        surface == BumpItem.Surface.BACK_WALL ||
+            surface == BumpItem.Surface.LEFT_WALL ||
+            surface == BumpItem.Surface.RIGHT_WALL
+
+    fun showsRecentsMaterialDrawer(): Boolean =
+        isRecentsPile() && layoutAsExpandedDrawer() &&
+            (surface == BumpItem.Surface.FLOOR || recentsOnWall())
+
     fun showsRecentsIconGrid(): Boolean =
-        isRecentsPile() && layoutAsExpandedDrawer() && recentsViewMode == RecentsViewMode.ICONS &&
-            surface == BumpItem.Surface.FLOOR
+        showsRecentsMaterialDrawer() && recentsViewMode == RecentsViewMode.ICONS
 
     fun showsRecentsTaskCards(): Boolean =
-        isRecentsPile() && layoutAsExpandedDrawer() && recentsViewMode == RecentsViewMode.TASK_CARDS &&
-            surface == BumpItem.Surface.FLOOR
+        showsRecentsMaterialDrawer() && recentsViewMode == RecentsViewMode.TASK_CARDS
 
     fun showsDesktopPinnedDrawer(): Boolean =
-        isPinnedOpen && surface == BumpItem.Surface.FLOOR && layoutMode == LayoutMode.FOLDER
+        isPinnedOpen && layoutMode == LayoutMode.FOLDER &&
+            (surface == BumpItem.Surface.FLOOR || recentsOnWall())
 
-    /** Expanded drawer grid (temporary expand or pinned open on the floor). */
+    /** Expanded drawer grid (temporary expand or pinned open). */
     fun layoutAsExpandedDrawer(): Boolean =
         isExpanded || showsDesktopPinnedDrawer()
 
-    /** Collapsed floor preview tile (user folders or Recents on flat floor). */
+    /** Collapsed preview tile (user folders or Recents). */
     fun showsCollapsedPreview(): Boolean =
         showsFolderPreview() ||
-            (isRecentsPile() && !layoutAsExpandedDrawer() && surface == BumpItem.Surface.FLOOR)
+            (isRecentsPile() && !layoutAsExpandedDrawer())
 
     fun showsCollapsedLabel(): Boolean =
         (showsFolderPreview() && name.isNotBlank()) ||
             (isRecentsPile() && showsCollapsedPreview())
 
-    /** Keeps pinned-open recents expanded on the floor after global collapse passes. */
+    /** Keeps pinned-open recents expanded after global collapse passes. */
     fun reconcilePinnedOpenState() {
         if (!isPinnedOpen) return
         isExpanded = true
         if (isRecentsPile()) {
             layoutMode = LayoutMode.FOLDER
-            surface = BumpItem.Surface.FLOOR
-            position = position.copy(y = 0.05f)
         }
     }
 

@@ -22,6 +22,7 @@ class PileRenderer(
         onUpdateTexture: (Runnable) -> Unit,
         roomHalfX: Float = 30f,
         roomHalfZ: Float = 30f,
+        roomSize: Float = roomHalfX,
     ) {
         piles.forEach { pile ->
             pile.reconcilePinnedOpenState()
@@ -32,25 +33,27 @@ class PileRenderer(
                 val startIdx = pile.scrollIndex * pageSize
                 val endIdx = (startIdx + pageSize).coerceAtMost(pile.items.size)
                 val layout = if (FolderDrawerStyle.usesMaterialChrome(pile)) {
-                    FolderDrawerStyle.layout(pile, roomHalfX, roomHalfZ)
+                    FolderDrawerStyle.layoutForPile(pile, roomHalfX, roomHalfZ, roomSize)
                 } else {
                     null
                 }
 
-                // Performance: Virtualized rendering for expanded folders.
-                // Task: Clear texture IDs for items on non-visible pages to allow 
-                // TextureManager's LRU cache to manage memory effectively.
-                // We keep a 1-page buffer for smoother scrolling.
                 val bufferRange = (pile.scrollIndex - 1) * pageSize until (pile.scrollIndex + 2) * pageSize
                 
                 pile.items.forEachIndexed { index, item ->
                     if (index in startIdx until endIdx) {
-                        if (layout != null && !FolderDrawerStyle.isInsideContentArea(item, layout, pile.scale)) {
-                            return@forEachIndexed
+                        if (layout != null) {
+                            val inside = if (pile.surface == BumpItem.Surface.FLOOR) {
+                                FolderDrawerStyle.isInsideContentArea(item, layout, pile.scale)
+                            } else {
+                                FolderDrawerStyle.isInsideWallContentArea(pile, item, layout, pile.scale)
+                            }
+                            if (!inside) {
+                                return@forEachIndexed
+                            }
                         }
                         itemRenderer.drawItems(vPMatrix, listOf(item), lightPos, searchQuery, onUpdateTexture)
                     } else if (index !in bufferRange) {
-                        // Mark texture as eligible for eviction if far from visible page
                         item.appearance.textureId = -1
                     }
                 }

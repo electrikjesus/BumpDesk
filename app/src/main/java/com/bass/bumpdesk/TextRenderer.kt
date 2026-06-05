@@ -105,10 +105,26 @@ object TextRenderer {
         return bitmap
     }
 
+    /** Small circle for folder pagination indicators (anti-aliased, transparent outside shape). */
+    fun createPageIndicatorDotBitmap(
+        size: Int = 128,
+        fillColorArgb: Int,
+    ): Bitmap {
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = fillColorArgb
+            style = Paint.Style.FILL
+        }
+        val radius = size * 0.42f
+        canvas.drawCircle(size / 2f, size / 2f, radius, paint)
+        return bitmap
+    }
+
     fun createRoundedPanelBitmap(
-        width: Int = 512,
-        height: Int = 640,
-        cornerRadiusPx: Float = 42f,
+        width: Int = PANEL_BITMAP_WIDTH,
+        height: Int = PANEL_BITMAP_HEIGHT,
+        cornerRadiusPx: Float = PANEL_CORNER_RADIUS_PX,
         fillColor: Int = Color.argb(240, 33, 35, 43),
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
@@ -120,6 +136,13 @@ object TextRenderer {
         canvas.drawRoundRect(RectF(0f, 0f, width.toFloat(), height.toFloat()), cornerRadiusPx, cornerRadiusPx, paint)
         return bitmap
     }
+
+    const val PANEL_BITMAP_WIDTH = 512
+    const val PANEL_BITMAP_HEIGHT = 640
+    const val PANEL_CORNER_RADIUS_PX = 42f
+
+    fun panelCornerUvFractions(): Pair<Float, Float> =
+        PANEL_CORNER_RADIUS_PX / PANEL_BITMAP_WIDTH to PANEL_CORNER_RADIUS_PX / PANEL_BITMAP_HEIGHT
 
     private fun createStyledTextBitmap(
         text: String,

@@ -166,15 +166,33 @@ object PileOperations {
                 return@withWriteLockResult false
             }
 
-            val dx = item.transform.position.x - pile.position.x
-            val dz = item.transform.position.z - pile.position.z
-            val side = ceil(sqrt(pile.items.size.toDouble())).toInt().coerceAtLeast(1)
-            val spacing = 1.2f
-            val halfDim = ((side * spacing) / 2f + 0.5f) * pile.scale
+            if (pile.layoutAsExpandedDrawer()) {
+                val layout = FolderDrawerStyle.layoutForPile(
+                    pile,
+                    roomHalfX = 30f,
+                    roomHalfZ = 30f,
+                    roomSize = 30f,
+                )
+                val stillInside = if (pile.surface == BumpItem.Surface.FLOOR) {
+                    FolderDrawerStyle.isInsideContentArea(item, layout, pile.scale)
+                } else {
+                    FolderDrawerStyle.isInsideWallContentArea(pile, item, layout, pile.scale)
+                }
+                if (stillInside) {
+                    BumpDeskLog.d(BumpDeskLog.Tag.ICON_GROUP, "removeItemFromExpandedPile", "skipped | still inside drawer content")
+                    return@withWriteLockResult false
+                }
+            } else {
+                val dx = item.transform.position.x - pile.position.x
+                val dz = item.transform.position.z - pile.position.z
+                val side = ceil(sqrt(pile.items.size.toDouble())).toInt().coerceAtLeast(1)
+                val spacing = 1.2f
+                val halfDim = ((side * spacing) / 2f + 0.5f) * pile.scale
 
-            if (kotlin.math.abs(dx) <= halfDim && kotlin.math.abs(dz) <= halfDim) {
-                BumpDeskLog.d(BumpDeskLog.Tag.ICON_GROUP, "removeItemFromExpandedPile", "skipped | still inside bounds")
-                return@withWriteLockResult false
+                if (kotlin.math.abs(dx) <= halfDim && kotlin.math.abs(dz) <= halfDim) {
+                    BumpDeskLog.d(BumpDeskLog.Tag.ICON_GROUP, "removeItemFromExpandedPile", "skipped | still inside bounds")
+                    return@withWriteLockResult false
+                }
             }
 
             val appInfo = item.appData?.appInfo
@@ -218,9 +236,28 @@ object PileOperations {
     }
 
     private fun pruneEmptyPilesUnlocked(sceneState: SceneState) {
+        val singletonPiles = sceneState.piles.filter { it.items.size == 1 && !it.isSystem }
+        singletonPiles.forEach { pile ->
+            val item = pile.items.first()
+            pile.items.clear()
+            if (!sceneState.bumpItems.contains(item)) {
+                sceneState.bumpItems.add(item)
+            }
+            item.transform.surface = pile.surface
+            item.transform.position = when (pile.surface) {
+                BumpItem.Surface.FLOOR -> pile.position.copy(y = 0.05f)
+                BumpItem.Surface.BACK_WALL -> pile.position.copy(z = pile.position.z)
+                BumpItem.Surface.LEFT_WALL -> pile.position.copy(x = pile.position.x)
+                BumpItem.Surface.RIGHT_WALL -> pile.position.copy(x = pile.position.x)
+            }
+        }
         val removed = sceneState.piles.removeAll { it.items.size < 2 && !it.isSystem }
-        if (removed) {
-            BumpDeskLog.d(BumpDeskLog.Tag.ICON_GROUP, "pruneEmptyPiles", "removed empty non-system piles")
+        if (removed || singletonPiles.isNotEmpty()) {
+            BumpDeskLog.d(
+                BumpDeskLog.Tag.ICON_GROUP,
+                "pruneEmptyPiles",
+                "releasedSingletons=${singletonPiles.size} removedEmpty=$removed",
+            )
         }
     }
 }

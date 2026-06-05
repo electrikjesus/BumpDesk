@@ -21,6 +21,7 @@ class UIRenderer(
         textureManager: TextureManager,
         roomHalfX: Float,
         roomHalfZ: Float,
+        roomSize: Float = roomHalfX,
     ) {
         // Draw Search Overlay if active
         if (searchQuery.isNotEmpty()) {
@@ -29,12 +30,8 @@ class UIRenderer(
 
         sceneState.recentsPile?.reconcilePinnedOpenState()
 
-        val activePile = sceneState.piles.find {
-            it.layoutAsExpandedDrawer() && camera.currentViewMode == CameraManager.ViewMode.FOLDER_EXPANDED
-        } ?: sceneState.piles.find { it.showsDesktopPinnedDrawer() }
-        if (activePile != null &&
-            (camera.currentViewMode == CameraManager.ViewMode.FOLDER_EXPANDED || activePile.showsDesktopPinnedDrawer())
-        ) {
+        val activePile = FolderDrawerStyle.resolveOverlayPile(sceneState.piles, camera.currentViewMode)
+        if (activePile != null) {
             ensureFolderTitle(activePile, textureManager)
             overlayRenderer.drawFolderUI(
                 vPMatrix,
@@ -44,6 +41,7 @@ class UIRenderer(
                 lightPos,
                 roomHalfX = roomHalfX,
                 roomHalfZ = roomHalfZ,
+                roomSize = roomSize,
             )
             overlayRenderer.drawPaginationUI(
                 vPMatrix,
@@ -53,13 +51,8 @@ class UIRenderer(
                 lightPos,
                 roomHalfX = roomHalfX,
                 roomHalfZ = roomHalfZ,
+                roomSize = roomSize,
             )
-        }
-        
-        sceneState.recentsPile?.let { pile ->
-            if (pile.isRecentsPile() && pile.surface == BumpItem.Surface.BACK_WALL && !pile.layoutAsExpandedDrawer()) {
-                overlayRenderer.drawRecentsOverlay(vPMatrix, pile, textures.arrowLeft, textures.arrowRight, lightPos)
-            }
         }
     }
 

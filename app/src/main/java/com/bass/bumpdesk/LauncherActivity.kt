@@ -543,6 +543,8 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
     fun showItemMenu(x: Float, y: Float, item: BumpItem) = runOnUiThread { menuManager.showItemMenu(x, y, item) }
     fun showPileMenu(x: Float, y: Float, pile: Pile, onBreak: () -> Unit) = runOnUiThread { menuManager.showPileMenu(x, y, pile, onBreak) }
     fun showRecentsMenu(x: Float, y: Float, pile: Pile) = runOnUiThread { menuManager.showRecentsMenu(x, y, pile) }
+    fun showRecentsTaskMenu(x: Float, y: Float, item: BumpItem) =
+        runOnUiThread { menuManager.showRecentsTaskMenu(x, y, item) }
     fun showWidgetMenu(x: Float, y: Float, widget: WidgetItem) = runOnUiThread { menuManager.showWidgetMenu(x, y, widget) }
     fun showLassoMenu(x: Float, y: Float, selectedItems: List<BumpItem>) = runOnUiThread { menuManager.showLassoMenu(x, y, selectedItems) }
     fun showDesktopMenu(x: Float, y: Float) = runOnUiThread { menuManager.showDesktopMenu(x, y) }
@@ -580,6 +582,20 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
 
     fun removeTask(taskId: Int) {
         actionHandler.removeTask(taskId)
+    }
+
+    fun closeRecentTask(item: BumpItem) {
+        val taskId = item.appData?.appInfo?.taskId ?: -1
+        actionHandler.removeTask(taskId)
+        glSurfaceView.queueEvent {
+            renderer.sceneState.recentsPile?.items?.remove(item)
+            glSurfaceView.requestRender()
+        }
+        glSurfaceView.postDelayed({ updateRecents() }, 500)
+    }
+
+    fun minimizeTask(taskId: Int) {
+        actionHandler.minimizeTask(taskId)
     }
 
     fun openWidgetPicker() {
