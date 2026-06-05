@@ -19,6 +19,7 @@ import android.content.Intent
 import android.provider.Settings
 import kotlin.math.abs
 import kotlin.math.ceil
+import kotlin.math.hypot
 
 class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
 
@@ -244,15 +245,33 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
             camera.customDefaultLookAt[0] = prefs.getFloat("cam_def_lat_x", camera.ABSOLUTE_DEFAULT_LOOKAT[0])
             camera.customDefaultLookAt[1] = prefs.getFloat("cam_def_lat_y", camera.ABSOLUTE_DEFAULT_LOOKAT[1])
             camera.customDefaultLookAt[2] = prefs.getFloat("cam_def_lat_z", camera.ABSOLUTE_DEFAULT_LOOKAT[2])
-            if (!sessionProfileApplied) {
+            if (isFlatFloorStyleSavedCamera(camera.customDefaultPos, camera.customDefaultLookAt)) {
+                BumpDeskLog.w(
+                    BumpDeskLog.Tag.CAMERA,
+                    "updateSettings",
+                    "ignoring flat-floor saved camera in room mode; clearing stale cam_def prefs",
+                )
+                clearSavedCustomCameraPrefs(prefs)
+                camera.customDefaultPos = displayProfile.defaultCameraPos.clone()
+                camera.customDefaultLookAt = displayProfile.defaultCameraLookAt.clone()
+                camera.customDefaultZoomLevel = displayProfile.defaultZoomLevel
+                camera.baseFieldOfView = displayProfile.defaultFieldOfView
+                if (!sessionProfileApplied && camera.currentViewMode == CameraManager.ViewMode.DEFAULT) {
+                    applyOrientationProfile(displayProfile, "updateSettings")
+                    prefs.edit()
+                        .putString(ScreenMetrics.PREFS_LAST_ORIENTATION, displayProfile.orientationKey)
+                        .apply()
+                    sessionProfileApplied = true
+                }
+            } else if (!sessionProfileApplied) {
                 camera.reset()
                 sessionProfileApplied = true
+                CameraDiagnostics.log(
+                    camera,
+                    "updateSettings",
+                    "source=savedCustomCamera latX=${camera.customDefaultLookAt[0]} posX=${camera.customDefaultPos[0]}",
+                )
             }
-            CameraDiagnostics.log(
-                camera,
-                "updateSettings",
-                "source=savedCustomCamera latX=${camera.customDefaultLookAt[0]} posX=${camera.customDefaultPos[0]}"
-            )
         } else if (prefs.getBoolean("reset_camera_trigger", false)) {
             camera.resetToAbsoluteDefaults()
             prefs.edit().remove("reset_camera_trigger").apply()
@@ -297,7 +316,41 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
 
         configureRecentsPileForCurrentMode()
         sceneState.recentsPile?.reconcilePinnedOpenState()
+        constrainWidgetsToActiveBounds(saveIfChanged = true)
         glSurfaceView?.requestRender()
+    }
+
+    private fun activeWidgetBounds(): WidgetPlacement.RoomBounds {
+        val boundX = if (isFlatFloorMode) floorHalfWidth else ROOM_SIZE
+        val boundZ = if (isFlatFloorMode) floorHalfDepth else ROOM_SIZE
+        val roomSize = if (isFlatFloorMode) floorHalfWidth else ROOM_SIZE
+        return WidgetPlacement.boundsFrom(
+            boundX = boundX,
+            boundZ = boundZ,
+            roomSize = roomSize,
+            roomHeight = ROOM_HEIGHT,
+            isFlatFloorMode = isFlatFloorMode,
+            isInfiniteMode = physicsEngine.isInfiniteMode,
+        )
+    }
+
+    fun constrainWidgetsToActiveBounds(saveIfChanged: Boolean = false) {
+        val changed = sceneState.withWriteLockResult {
+            WidgetPlacement.constrainAll(sceneState.widgetItems, activeWidgetBounds())
+        }
+        if (changed && saveIfChanged) {
+            saveState()
+        }
+        if (changed) {
+            sceneState.widgetItems.forEach { widget ->
+                WidgetCaptureCoordinator.clear(widget.appWidgetId)
+            }
+            if (::widgetRenderer.isInitialized) {
+                sceneState.widgetItems.forEach { widget ->
+                    widgetRenderer.invalidateLayoutForWidget(widget.appWidgetId)
+                }
+            }
+        }
     }
 
     private fun wallpaperFloorCropAspect(): Pair<Float, Float> {
@@ -345,12 +398,27 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
 
     fun resetCameraDefaults() {
         camera.resetToAbsoluteDefaults()
-        val prefs = context.getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
+        clearSavedCustomCameraPrefs(context.getSharedPreferences("bump_prefs", Context.MODE_PRIVATE))
+    }
+
+    private fun clearSavedCustomCameraPrefs(prefs: android.content.SharedPreferences) {
         prefs.edit().apply {
-            remove("cam_def_pos_x"); remove("cam_def_pos_y"); remove("cam_def_pos_z")
-            remove("cam_def_lat_x"); remove("cam_def_lat_y"); remove("cam_def_lat_z")
+            remove("cam_def_pos_x")
+            remove("cam_def_pos_y")
+            remove("cam_def_pos_z")
+            remove("cam_def_lat_x")
+            remove("cam_def_lat_y")
+            remove("cam_def_lat_z")
             apply()
         }
+    }
+
+    /** Top-down camera saved from flat-floor mode is unusable in the 3D room view. */
+    private fun isFlatFloorStyleSavedCamera(pos: FloatArray, lookAt: FloatArray): Boolean {
+        val dy = pos[1] - lookAt[1]
+        if (dy < 15f) return false
+        val horizontal = hypot(pos[0] - lookAt[0], pos[2] - lookAt[2])
+        return horizontal < 3f
     }
 
     fun loadSavedState(allApps: List<AppInfo>, onComplete: () -> Unit = {}) {
@@ -373,6 +441,14 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
             }
             
             onComplete()
+            sceneState.widgetItems.forEach { widget ->
+                BumpDeskLog.i(
+                    BumpDeskLog.Tag.WIDGET,
+                    "pinSurface",
+                    "restored id=${widget.appWidgetId} " +
+                        WidgetSurfaceTransform.surfaceAttachmentDescription(widget, ROOM_SIZE),
+                )
+            }
             glSurfaceView?.requestRender()
         }
     }
@@ -442,19 +518,20 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
             }
         }
         val surface = hit?.first ?: if (isFlatFloorMode) BumpItem.Surface.FLOOR else BumpItem.Surface.BACK_WALL
-        sceneState.widgetItems.add(
-            WidgetItem(
-                appWidgetId = appWidgetId,
-                position = Vector3.fromArray(rawPos),
-                size = defaultSize,
-                surface = surface,
-                aspectRatio = aspect,
-            ),
+        val widget = WidgetItem(
+            appWidgetId = appWidgetId,
+            position = Vector3.fromArray(rawPos),
+            size = defaultSize,
+            surface = surface,
+            aspectRatio = aspect,
         )
-        BumpDeskLog.d(
+        sceneState.widgetItems.add(widget)
+        constrainWidgetsToActiveBounds()
+        BumpDeskLog.i(
             BumpDeskLog.Tag.WIDGET,
-            "addWidgetAt",
-            "id=$appWidgetId surface=$surface size=${defaultSize.x}x${defaultSize.z} aspect=$aspect provider=${info?.provider?.className}",
+            "pinSurface",
+            "placed id=$appWidgetId ${WidgetSurfaceTransform.surfaceAttachmentDescription(widget, ROOM_SIZE)} " +
+                "size=${defaultSize.x}x${defaultSize.z} aspect=$aspect provider=${info?.provider?.className}",
         )
         saveState()
     }
@@ -473,6 +550,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
 
     fun scaleWidget(widget: WidgetItem, factor: Float) {
         widget.scale = (widget.scale * factor).coerceIn(0.5f, 2.5f)
+        constrainWidgetsToActiveBounds()
         saveState()
         glSurfaceView?.requestRender()
     }
@@ -482,6 +560,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         if (::widgetRenderer.isInitialized) {
             widgetRenderer.invalidateLayoutForWidget(widget.appWidgetId)
         }
+        constrainWidgetsToActiveBounds()
         saveState()
         glSurfaceView?.post {
             (context as? LauncherActivity)?.configureWidgetHostView(widget.appWidgetId, invalidateTexture = false)
@@ -494,36 +573,47 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
     fun updateRecents(recents: List<AppInfo>) {
         BumpDeskLog.enter(BumpDeskLog.Tag.RECENTS, "updateRecents", "count=${recents.size}")
         if (sceneState.recentsPile == null) {
-            sceneState.recentsPile = Pile(mutableListOf(), Vector3(0f, 4f, -ROOM_SIZE + 0.6f), name = "Recents", layoutMode = Pile.LayoutMode.CAROUSEL, surface = BumpItem.Surface.BACK_WALL, isSystem = true)
+            sceneState.recentsPile = Pile(
+                mutableListOf(),
+                Vector3(-6f, 0.05f, 6f),
+                name = "Recents",
+                layoutMode = Pile.LayoutMode.FOLDER,
+                surface = BumpItem.Surface.FLOOR,
+                isSystem = true,
+            )
             sceneState.piles.add(sceneState.recentsPile!!)
             BumpDeskLog.d(BumpDeskLog.Tag.RECENTS, "updateRecents", "created system recents pile")
         }
         
         val oldItems = sceneState.recentsPile!!.items.toList()
         val newItems = recents.map { appInfo ->
-            val existing = oldItems.find { it.appData?.appInfo?.packageName == appInfo.packageName } ?:
-                           sceneState.bumpItems.find { it.appData?.appInfo?.packageName == appInfo.packageName } ?:
-                           sceneState.piles.flatMap { it.items }.find { it.appData?.appInfo?.packageName == appInfo.packageName }
-            
+            val existing = findExistingRecentsItem(oldItems, appInfo)
+                ?: findExistingRecentsItem(sceneState.bumpItems, appInfo)
+                ?: findExistingRecentsItem(sceneState.piles.flatMap { it.items }, appInfo)
+
             val item = existing?.copy() ?: BumpItem(type = BumpItem.Type.RECENT_APP, appInfo = appInfo)
-            
+
             item.apply {
                 this.appInfo = appInfo
                 appearance.type = BumpItem.Type.RECENT_APP
                 transform.position = sceneState.recentsPile!!.position.copy()
-                transform.scale = 1.2f
-                transform.surface = BumpItem.Surface.BACK_WALL
-                if (existing?.appData?.appInfo?.snapshot != appInfo.snapshot) {
+                transform.surface = sceneState.recentsPile!!.surface
+                val prev = existing?.appData?.appInfo
+                if (prev?.snapshot != appInfo.snapshot ||
+                    prev?.taskId != appInfo.taskId ||
+                    prev?.packageName != appInfo.packageName
+                ) {
                     appearance.textureId = -1
                 }
             }
             item
         }
-        
+
         sceneState.recentsPile!!.items.clear()
         sceneState.recentsPile!!.items.addAll(newItems)
         configureRecentsPileForCurrentMode()
         sceneState.recentsPile?.reconcilePinnedOpenState()
+        sceneState.recentsPile?.let { FolderDrawerStyle.syncRecentsDrawerItemScales(it) }
         
         BumpDeskLog.d(BumpDeskLog.Tag.RECENTS, "updateRecents", "tiles=${newItems.size}")
         newItems.forEach { item ->
@@ -535,6 +625,17 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         }
 
         glSurfaceView?.requestRender()
+    }
+
+    private fun findExistingRecentsItem(candidates: List<BumpItem>, appInfo: AppInfo): BumpItem? {
+        if (appInfo.taskId != -1) {
+            candidates.find { it.appData?.appInfo?.taskId == appInfo.taskId }?.let { return it }
+        }
+        return candidates.find {
+            val info = it.appData?.appInfo ?: return@find false
+            info.packageName == appInfo.packageName &&
+                (appInfo.taskId == -1 || info.taskId == -1)
+        }
     }
 
     private fun configureRecentsPileForCurrentMode() {
@@ -549,8 +650,22 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
 
         RecentsPreferences.applyToPile(pile, prefs, isFlatFloorMode, ROOM_SIZE)
 
+        val targetSurface = if (isFlatFloorMode) BumpItem.Surface.FLOOR else pile.surface
+        val needsTextureRebuild =
+            pile.layoutMode != Pile.LayoutMode.FOLDER ||
+                pile.surface != targetSurface ||
+                (isFlatFloorMode && pile.position.y > 1f) ||
+                (!isFlatFloorMode && pile.surface == BumpItem.Surface.FLOOR && pile.position.y <= 1f)
+        if (needsTextureRebuild) {
+            pile.items.forEach { item ->
+                item.appearance.textureId = -1
+            }
+            pile.previewTextureId = -1
+            pile.previewSignature = ""
+        }
+
+        pile.layoutMode = Pile.LayoutMode.FOLDER
         if (isFlatFloorMode) {
-            pile.layoutMode = Pile.LayoutMode.FOLDER
             pile.surface = BumpItem.Surface.FLOOR
             if (!prefs.contains(RecentsPreferences.PREF_POS_X) &&
                 (pile.position.y > 1f || pile.position.z < -ROOM_SIZE / 2f)
@@ -559,49 +674,79 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
             } else {
                 pile.position = pile.position.copy(y = 0.05f)
             }
-            if (!pile.isPinnedOpen) {
-                pile.isExpanded = false
-            }
-            pile.scrollIndex = pile.scrollIndex.coerceIn(
-                0,
-                (FolderDrawerStyle.totalPages(pile) - 1).coerceAtLeast(0),
-            )
-            pile.previewTextureId = -1
-            pile.previewSignature = ""
-            pile.items.forEach { item ->
-                item.transform.surface = BumpItem.Surface.FLOOR
-                if (!pile.layoutAsExpandedDrawer()) {
-                    item.transform.scale = physicsEngine.defaultScale
-                }
-            }
-            BumpDeskLog.d(
-                BumpDeskLog.Tag.RECENTS,
-                "configureRecentsPile",
-                "mode=flatFloor view=${pile.recentsViewMode} pinned=${pile.isPinnedOpen} items=${pile.items.size}",
-            )
         } else {
-            pile.isPinnedOpen = false
-            pile.layoutMode = Pile.LayoutMode.CAROUSEL
-            pile.surface = BumpItem.Surface.BACK_WALL
-            pile.position = Vector3(0f, 4f, -ROOM_SIZE + 0.6f)
+            if (pile.surface == BumpItem.Surface.FLOOR ||
+                (!prefs.contains(RecentsPreferences.PREF_SURFACE) && pile.position.y <= 1f)
+            ) {
+                pile.surface = BumpItem.Surface.BACK_WALL
+                if (!prefs.contains(RecentsPreferences.PREF_POS_X)) {
+                    pile.position = Vector3(0f, 4f, -ROOM_SIZE + 0.6f)
+                } else {
+                    pile.position = pile.position.copy(z = -ROOM_SIZE + 0.6f)
+                }
+            } else if (pile.surface == BumpItem.Surface.BACK_WALL) {
+                pile.position = pile.position.copy(z = -ROOM_SIZE + 0.6f)
+            } else if (pile.surface == BumpItem.Surface.LEFT_WALL) {
+                pile.position = pile.position.copy(x = -ROOM_SIZE + 0.6f)
+            } else if (pile.surface == BumpItem.Surface.RIGHT_WALL) {
+                pile.position = pile.position.copy(x = ROOM_SIZE - 0.6f)
+            }
+        }
+        if (!pile.isPinnedOpen) {
             pile.isExpanded = false
-            pile.previewTextureId = -1
-            pile.previewSignature = ""
-            pile.items.forEach { item ->
-                item.transform.surface = BumpItem.Surface.BACK_WALL
-                item.transform.scale = 1.2f
+        }
+        pile.scrollIndex = pile.scrollIndex.coerceIn(
+            0,
+            (FolderDrawerStyle.totalPages(pile) - 1).coerceAtLeast(0),
+        )
+        pile.items.forEach { item ->
+            item.transform.surface = pile.surface
+            if (!pile.layoutAsExpandedDrawer()) {
+                item.transform.scale = physicsEngine.defaultScale
                 item.transform.position = pile.position.copy()
             }
-            BumpDeskLog.d(
-                BumpDeskLog.Tag.RECENTS,
-                "configureRecentsPile",
-                "mode=backWall carousel items=${pile.items.size}",
+        }
+        BumpDeskLog.d(
+            BumpDeskLog.Tag.RECENTS,
+            "configureRecentsPile",
+            "mode=${if (isFlatFloorMode) "flatFloor" else "room"} view=${pile.recentsViewMode} pinned=${pile.isPinnedOpen} items=${pile.items.size}",
+        )
+        pile.reconcilePinnedOpenState()
+        if (pile.isRecentsPile() && pile.isPinnedOpen) {
+            FolderDrawerStyle.constrainRecentsPilePosition(
+                pile,
+                if (isFlatFloorMode) floorHalfWidth else ROOM_SIZE,
+                if (isFlatFloorMode) floorHalfDepth else ROOM_SIZE,
+                if (isFlatFloorMode) floorHalfWidth else ROOM_SIZE,
             )
         }
-        pile.reconcilePinnedOpenState()
+        FolderDrawerStyle.syncRecentsDrawerItemScales(pile)
     }
 
-    /** Collapse expanded piles but leave a pinned-open Recents drawer on the floor. */
+    fun focusRecentsPile(onShowResetButton: (Boolean) -> Unit) {
+        val pile = sceneState.recentsPile ?: return
+        pile.reconcilePinnedOpenState()
+        if (!pile.layoutAsExpandedDrawer()) {
+            collapseNonPinnedPiles()
+            pile.scrollIndex = 0
+            pile.nameTextureId = -1
+            pile.isExpanded = true
+        }
+        if (pile.recentsOnWall()) {
+            // Stay in the room view — wall Recents behaves like a pinned widget panel.
+            onShowResetButton(false)
+        } else {
+            camera.focusOnFolder(
+                pile.position.toFloatArray(),
+                pile.scale,
+                folderPanelHalfExtent(pile),
+            )
+            onShowResetButton(true)
+        }
+        glSurfaceView?.requestRender()
+    }
+
+    /** Collapse expanded piles but leave a pinned-open Recents drawer in place. */
     private fun collapseNonPinnedPiles() {
         sceneState.piles.forEach { pile ->
             if (pile.isRecentsPile() && pile.isPinnedOpen) {
@@ -622,7 +767,6 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
 
     fun toggleRecentsPinnedOpen() {
         val pile = sceneState.recentsPile ?: return
-        if (!isFlatFloorMode) return
         pile.isPinnedOpen = !pile.isPinnedOpen
         if (pile.isPinnedOpen) {
             pile.isExpanded = true
@@ -802,7 +946,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
 
             shader = newShader
             roomRenderer = RoomRenderer(shader!!)
-            overlayRenderer = OverlayRenderer(shader!!)
+            overlayRenderer = OverlayRenderer(shader!!, textureManager)
 
             itemRenderer = ItemRenderer(context, shader!!, textureManager, sceneState)
             widgetRenderer = WidgetRenderer(context, shader!!, textureManager)
@@ -900,6 +1044,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 onUpdateTexture,
                 floorHalfWidth,
                 floorHalfDepth,
+                ROOM_SIZE,
             )
             uiRenderer.drawOverlays(
                 vPMatrix,
@@ -911,6 +1056,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 textureManager,
                 floorHalfWidth,
                 floorHalfDepth,
+                ROOM_SIZE,
             )
         }
         
@@ -933,6 +1079,9 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
     
     fun handleTouchMove(x: Float, y: Float, pointerCount: Int) {
         val eventConsumed = interactionManager.handleTouchMove(x, y, sceneState, pointerCount)
+        if (eventConsumed || interactionManager.isResizingRecentsDrawer()) {
+            glSurfaceView?.requestRender()
+        }
         if (eventConsumed) {
             playSound(leafSoundId, 0.15f)
             hapticManager.tick()
@@ -1023,48 +1172,47 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
     fun handleSingleTap(x: Float, y: Float) {
         sceneState.recentsPile?.reconcilePinnedOpenState()
         val rS = FloatArray(4); val rE = FloatArray(4); interactionManager.calculateRay(x, y, rS, rE)
-        val expandedPile = sceneState.piles.find { it.layoutAsExpandedDrawer() }
-        if (expandedPile != null) {
-            val isWall = expandedPile.surface != BumpItem.Surface.FLOOR
-            val t = if (isWall) {
-                (expandedPile.position.z - rS[2]) / (rE[2] - rS[2])
-            } else {
-                (2.90f - rS[1]) / (rE[1] - rS[1])
+        val overlayPile = FolderDrawerStyle.resolveOverlayPile(sceneState.piles, camera.currentViewMode)
+            ?: sceneState.piles.find { it.layoutAsExpandedDrawer() }
+        if (overlayPile != null) {
+            val isWall = overlayPile.surface != BumpItem.Surface.FLOOR
+            val t = when (overlayPile.surface) {
+                BumpItem.Surface.FLOOR -> {
+                    val layout = FolderDrawerStyle.layout(overlayPile, floorHalfWidth, floorHalfDepth)
+                    val planeY = FolderDrawerStyle.floorChromeY(overlayPile, layout)
+                    (planeY - rS[1]) / (rE[1] - rS[1])
+                }
+                BumpItem.Surface.BACK_WALL -> (-ROOM_SIZE + 0.6f - rS[2]) / (rE[2] - rS[2])
+                BumpItem.Surface.LEFT_WALL -> (-ROOM_SIZE + 0.6f - rS[0]) / (rE[0] - rS[0])
+                BumpItem.Surface.RIGHT_WALL -> (ROOM_SIZE - 0.6f - rS[0]) / (rE[0] - rS[0])
+                else -> -1f
             }
 
             if (t > 0) {
                 val hitX = rS[0] + t * (rE[0] - rS[0])
                 val hitY = rS[1] + t * (rE[1] - rS[1])
                 val hitZ = rS[2] + t * (rE[2] - rS[2])
-                
-                val uiData = overlayRenderer.getConstrainedFolderUI(expandedPile, floorHalfWidth, floorHalfDepth)
-                val halfDimX = uiData.halfDimX
-                val halfDimZ = uiData.halfDimZ
-                val pos = uiData.pos
 
-                if (isWall) {
-                    val width = 6f * expandedPile.scale
-                    val height = 4f * expandedPile.scale
-                    if (abs(hitX - (expandedPile.position.x - width + 0.5f)) < 0.5f && abs(hitY - expandedPile.position.y) < 0.5f) {
-                        expandedPile.currentIndex = (expandedPile.currentIndex - 1).coerceAtLeast(0)
-                        playSound(leafSoundId, 0.2f); hapticManager.tick(); return
-                    }
-                    if (abs(hitX - (expandedPile.position.x + width - 0.5f)) < 0.5f && abs(hitY - expandedPile.position.y) < 0.5f) {
-                        expandedPile.currentIndex = (expandedPile.currentIndex + 1).coerceAtMost(expandedPile.items.size - 1)
-                        playSound(leafSoundId, 0.2f); hapticManager.tick(); return
-                    }
-                    if (abs(hitX - expandedPile.position.x) > width || abs(hitY - expandedPile.position.y) > height) { dismissExpandedPile(); return }
-                } else {
+                if (overlayPile.surface == BumpItem.Surface.FLOOR) {
+                    val chromeHit = FolderDrawerStyle.intersectFloorDrawerChromePlane(
+                        overlayPile,
+                        rS,
+                        rE,
+                        floorHalfWidth,
+                        floorHalfDepth,
+                    )
+                    val testX = chromeHit?.get(0) ?: hitX
+                    val testZ = chromeHit?.get(1) ?: hitZ
                     val drawerHit = FolderDrawerStyle.hitTestFloorDrawer(
-                        expandedPile,
-                        hitX,
-                        hitZ,
+                        overlayPile,
+                        testX,
+                        testZ,
                         floorHalfWidth,
                         floorHalfDepth,
                     )
                     when (drawerHit.kind) {
                         FolderDrawerStyle.Hit.CLOSE -> {
-                            if (expandedPile.isRecentsPile() && expandedPile.isPinnedOpen) {
+                            if (overlayPile.isRecentsPile() && overlayPile.isPinnedOpen) {
                                 collapseRecentsDrawer()
                             } else {
                                 dismissExpandedPile()
@@ -1072,32 +1220,98 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                             return
                         }
                         FolderDrawerStyle.Hit.TITLE -> {
-                            if (expandedPile.isRecentsPile()) {
+                            if (overlayPile.isRecentsPile()) {
                                 hapticManager.selection()
-                                (context as? LauncherActivity)?.showRecentsMenu(x, y, expandedPile)
-                            } else if (!expandedPile.isSystem) {
+                                (context as? LauncherActivity)?.showRecentsMenu(x, y, overlayPile)
+                            } else if (!overlayPile.isSystem) {
                                 hapticManager.selection()
-                                (context as? LauncherActivity)?.promptRenamePile(expandedPile) { newName ->
-                                    renamePile(expandedPile, newName)
+                                (context as? LauncherActivity)?.promptRenamePile(overlayPile) { newName ->
+                                    renamePile(overlayPile, newName)
                                 }
                             }
                             return
                         }
                         FolderDrawerStyle.Hit.PREV_PAGE -> {
-                            expandedPile.scrollIndex--
+                            overlayPile.scrollIndex--
+                            FolderDrawerStyle.syncRecentsDrawerItemScales(overlayPile)
                             playSound(leafSoundId, 0.2f)
                             hapticManager.tick()
                             return
                         }
                         FolderDrawerStyle.Hit.NEXT_PAGE -> {
-                            expandedPile.scrollIndex++
+                            overlayPile.scrollIndex++
+                            FolderDrawerStyle.syncRecentsDrawerItemScales(overlayPile)
                             playSound(leafSoundId, 0.2f)
                             hapticManager.tick()
                             return
                         }
                         FolderDrawerStyle.Hit.PAGE_DOT -> {
                             if (drawerHit.pageIndex >= 0) {
-                                expandedPile.scrollIndex = drawerHit.pageIndex
+                                overlayPile.scrollIndex = drawerHit.pageIndex
+                                FolderDrawerStyle.syncRecentsDrawerItemScales(overlayPile)
+                                playSound(leafSoundId, 0.2f)
+                                hapticManager.tick()
+                            }
+                            return
+                        }
+                        FolderDrawerStyle.Hit.NONE -> {
+                            if (FolderDrawerStyle.containsPointInFloorDrawer(
+                                    overlayPile,
+                                    testX,
+                                    testZ,
+                                    floorHalfWidth,
+                                    floorHalfDepth,
+                                )
+                            ) {
+                                return
+                            }
+                        }
+                    }
+                } else if (overlayPile.showsRecentsMaterialDrawer()) {
+                    val (hitPrimary, hitVertical) = when (overlayPile.surface) {
+                        BumpItem.Surface.LEFT_WALL, BumpItem.Surface.RIGHT_WALL -> hitZ to hitY
+                        else -> hitX to hitY
+                    }
+                    val drawerHit = FolderDrawerStyle.hitTestWallDrawer(
+                        overlayPile,
+                        hitPrimary,
+                        hitVertical,
+                        floorHalfWidth,
+                        floorHalfDepth,
+                        ROOM_SIZE,
+                    )
+                    when (drawerHit.kind) {
+                        FolderDrawerStyle.Hit.CLOSE -> {
+                            if (overlayPile.isRecentsPile() && overlayPile.isPinnedOpen) {
+                                collapseRecentsDrawer()
+                            } else {
+                                dismissExpandedPile()
+                            }
+                            return
+                        }
+                        FolderDrawerStyle.Hit.TITLE -> {
+                            hapticManager.selection()
+                            (context as? LauncherActivity)?.showRecentsMenu(x, y, overlayPile)
+                            return
+                        }
+                        FolderDrawerStyle.Hit.PREV_PAGE -> {
+                            overlayPile.scrollIndex--
+                            FolderDrawerStyle.syncRecentsDrawerItemScales(overlayPile)
+                            playSound(leafSoundId, 0.2f)
+                            hapticManager.tick()
+                            return
+                        }
+                        FolderDrawerStyle.Hit.NEXT_PAGE -> {
+                            overlayPile.scrollIndex++
+                            FolderDrawerStyle.syncRecentsDrawerItemScales(overlayPile)
+                            playSound(leafSoundId, 0.2f)
+                            hapticManager.tick()
+                            return
+                        }
+                        FolderDrawerStyle.Hit.PAGE_DOT -> {
+                            if (drawerHit.pageIndex >= 0) {
+                                overlayPile.scrollIndex = drawerHit.pageIndex
+                                FolderDrawerStyle.syncRecentsDrawerItemScales(overlayPile)
                                 playSound(leafSoundId, 0.2f)
                                 hapticManager.tick()
                             }
@@ -1105,6 +1319,18 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                         }
                         FolderDrawerStyle.Hit.NONE -> Unit
                     }
+                } else if (isWall) {
+                    val width = 6f * overlayPile.scale
+                    val height = 4f * overlayPile.scale
+                    if (abs(hitX - (overlayPile.position.x - width + 0.5f)) < 0.5f && abs(hitY - overlayPile.position.y) < 0.5f) {
+                        overlayPile.currentIndex = (overlayPile.currentIndex - 1).coerceAtLeast(0)
+                        playSound(leafSoundId, 0.2f); hapticManager.tick(); return
+                    }
+                    if (abs(hitX - (overlayPile.position.x + width - 0.5f)) < 0.5f && abs(hitY - overlayPile.position.y) < 0.5f) {
+                        overlayPile.currentIndex = (overlayPile.currentIndex + 1).coerceAtMost(overlayPile.items.size - 1)
+                        playSound(leafSoundId, 0.2f); hapticManager.tick(); return
+                    }
+                    if (abs(hitX - overlayPile.position.x) > width || abs(hitY - overlayPile.position.y) > height) { dismissExpandedPile(); return }
                 }
             }
         }
@@ -1121,9 +1347,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         val item = interactionManager.findIntersectingItem(rS, rE, sceneState.bumpItems, sceneState.piles)
         if (item != null) {
             val pile = sceneState.getPileOf(item)
-            if (pile != null && pile == sceneState.recentsPile &&
-                (pile.showsRecentsTaskCards() || camera.currentViewMode == CameraManager.ViewMode.BACK_WALL)
-            ) {
+            if (pile != null && pile == sceneState.recentsPile && pile.showsRecentsTaskCards()) {
                 if (handleRecentsTaskCardTap(item, rS, rE)) return
             }
             if (pile != null && pile == sceneState.recentsPile && pile.showsRecentsIconGrid()) {
@@ -1135,28 +1359,25 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 playSound(expandSoundId, 0.3f)
                 hapticManager.selection()
                 if (pile.isSystem && pile == sceneState.recentsPile) {
-                    if (isFlatFloorMode) {
-                        collapseNonPinnedPiles()
-                        if (pile.isPinnedOpen) {
-                            pile.reconcilePinnedOpenState()
-                            return
-                        }
-                        pile.scrollIndex = 0
-                        pile.nameTextureId = -1
-                        pile.isExpanded = true
+                    collapseNonPinnedPiles()
+                    if (pile.isPinnedOpen) {
+                        pile.reconcilePinnedOpenState()
+                        return
+                    }
+                    pile.scrollIndex = 0
+                    pile.nameTextureId = -1
+                    pile.isExpanded = true
+                    if (pile.recentsOnWall()) {
+                        focusRecentsPile { (context as? LauncherActivity)?.showResetButton(it) }
+                    } else {
                         camera.focusOnFolder(
                             pile.position.toFloatArray(),
                             pile.scale,
                             folderPanelHalfExtent(pile),
                         )
-                    } else {
-                        camera.focusOnWall(
-                            CameraManager.ViewMode.BACK_WALL,
-                            floatArrayOf(pile.position.x, pile.position.y, pile.position.z + 10f),
-                            floatArrayOf(pile.position.x, pile.position.y, pile.position.z),
-                            0.6f,
-                        )
+                        (context as? LauncherActivity)?.showResetButton(true)
                     }
+                    return
                 } else {
                     collapseNonPinnedPiles()
                     pile.scrollIndex = 0
@@ -1194,8 +1415,19 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 return
             }
             if (item.appearance.type == BumpItem.Type.APP || item.appearance.type == BumpItem.Type.RECENT_APP) (context as? LauncherActivity)?.launchApp(item) else if (item.appearance.type == BumpItem.Type.STICKY_NOTE) (context as? LauncherActivity)?.promptEditStickyNote(item) else if (item.appearance.type == BumpItem.Type.PHOTO_FRAME) (context as? LauncherActivity)?.promptChangePhoto(item) else if (item.appearance.type == BumpItem.Type.WEB_WIDGET) (context as? LauncherActivity)?.promptEditWebWidget(item)
-        } else if (shouldDismissFocusedViewOnEmptyTap()) {
-            dismissExpandedPile()
+        } else {
+            val collapsedRecents = sceneState.recentsPile?.takeIf { it.showsCollapsedPreview() }
+            if (collapsedRecents != null &&
+                interactionManager.hitTestCollapsedPilePreview(collapsedRecents, rS, rE)
+            ) {
+                playSound(expandSoundId, 0.3f)
+                hapticManager.selection()
+                focusRecentsPile { (context as? LauncherActivity)?.showResetButton(it) }
+                return
+            }
+            if (shouldDismissFocusedViewOnEmptyTap()) {
+                dismissExpandedPile()
+            }
         }
         glSurfaceView?.requestRender()
     }
@@ -1284,6 +1516,10 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         if (iHit != null) {
             val pile = sceneState.getPileOf(iHit)
             when {
+                pile != null && pile.isRecentsPile() &&
+                    iHit.appearance.type == BumpItem.Type.RECENT_APP &&
+                    pile.layoutAsExpandedDrawer() ->
+                    (context as? LauncherActivity)?.showRecentsTaskMenu(x, y, iHit)
                 pile != null && pile.isRecentsPile() ->
                     (context as? LauncherActivity)?.showRecentsMenu(x, y, pile)
                 pile != null && !pile.isSystem ->
@@ -1292,7 +1528,19 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                     (context as? LauncherActivity)?.showItemMenu(x, y, iHit)
             }
         } else {
-            (context as? LauncherActivity)?.showDesktopMenu(x, y)
+            val pinnedRecents = interactionManager.hitTestPinnedRecentsDrawer(rS, rE, sceneState)
+            if (pinnedRecents != null) {
+                (context as? LauncherActivity)?.showRecentsMenu(x, y, pinnedRecents)
+                return
+            }
+            val collapsedRecents = sceneState.recentsPile?.takeIf { it.showsCollapsedPreview() }
+            if (collapsedRecents != null &&
+                interactionManager.hitTestCollapsedPilePreview(collapsedRecents, rS, rE)
+            ) {
+                (context as? LauncherActivity)?.showRecentsMenu(x, y, collapsedRecents)
+            } else {
+                (context as? LauncherActivity)?.showDesktopMenu(x, y)
+            }
         }
     }
 
@@ -1469,10 +1717,8 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         }
     }
 
-    private fun folderPanelHalfExtent(pile: Pile): Float {
-        if (pile.surface != BumpItem.Surface.FLOOR) return 0f
-        return (FolderDrawerStyle.halfDimX(pile) + FolderDrawerStyle.halfDimZ(pile)) * 0.5f
-    }
+    private fun folderPanelHalfExtent(pile: Pile): Float =
+        (FolderDrawerStyle.panelHalfDimX(pile) + FolderDrawerStyle.panelHalfDimY(pile)) * 0.5f
 
     private fun applyFlatFloorBounds(profile: ScreenMetrics.DisplayProfile) {
         val aspect = if (surfaceWidth > 0 && surfaceHeight > 0) {
@@ -1508,6 +1754,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         CameraDiagnostics.log(camera, "surfaceChanged", "surface=${w}x${h}")
         if (isFlatFloorMode) {
             applyFlatFloorBounds(ScreenMetrics.from(context))
+            constrainWidgetsToActiveBounds(saveIfChanged = true)
         }
         syncWallpaperFloorCrop()
         onDisplayProfileChanged()

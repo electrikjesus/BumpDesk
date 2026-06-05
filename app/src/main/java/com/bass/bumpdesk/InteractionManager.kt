@@ -50,6 +50,13 @@ class InteractionManager(
     private var resizeStartPos: Vector3? = null
     private var widgetDragGrabOffset: Vector3? = null
 
+    private var isResizingRecentsDrawer = false
+    private var resizingRecentsPile: Pile? = null
+    private var resizeStartGridCols = 2
+    private var resizeStartGridRows = 2
+    private var resizeStartPrimary = 0f
+    private var resizeStartVertical = 0f
+
     // For widget interaction
     private var activeInteractingWidget: WidgetItem? = null
     private var activeWidgetView: AppWidgetHostView? = null
@@ -72,6 +79,8 @@ class InteractionManager(
         isDragging = false
         isLeafing = false
         isResizingWidget = false
+        isResizingRecentsDrawer = false
+        resizingRecentsPile = null
         isLassoPending = false
         lassoStartPoint = null
         activeInteractingWidget = null
@@ -112,12 +121,45 @@ class InteractionManager(
         }
 
         val pinnedRecents = findPinnedOpenRecentsDrawerHit(rS, rE, sceneState)
+        sceneState.recentsPile?.let { pile ->
+            if (pile.showsDesktopPinnedDrawer() && pile.recentsOnWall()) {
+                wallDrawerHitPrimaryVertical(pile, rS, rE)?.let { (primary, vertical) ->
+                    if (FolderDrawerStyle.hitTestRecentsWallResizeHandle(
+                            pile,
+                            primary,
+                            vertical,
+                            floorHalfX,
+                            floorHalfZ,
+                            roomSize,
+                        )
+                    ) {
+                        isResizingRecentsDrawer = true
+                        resizingRecentsPile = pile
+                        resizeStartGridCols = pile.drawerGridColumns
+                        resizeStartGridRows = pile.drawerGridRows
+                        resizeStartPrimary = primary
+                        resizeStartVertical = vertical
+                        sceneState.selectedItem = null
+                        return pile
+                    }
+                }
+            }
+        }
         if (pinnedRecents != null) {
             draggingPile = pinnedRecents
             draggingPileStartPos = pinnedRecents.position.copy()
             sceneState.selectedItem = null
             sceneState.selectedWidget = widgetHit?.first
             return pinnedRecents
+        }
+
+        val collapsedPile = findCollapsedPilePreviewHit(rS, rE, sceneState)
+        if (collapsedPile != null) {
+            draggingPile = collapsedPile
+            draggingPileStartPos = collapsedPile.position.copy()
+            sceneState.selectedItem = collapsedPile.items.firstOrNull()
+            sceneState.selectedWidget = widgetHit?.first
+            return collapsedPile
         }
 
         sceneState.selectedItem = findIntersectingItem(rS, rE, sceneState.bumpItems, sceneState.piles)
@@ -174,6 +216,8 @@ class InteractionManager(
                     }
                 } else if (resizeWidget != null && isResizingWidget) {
                     // isResizingWidget is already set
+                } else if (sceneState.selectedWidget != null) {
+                    isDragging = true
                 } else {
                     if (isLassoPending && lassoStartPoint != null) {
                         isDragging = true
@@ -227,12 +271,74 @@ class InteractionManager(
             return false
         }
 
+        if (isResizingRecentsDrawer && resizingRecentsPile != null) {
+            if (abs(x - lastTouchX) > touchThreshold || abs(y - lastTouchY) > touchThreshold) {
+                isDragging = true
+            }
+        }
+
+        if (isResizingRecentsDrawer && resizingRecentsPile != null && isDragging) {
+            val pile = resizingRecentsPile!!
+            val hit = wallDrawerHitPrimaryVertical(pile, rS, rE)
+            if (hit != null) {
+                val (primary, vertical) = hit
+                val (cols, rows) = FolderDrawerStyle.computeRecentsWallGridResize(
+                    pile,
+                    primary - resizeStartPrimary,
+                    vertical - resizeStartVertical,
+                    resizeStartGridCols,
+                    resizeStartGridRows,
+                )
+                if (cols != pile.drawerGridColumns || rows != pile.drawerGridRows) {
+                    pile.drawerGridColumns = cols
+                    pile.drawerGridRows = rows
+                    pile.scrollIndex = pile.scrollIndex.coerceIn(
+                        0,
+                        (FolderDrawerStyle.totalPages(pile) - 1).coerceAtLeast(0),
+                    )
+                    pile.items.forEach { it.appearance.textureId = -1 }
+                    pile.previewTextureId = -1
+                    pile.previewSignature = ""
+                    context?.let { ctx ->
+                        RecentsPreferences.saveFromPile(
+                            pile,
+                            ctx.getSharedPreferences("bump_prefs", Context.MODE_PRIVATE),
+                        )
+                    }
+                }
+            }
+            lastTouchX = x
+            lastTouchY = y
+            return true
+        }
+
         if (draggingPile != null && isDragging) {
             val hit = findWallOrFloorHit(rS, rE, 0.05f)
-            hit?.let { (_, pos) ->
+            hit?.let { (surface, pos) ->
                 val pile = draggingPile!!
                 pile.isDraggingOnDesktop = true
-                pile.position = Vector3.fromArray(pos).copy(y = 0.05f)
+                pile.surface = surface
+                val target = Vector3.fromArray(pos)
+                pile.position = when (surface) {
+                    BumpItem.Surface.FLOOR -> target.copy(y = 0.05f)
+                    BumpItem.Surface.BACK_WALL -> target.copy(z = -roomSize + 0.6f)
+                    BumpItem.Surface.LEFT_WALL -> target.copy(x = -roomSize + 0.6f)
+                    BumpItem.Surface.RIGHT_WALL -> target.copy(x = roomSize - 0.6f)
+                }
+                if (pile.isRecentsPile()) {
+                    FolderDrawerStyle.constrainRecentsPilePosition(
+                        pile,
+                        floorHalfX,
+                        floorHalfZ,
+                        roomSize,
+                    )
+                }
+                pile.items.forEach { item ->
+                    item.transform.surface = surface
+                    if (!pile.layoutAsExpandedDrawer()) {
+                        item.transform.position = pile.position.copy()
+                    }
+                }
                 if (pile.isRecentsPile()) {
                     context?.let { ctx ->
                         RecentsPreferences.saveFromPile(
@@ -323,6 +429,13 @@ class InteractionManager(
             return
         }
 
+        if (isResizingRecentsDrawer) {
+            isResizingRecentsDrawer = false
+            resizingRecentsPile = null
+            isDragging = false
+            return
+        }
+
         draggingPile?.isDraggingOnDesktop = false
         draggingPile = null
         draggingPileStartPos = null
@@ -378,7 +491,11 @@ class InteractionManager(
         lassoPoints.clear()
         isLeafing = false
         isDragging = false
+        isResizingRecentsDrawer = false
+        resizingRecentsPile = null
     }
+
+    fun isResizingRecentsDrawer(): Boolean = isResizingRecentsDrawer
 
     fun cancelPendingInteractions() {
         isDragging = false
@@ -394,8 +511,91 @@ class InteractionManager(
         draggingPile?.isDraggingOnDesktop = false
         draggingPile = null
         draggingPileStartPos = null
+        isResizingRecentsDrawer = false
+        resizingRecentsPile = null
         widgetDragGrabOffset = null
         lassoPoints.clear()
+    }
+
+    fun hitTestCollapsedPilePreview(pile: Pile, rS: FloatArray, rE: FloatArray): Boolean {
+        if (pile.layoutAsExpandedDrawer()) return false
+        val halfW = pile.scale
+        val halfH = pile.scale * if (pile.showsCollapsedLabel()) 1.38f else 1f
+        return when (pile.surface) {
+            BumpItem.Surface.BACK_WALL -> {
+                val t = FolderDrawerStyle.wallRayT(pile.surface, roomSize, rS, rE) ?: return false
+                val hitX = rS[0] + t * (rE[0] - rS[0])
+                val hitY = rS[1] + t * (rE[1] - rS[1])
+                abs(hitX - pile.position.x) <= halfW && abs(hitY - pile.position.y) <= halfH
+            }
+            BumpItem.Surface.LEFT_WALL -> {
+                val t = FolderDrawerStyle.wallRayT(pile.surface, roomSize, rS, rE) ?: return false
+                val hitZ = rS[2] + t * (rE[2] - rS[2])
+                val hitY = rS[1] + t * (rE[1] - rS[1])
+                abs(hitZ - pile.position.z) <= halfW && abs(hitY - pile.position.y) <= halfH
+            }
+            BumpItem.Surface.RIGHT_WALL -> {
+                val t = FolderDrawerStyle.wallRayT(pile.surface, roomSize, rS, rE) ?: return false
+                val hitZ = rS[2] + t * (rE[2] - rS[2])
+                val hitY = rS[1] + t * (rE[1] - rS[1])
+                abs(hitZ - pile.position.z) <= halfW && abs(hitY - pile.position.y) <= halfH
+            }
+            else -> {
+                val floorY = pile.position.y + 0.05f
+                if (abs(rE[1] - rS[1]) < 0.0001f) return false
+                val t = (floorY - rS[1]) / (rE[1] - rS[1])
+                if (t <= 0) return false
+                val hitX = rS[0] + t * (rE[0] - rS[0])
+                val hitZ = rS[2] + t * (rE[2] - rS[2])
+                abs(hitX - pile.position.x) <= halfW && abs(hitZ - pile.position.z) <= halfH
+            }
+        }
+    }
+
+    private fun findCollapsedPilePreviewHit(
+        rS: FloatArray,
+        rE: FloatArray,
+        sceneState: SceneState,
+    ): Pile? {
+        var best: Pile? = null
+        var bestT = Float.MAX_VALUE
+        sceneState.piles.forEach { pile ->
+            if (!pile.showsCollapsedPreview()) return@forEach
+            if (!hitTestCollapsedPilePreview(pile, rS, rE)) return@forEach
+            val t = rayDistanceToPilePreview(pile, rS, rE) ?: return@forEach
+            if (t < bestT) {
+                bestT = t
+                best = pile
+            }
+        }
+        return best
+    }
+
+    private fun rayDistanceToPilePreview(pile: Pile, rS: FloatArray, rE: FloatArray): Float? =
+        when (pile.surface) {
+            BumpItem.Surface.BACK_WALL -> FolderDrawerStyle.wallRayT(pile.surface, roomSize, rS, rE)
+            BumpItem.Surface.LEFT_WALL -> FolderDrawerStyle.wallRayT(pile.surface, roomSize, rS, rE)
+            BumpItem.Surface.RIGHT_WALL -> FolderDrawerStyle.wallRayT(pile.surface, roomSize, rS, rE)
+            else -> {
+                val floorY = pile.position.y + 0.05f
+                if (abs(rE[1] - rS[1]) < 0.0001f) null else (floorY - rS[1]) / (rE[1] - rS[1])
+            }
+        }?.takeIf { it > 0f }
+
+    private fun wallDrawerHitPrimaryVertical(
+        pile: Pile,
+        rS: FloatArray,
+        rE: FloatArray,
+    ): Pair<Float, Float>? {
+        val t = FolderDrawerStyle.wallRayT(pile.surface, roomSize, rS, rE) ?: return null
+        if (t <= 0f) return null
+        val hitX = rS[0] + t * (rE[0] - rS[0])
+        val hitY = rS[1] + t * (rE[1] - rS[1])
+        val hitZ = rS[2] + t * (rE[2] - rS[2])
+        return when (pile.surface) {
+            BumpItem.Surface.LEFT_WALL, BumpItem.Surface.RIGHT_WALL -> hitZ to hitY
+            else -> hitX to hitY
+        }
     }
 
     private fun findPinnedOpenRecentsDrawerHit(
@@ -406,15 +606,56 @@ class InteractionManager(
         val pile = sceneState.recentsPile ?: return null
         if (!pile.showsDesktopPinnedDrawer()) return null
 
-        val t = (FolderDrawerStyle.PANEL_Y - rS[1]) / (rE[1] - rS[1])
-        if (t <= 0) return null
-
-        val hitX = rS[0] + t * (rE[0] - rS[0])
-        val hitZ = rS[2] + t * (rE[2] - rS[2])
-        return if (FolderDrawerStyle.containsPointInFloorDrawer(pile, hitX, hitZ, floorHalfX, floorHalfZ)) {
-            pile
-        } else {
-            null
+        return when (pile.surface) {
+            BumpItem.Surface.FLOOR -> {
+                val layout = FolderDrawerStyle.layoutForPile(pile, floorHalfX, floorHalfZ, roomSize)
+                val t = (layout.pos[1] - rS[1]) / (rE[1] - rS[1])
+                if (t <= 0) return null
+                val hitX = rS[0] + t * (rE[0] - rS[0])
+                val hitZ = rS[2] + t * (rE[2] - rS[2])
+                if (FolderDrawerStyle.containsPointInFloorDrawer(pile, hitX, hitZ, floorHalfX, floorHalfZ)) {
+                    pile
+                } else {
+                    null
+                }
+            }
+            BumpItem.Surface.BACK_WALL -> {
+                val t = FolderDrawerStyle.wallRayT(pile.surface, roomSize, rS, rE) ?: return null
+                val hitX = rS[0] + t * (rE[0] - rS[0])
+                val hitY = rS[1] + t * (rE[1] - rS[1])
+                if (FolderDrawerStyle.containsPointInWallDrawer(
+                        pile,
+                        hitX,
+                        hitY,
+                        floorHalfX,
+                        floorHalfZ,
+                        roomSize,
+                    )
+                ) {
+                    pile
+                } else {
+                    null
+                }
+            }
+            BumpItem.Surface.LEFT_WALL, BumpItem.Surface.RIGHT_WALL -> {
+                val t = FolderDrawerStyle.wallRayT(pile.surface, roomSize, rS, rE) ?: return null
+                val hitZ = rS[2] + t * (rE[2] - rS[2])
+                val hitY = rS[1] + t * (rE[1] - rS[1])
+                if (FolderDrawerStyle.containsPointInWallDrawer(
+                        pile,
+                        hitZ,
+                        hitY,
+                        floorHalfX,
+                        floorHalfZ,
+                        roomSize,
+                    )
+                ) {
+                    pile
+                } else {
+                    null
+                }
+            }
+            else -> null
         }
     }
 
@@ -450,29 +691,16 @@ class InteractionManager(
         return WidgetHandleStyle.isTouchOnHandle(widget, uv.first, uv.second, WidgetHandleStyle.Kind.RESIZE)
     }
 
-    private fun getWidgetT(widget: WidgetItem, rS: FloatArray, rE: FloatArray): Float {
-        return when (widget.surface) {
-            BumpItem.Surface.BACK_WALL -> (-roomSize + 0.1f - rS[2]) / (rE[2] - rS[2])
-            BumpItem.Surface.LEFT_WALL -> (-roomSize + 0.1f - rS[0]) / (rE[0] - rS[0])
-            BumpItem.Surface.RIGHT_WALL -> (roomSize - 0.1f - rS[0]) / (rE[0] - rS[0])
-            BumpItem.Surface.FLOOR -> (0.1f - rS[1]) / (rE[1] - rS[1])
-        }
-    }
+    private fun getWidgetT(widget: WidgetItem, rS: FloatArray, rE: FloatArray): Float =
+        WidgetSurfaceTransform.wallPlaneT(widget.surface, roomSize, rS, rE)
 
     private fun widgetHalfExtents(widget: WidgetItem): Vector3 = widget.displayHalfSize()
 
     private fun getWidgetUV(widget: WidgetItem, rS: FloatArray, rE: FloatArray, t: Float): Pair<Float, Float> {
-        val half = widgetHalfExtents(widget)
         val iX = rS[0] + t * (rE[0] - rS[0])
         val iY = rS[1] + t * (rE[1] - rS[1])
         val iZ = rS[2] + t * (rE[2] - rS[2])
-        
-        return when (widget.surface) {
-            BumpItem.Surface.BACK_WALL -> (iX - (widget.position.x - half.x)) / (2f * half.x) to 1f - (iY - (widget.position.y - half.z)) / (2f * half.z)
-            BumpItem.Surface.LEFT_WALL -> (iZ - (widget.position.z - half.x)) / (2f * half.x) to 1f - (iY - (widget.position.y - half.z)) / (2f * half.z)
-            BumpItem.Surface.RIGHT_WALL -> 1f - (iZ - (widget.position.z - half.x)) / (2f * half.x) to 1f - (iY - (widget.position.y - half.z)) / (2f * half.z)
-            BumpItem.Surface.FLOOR -> (iX - (widget.position.x - half.x)) / (2f * half.x) to (iZ - (widget.position.z - half.z)) / (2f * half.z)
-        }
+        return WidgetSurfaceTransform.intersectionToTextureUv(widget, iX, iY, iZ)
     }
 
     private fun getWidgetPoint(widget: WidgetItem, x: Float, y: Float): Vector3 {
@@ -502,11 +730,26 @@ class InteractionManager(
         var minD = Float.MAX_VALUE
         val allItems = bumpItems + piles.flatMap { it.items }
         allItems.forEach { item ->
+            val pile = piles.find { it.items.contains(item) }
+            if (pile != null &&
+                !FolderDrawerStyle.isItemInteractableInDrawer(
+                    pile,
+                    item,
+                    floorHalfX,
+                    floorHalfZ,
+                    roomSize,
+                )
+            ) {
+                return@forEach
+            }
             val d = checkIntersection(item, rS, rE)
             if (d > 0 && d < minD) { minD = d; best = item }
         }
         return best
     }
+
+    fun hitTestPinnedRecentsDrawer(rS: FloatArray, rE: FloatArray, sceneState: SceneState): Pile? =
+        findPinnedOpenRecentsDrawerHit(rS, rE, sceneState)
 
     private fun checkIntersection(item: BumpItem, rS: FloatArray, rE: FloatArray): Float {
         val rDX = rE[0] - rS[0]; val rDY = rE[1] - rS[1]; val rDZ = rE[2] - rS[2]
@@ -604,16 +847,26 @@ class InteractionManager(
     }
 
     fun dragWidget(widget: WidgetItem, rS: FloatArray, rE: FloatArray) {
+        val beforeSurface = widget.surface
+        val beforePos = widget.position.copy()
         val hit = findWallOrFloorHit(rS, rE, 0.1f)
         hit?.let { (surface, pos) ->
             val offset = widgetDragGrabOffset ?: Vector3(0f, 0f, 0f)
             val target = Vector3.fromArray(pos) + offset
             widget.surface = surface
             widget.position = when (surface) {
-                BumpItem.Surface.BACK_WALL -> target.copy(z = -roomSize + 0.1f)
-                BumpItem.Surface.LEFT_WALL -> target.copy(x = -roomSize + 0.1f)
-                BumpItem.Surface.RIGHT_WALL -> target.copy(x = roomSize - 0.1f)
-                BumpItem.Surface.FLOOR -> target.copy(y = 0.1f)
+                BumpItem.Surface.BACK_WALL -> target.copy(z = -roomSize + WidgetSurfaceTransform.WALL_INSET)
+                BumpItem.Surface.LEFT_WALL -> target.copy(x = -roomSize + WidgetSurfaceTransform.WALL_INSET)
+                BumpItem.Surface.RIGHT_WALL -> target.copy(x = roomSize - WidgetSurfaceTransform.WALL_INSET)
+                BumpItem.Surface.FLOOR -> target.copy(y = WidgetSurfaceTransform.WALL_INSET)
+            }
+            WidgetPlacement.constrain(widget, WidgetPlacement.boundsFrom(this))
+            if (widget.surface != beforeSurface || widget.position.distance(beforePos) > 0.02f) {
+                BumpDeskLog.i(
+                    BumpDeskLog.Tag.WIDGET,
+                    "pinSurface",
+                    "dragged id=${widget.appWidgetId} ${WidgetSurfaceTransform.surfaceAttachmentDescription(widget, roomSize)}",
+                )
             }
         }
     }
