@@ -40,6 +40,22 @@ class PileOperationsTest {
         assertFalse(sceneState.bumpItems.contains(a))
         assertFalse(sceneState.bumpItems.contains(b))
         assertEquals(2, pile!!.items.size)
+        assertEquals(Pile.LayoutMode.STACK, pile.layoutMode)
+    }
+
+    @Test
+    fun createPileFromCaptured_usesRequestedLayoutMode() {
+        val a = appItem("A", 0f, 0f)
+        val b = appItem("B", 1f, 1f)
+        sceneState.bumpItems.addAll(listOf(a, b))
+
+        val folder = PileOperations.createPileFromCaptured(
+            sceneState,
+            listOf(a, b),
+            Pile.LayoutMode.FOLDER,
+        )
+
+        assertEquals(Pile.LayoutMode.FOLDER, folder!!.layoutMode)
     }
 
     @Test

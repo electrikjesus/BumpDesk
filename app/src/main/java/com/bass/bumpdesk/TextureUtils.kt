@@ -276,28 +276,76 @@ object TextureUtils {
     }
 
     fun createAppDrawerIcon(context: Context, size: Int = 256): Bitmap {
+        val slots = List(4) { index -> createAppDrawerSlotBitmap(index) }
+        return createPileFolderIcon(slots, label = "All Apps", size = size)
+    }
+
+    /** Mini tile for the All Apps 2×2 preview (matches folder group cell style). */
+    private fun createAppDrawerSlotBitmap(index: Int): Bitmap {
+        val size = 64
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        
-        // Background - Rounded rect with theme selection color (semi-transparent)
-        val selColor = ThemeManager.getSelectionColor()
-        paint.color = Color.argb(180, (selColor[0] * 255).toInt(), (selColor[1] * 255).toInt(), (selColor[2] * 255).toInt())
-        canvas.drawRoundRect(0f, 0f, size.toFloat(), size.toFloat(), size * 0.2f, size * 0.2f, paint)
-        
-        // Grid pattern
-        paint.color = Color.WHITE
-        val padding = size * 0.2f
-        val cellSize = (size - 2 * padding) / 3f
-        val dotSize = cellSize * 0.6f
-        val offset = (cellSize - dotSize) / 2f
-        
-        for (i in 0..2) {
-            for (j in 0..2) {
-                val left = padding + i * cellSize + offset
-                val top = padding + j * cellSize + offset
-                canvas.drawRoundRect(left, top, left + dotSize, top + dotSize, dotSize * 0.3f, dotSize * 0.3f, paint)
-            }
+        val sel = ThemeManager.getSelectionColor()
+        val tint = when (index) {
+            0 -> floatArrayOf(sel[0], sel[1], sel[2], 1f)
+            1 -> floatArrayOf(sel[0] * 0.85f + 0.15f, sel[1] * 0.85f + 0.15f, sel[2], 1f)
+            2 -> floatArrayOf(sel[0], sel[1] * 0.9f + 0.1f, sel[2] * 0.9f + 0.1f, 1f)
+            else -> floatArrayOf(sel[0] * 0.75f + 0.25f, sel[1] * 0.75f + 0.25f, sel[2] * 0.75f + 0.25f, 1f)
+        }
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.argb(230, (tint[0] * 255).toInt(), (tint[1] * 255).toInt(), (tint[2] * 255).toInt())
+            style = Paint.Style.FILL
+        }
+        canvas.drawRoundRect(0f, 0f, size.toFloat(), size.toFloat(), size * 0.22f, size * 0.22f, paint)
+        return bitmap
+    }
+
+    /** Folder pile icon: rounded background with up to four app icons in a 2×2 grid; optional label below. */
+    fun createPileFolderIcon(iconBitmaps: List<Bitmap>, label: String? = null, size: Int = 256): Bitmap {
+        val hasLabel = !label.isNullOrBlank()
+        val iconSize = size
+        val combinedHeight = if (hasLabel) (iconSize * 1.38f).toInt() else iconSize
+        val bitmap = Bitmap.createBitmap(iconSize, combinedHeight, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.argb(240, 45, 48, 58)
+            style = Paint.Style.FILL
+        }
+        canvas.drawRoundRect(0f, 0f, iconSize.toFloat(), iconSize.toFloat(), iconSize * 0.22f, iconSize * 0.22f, bgPaint)
+
+        val padding = iconSize * 0.14f
+        val gap = iconSize * 0.06f
+        val cell = (iconSize - 2f * padding - gap) / 2f
+        val iconPaint = Paint(Paint.FILTER_BITMAP_FLAG)
+
+        for (index in 0 until 4) {
+            if (index >= iconBitmaps.size) break
+            val row = index / 2
+            val col = index % 2
+            val left = padding + col * (cell + gap)
+            val top = padding + row * (cell + gap)
+            val src = android.graphics.Rect(0, 0, iconBitmaps[index].width, iconBitmaps[index].height)
+            val dst = android.graphics.RectF(left, top, left + cell, top + cell)
+            canvas.drawBitmap(iconBitmaps[index], src, dst, iconPaint)
+        }
+
+        if (hasLabel) {
+            val labelBitmap = TextRenderer.createAppLabelBitmap(label!!, iconSize, (iconSize * 0.32f).toInt())
+            val labelAreaHeight = combinedHeight - iconSize
+            val labelScale = labelAreaHeight.toFloat() / labelBitmap.height
+            val targetLabelW = (labelBitmap.width * labelScale).toInt().coerceAtMost(iconSize)
+            val targetLabelH = (labelBitmap.height * labelScale).toInt()
+            val labelX = (iconSize - targetLabelW) / 2f
+            val labelY = iconSize + (labelAreaHeight - targetLabelH) / 2f
+            val src = android.graphics.Rect(0, 0, labelBitmap.width, labelBitmap.height)
+            val dst = android.graphics.Rect(
+                labelX.toInt(),
+                labelY.toInt(),
+                (labelX + targetLabelW).toInt(),
+                (labelY + targetLabelH).toInt(),
+            )
+            canvas.drawBitmap(labelBitmap, src, dst, Paint(Paint.FILTER_BITMAP_FLAG))
+            labelBitmap.recycle()
         }
 
         return bitmap

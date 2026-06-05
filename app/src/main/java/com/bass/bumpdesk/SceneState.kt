@@ -40,9 +40,24 @@ class SceneState {
         return _piles.find { it.items.contains(item) }
     }
     
-    fun isAlreadyOnDesktop(app: AppInfo): Boolean = lock.read {
-        return _bumpItems.filter { item -> !_piles.any { it.items.contains(item) } }
-            .any { it.appInfo?.packageName == app.packageName }
+    fun isAlreadyOnDesktop(app: AppInfo): Boolean = isAppPlacedOnDesktop(app.packageName)
+
+    /** Apps on the floor or in a user pile (excludes ephemeral All Apps / Recents drawers). */
+    fun isAppPlacedOnDesktop(packageName: String): Boolean = lock.read {
+        isAppPlacedOnDesktopUnlocked(packageName)
+    }
+
+    fun appsNotInAllAppsDrawer(): List<AppInfo> = lock.read {
+        allAppsList.filter { !isAppPlacedOnDesktopUnlocked(it.packageName) }
+    }
+
+    private fun isAppPlacedOnDesktopUnlocked(packageName: String): Boolean {
+        if (_bumpItems.any { it.appData?.appInfo?.packageName == packageName }) {
+            return true
+        }
+        return _piles.any { pile ->
+            !pile.isSystem && pile.items.any { it.appData?.appInfo?.packageName == packageName }
+        }
     }
 
     // Helper for batch processing items safely

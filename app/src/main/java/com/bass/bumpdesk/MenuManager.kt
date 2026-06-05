@@ -182,12 +182,21 @@ class MenuManager(
 
     fun showLassoMenu(x: Float, y: Float, selectedItems: List<BumpItem>) {
         val menuItems = mutableListOf<RadialMenuItem>()
-        menuItems.add(RadialMenuItem("Create Pile", android.R.drawable.ic_menu_add) {
-            glSurfaceView.queueEvent {
-                BumpDeskLog.enter(BumpDeskLog.Tag.ICON_GROUP, "lassoCreatePile", "count=${selectedItems.size}")
-                launcher.createPileFromCaptured(selectedItems)
-            }
-        })
+        val createPileSubItems = listOf(
+            RadialMenuItem("Folder", android.R.drawable.ic_menu_agenda) {
+                BumpDeskLog.enter(BumpDeskLog.Tag.ICON_GROUP, "lassoCreatePile", "mode=FOLDER count=${selectedItems.size}")
+                glSurfaceView.queueEvent {
+                    renderer.createPileFromCaptured(selectedItems, Pile.LayoutMode.FOLDER)
+                }
+            },
+            RadialMenuItem("Stack", android.R.drawable.ic_menu_sort_alphabetically) {
+                BumpDeskLog.enter(BumpDeskLog.Tag.ICON_GROUP, "lassoCreatePile", "mode=STACK count=${selectedItems.size}")
+                glSurfaceView.queueEvent {
+                    renderer.createPileFromCaptured(selectedItems, Pile.LayoutMode.STACK)
+                }
+            },
+        )
+        menuItems.add(RadialMenuItem("Create Pile", android.R.drawable.ic_menu_add, subItems = createPileSubItems))
         
         val gridSubItems = listOf(
             RadialMenuItem("Grid", android.R.drawable.ic_menu_sort_by_size) {

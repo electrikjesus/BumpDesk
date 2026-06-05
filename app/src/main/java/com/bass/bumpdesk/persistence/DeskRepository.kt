@@ -16,61 +16,78 @@ class DeskRepository(context: Context) {
     private val dao = db.deskItemDao()
 
     suspend fun saveState(sceneState: SceneState) = withContext(Dispatchers.IO) {
-        val deskItems = mutableListOf<DeskItem>()
-        val deskPiles = mutableListOf<DeskPile>()
-        
-        // 1. Save all Piles
-        sceneState.piles.forEach { pile ->
-            deskPiles.add(DeskPile(
-                name = pile.name,
-                posX = pile.position.x,
-                posY = pile.position.y,
-                posZ = pile.position.z,
-                layoutMode = pile.layoutMode.name,
-                surface = pile.surface.name,
-                scale = pile.scale,
-                isSystem = pile.isSystem,
-                isFannedOut = pile.isFannedOut
-            ))
-            
-            // Save items inside this pile
-            pile.items.forEach { item ->
-                deskItems.add(createDeskItem(item, sceneState, pile.name))
-            }
-        }
-
-        // 2. Save items NOT in piles
-        val itemsInPiles = sceneState.piles.flatMap { it.items }.toSet()
-        sceneState.bumpItems.filter { it !in itemsInPiles }.forEach { item ->
-            deskItems.add(createDeskItem(item, sceneState, null))
-        }
-
-        // 3. Save Widgets
-        sceneState.widgetItems.forEach { widget ->
-            deskItems.add(DeskItem(
-                id = "widget_${widget.appWidgetId}",
-                type = "WIDGET",
-                packageName = null,
-                appWidgetId = widget.appWidgetId,
-                text = null,
-                posX = widget.position.x,
-                posY = widget.position.y,
-                posZ = widget.position.z,
-                sizeX = widget.size.x,
-                sizeZ = widget.size.z,
-                surface = widget.surface.name,
-                isPinned = true,
-                scale = 1.0f
-            ))
-        }
+        val snapshot = sceneState.withReadLockResult { buildPersistenceSnapshot(sceneState) }
 
         dao.deleteAllItems()
         dao.deleteAllPiles()
-        dao.insertAllItems(deskItems)
-        dao.insertAllPiles(deskPiles)
+        dao.insertAllItems(snapshot.deskItems)
+        dao.insertAllPiles(snapshot.deskPiles)
     }
 
-    private fun createDeskItem(item: BumpItem, sceneState: SceneState, pileId: String?): DeskItem {
+    private data class PersistenceSnapshot(
+        val deskItems: List<DeskItem>,
+        val deskPiles: List<DeskPile>,
+    )
+
+    /** Copy desk data under SceneState read lock so IO persistence cannot race physics/recents. */
+    private fun buildPersistenceSnapshot(sceneState: SceneState): PersistenceSnapshot {
+        val deskItems = mutableListOf<DeskItem>()
+        val deskPiles = mutableListOf<DeskPile>()
+        val itemsInPiles = mutableSetOf<BumpItem>()
+
+        sceneState.piles.forEach { pile ->
+            if (pile.isSystem) return@forEach
+
+            deskPiles.add(
+                DeskPile(
+                    name = pile.name,
+                    posX = pile.position.x,
+                    posY = pile.position.y,
+                    posZ = pile.position.z,
+                    layoutMode = pile.layoutMode.name,
+                    surface = pile.surface.name,
+                    scale = pile.scale,
+                    isSystem = pile.isSystem,
+                    isFannedOut = pile.isFannedOut,
+                ),
+            )
+
+            pile.items.forEach { item ->
+                itemsInPiles.add(item)
+                deskItems.add(createDeskItem(item, pile.name))
+            }
+        }
+
+        sceneState.bumpItems.forEach { item ->
+            if (item !in itemsInPiles) {
+                deskItems.add(createDeskItem(item, null))
+            }
+        }
+
+        sceneState.widgetItems.forEach { widget ->
+            deskItems.add(
+                DeskItem(
+                    id = "widget_${widget.appWidgetId}",
+                    type = "WIDGET",
+                    packageName = null,
+                    appWidgetId = widget.appWidgetId,
+                    text = null,
+                    posX = widget.position.x,
+                    posY = widget.position.y,
+                    posZ = widget.position.z,
+                    sizeX = widget.size.x,
+                    sizeZ = widget.size.z,
+                    surface = widget.surface.name,
+                    isPinned = true,
+                    scale = 1.0f,
+                ),
+            )
+        }
+
+        return PersistenceSnapshot(deskItems, deskPiles)
+    }
+
+    private fun createDeskItem(item: BumpItem, pileId: String?): DeskItem {
         val stableId = when (item.appearance.type) {
             BumpItem.Type.APP_DRAWER -> "app_drawer_icon"
             else -> item.appData?.appInfo?.packageName ?: UUID.randomUUID().toString()
@@ -102,8 +119,9 @@ class DeskRepository(context: Context) {
         val widgetItems = mutableListOf<WidgetItem>()
         val piles = mutableMapOf<String, Pile>()
 
-        // 1. Reconstruct Piles
+        // 1. Reconstruct user piles (skip ephemeral system drawers from legacy saves)
         savedPiles.forEach { saved ->
+            if (saved.isSystem) return@forEach
             val pile = Pile(
                 name = saved.name,
                 position = Vector3(saved.posX, saved.posY, saved.posZ),
@@ -129,6 +147,9 @@ class DeskRepository(context: Context) {
                 }
                 else -> {
                     val type = BumpItem.Type.valueOf(saved.type)
+                    if (saved.pileId == "All Apps" || saved.pileId == "Recents") {
+                        return@forEach
+                    }
                     val appInfo = if (type == BumpItem.Type.APP || type == BumpItem.Type.RECENT_APP) {
                         allApps.find { it.packageName == saved.packageName }
                     } else null

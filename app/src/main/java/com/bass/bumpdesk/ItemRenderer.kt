@@ -48,7 +48,7 @@ class ItemRenderer(
         // Use a unique key for caching dynamically generated bitmaps
         val cacheKey = when (appearance.type) {
             BumpItem.Type.APP -> "app:v2:${appInfo?.packageName}"
-            BumpItem.Type.APP_DRAWER -> "drawer:icon"
+            BumpItem.Type.APP_DRAWER -> "drawer:icon:v2"
             else -> null
         }
         
@@ -121,16 +121,12 @@ class ItemRenderer(
                 }
             }
             BumpItem.Type.APP_DRAWER -> {
-                val labelBitmap = TextRenderer.createMaterialTitleBitmap("All Apps", width = 320, height = 72)
-                val iconBitmap = TextureUtils.createAppDrawerIcon(context)
-                val combined = TextureUtils.getCombinedBitmap(context, iconBitmap, labelBitmap, false)
+                val combined = TextureUtils.createAppDrawerIcon(context)
                 appearance.textureId = textureManager.loadTextureFromBitmap(combined)
-                
+
                 if (cacheKey != null) textureManager.cacheTexture(cacheKey, appearance.textureId)
-                
+
                 combined.recycle()
-                iconBitmap.recycle()
-                labelBitmap.recycle()
             }
         }
     }
@@ -212,7 +208,7 @@ class ItemRenderer(
         val heightMult = when (appearance.type) { 
             BumpItem.Type.APP -> if (pile?.layoutMode == Pile.LayoutMode.CAROUSEL) 1.6f else 1.25f
             BumpItem.Type.RECENT_APP -> 1.6f
-            BumpItem.Type.APP_DRAWER -> 1.25f
+            BumpItem.Type.APP_DRAWER -> 1.38f
             else -> 1.0f 
         }
         Matrix.scaleM(modelMatrix, 0, transform.scale, 1f, transform.scale * heightMult)
@@ -242,5 +238,19 @@ class ItemRenderer(
         }
 
         appIconBox.draw(vPMatrix, modelMatrix, appearance.textureId, color)
+    }
+
+    fun drawPileFolderPreview(vPMatrix: FloatArray, pile: Pile, lightPos: FloatArray) {
+        if (pile.previewTextureId <= 0) return
+        Matrix.setIdentityM(modelMatrix, 0)
+        Matrix.translateM(modelMatrix, 0, pile.position.x, pile.position.y + 0.01f, pile.position.z)
+        val heightScale = if (pile.showsFolderLabel()) 1.38f else 1f
+        Matrix.scaleM(modelMatrix, 0, pile.scale, 1f, pile.scale * heightScale)
+        appIconBox.draw(
+            vPMatrix,
+            modelMatrix,
+            pile.previewTextureId,
+            floatArrayOf(1f, 1f, 1f, 1f),
+        )
     }
 }

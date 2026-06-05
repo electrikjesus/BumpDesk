@@ -9,8 +9,16 @@ import kotlin.math.sqrt
  */
 object PileOperations {
 
-    fun createPileFromCaptured(sceneState: SceneState, capturedItems: List<BumpItem>): Pile? {
-        BumpDeskLog.enter(BumpDeskLog.Tag.ICON_GROUP, "createPileFromCaptured", "count=${capturedItems.size}")
+    fun createPileFromCaptured(
+        sceneState: SceneState,
+        capturedItems: List<BumpItem>,
+        layoutMode: Pile.LayoutMode = Pile.LayoutMode.STACK,
+    ): Pile? {
+        BumpDeskLog.enter(
+            BumpDeskLog.Tag.ICON_GROUP,
+            "createPileFromCaptured",
+            "count=${capturedItems.size} mode=$layoutMode",
+        )
         if (capturedItems.size < 2) {
             BumpDeskLog.w(BumpDeskLog.Tag.ICON_GROUP, "createPileFromCaptured", "skipped | need at least 2 items")
             return null
@@ -25,7 +33,8 @@ object PileOperations {
             val centerZ = capturedItems.map { it.transform.position.z }.average().toFloat()
             val pile = Pile(
                 items = capturedItems.toMutableList(),
-                position = Vector3(centerX, 0.05f, centerZ)
+                position = Vector3(centerX, 0.05f, centerZ),
+                layoutMode = layoutMode,
             )
             capturedItems.forEach { item ->
                 item.transform.surface = BumpItem.Surface.FLOOR
@@ -36,7 +45,7 @@ object PileOperations {
             BumpDeskLog.exit(
                 BumpDeskLog.Tag.ICON_GROUP,
                 "createPileFromCaptured",
-                "pile=${pile.name} items=${pile.items.size} piles=${sceneState.piles.size}"
+                "pile=${pile.name} items=${pile.items.size} mode=${pile.layoutMode} piles=${sceneState.piles.size}",
             )
             pile
         }
@@ -66,6 +75,7 @@ object PileOperations {
             pile.items.add(item)
             item.transform.surface = pile.surface
             item.transform.position = pile.position.copy(y = item.transform.position.y)
+            PileFolderIcons.invalidatePreview(pile)
 
             BumpDeskLog.exit(BumpDeskLog.Tag.ICON_GROUP, "addItemToPile", "pileSize=${pile.items.size}")
             true
@@ -138,6 +148,7 @@ object PileOperations {
             }
             item.transform.isPinned = false
         }
+        sceneState.piles.forEach { PileFolderIcons.invalidatePreview(it) }
         pruneEmptyPilesUnlocked(sceneState)
         return targets
     }
@@ -167,9 +178,19 @@ object PileOperations {
             }
 
             val appInfo = item.appData?.appInfo
-            if (appInfo != null && sceneState.isAlreadyOnDesktop(appInfo)) {
-                BumpDeskLog.w(BumpDeskLog.Tag.ICON_GROUP, "removeItemFromExpandedPile", "skipped | duplicate app on desktop")
-                return@withWriteLockResult false
+            if (appInfo != null) {
+                val duplicateOnFloor = sceneState.bumpItems.any {
+                    it.appData?.appInfo?.packageName == appInfo.packageName
+                }
+                val duplicateInOtherPile = sceneState.piles.any { other ->
+                    other !== pile && other.items.any {
+                        it.appData?.appInfo?.packageName == appInfo.packageName
+                    }
+                }
+                if (duplicateOnFloor || duplicateInOtherPile) {
+                    BumpDeskLog.w(BumpDeskLog.Tag.ICON_GROUP, "removeItemFromExpandedPile", "skipped | duplicate app on desktop")
+                    return@withWriteLockResult false
+                }
             }
 
             pile.items.remove(item)

@@ -27,7 +27,7 @@ object FolderDrawerStyle {
 
     data class Layout(val halfDimX: Float, val halfDimZ: Float, val pos: FloatArray)
 
-    enum class Hit { CLOSE, PREV_PAGE, NEXT_PAGE, PAGE_DOT, NONE }
+    enum class Hit { CLOSE, TITLE, PREV_PAGE, NEXT_PAGE, PAGE_DOT, NONE }
 
     data class HitResult(val kind: Hit, val pageIndex: Int = -1)
 
@@ -154,6 +154,12 @@ object FolderDrawerStyle {
         val close = closeButtonCenter(layout, scale)
         if (abs(hitX - close[0]) < hitHalf && abs(hitZ - close[1]) < hitHalf) {
             return HitResult(Hit.CLOSE)
+        }
+
+        val title = titleBarLayout(layout, scale)
+        val titleHalfDepth = TITLE_BAND * 0.42f * scale
+        if (abs(hitX - title[0]) < title[2] && abs(hitZ - title[1]) < titleHalfDepth) {
+            return HitResult(Hit.TITLE)
         }
 
         val pages = totalPages(pile.items.size)

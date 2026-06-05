@@ -536,7 +536,8 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
     fun promptAddWebWidget(x: Float, y: Float) = dialogManager.promptAddWebWidget(x, y)
     fun promptEditWebWidget(item: BumpItem) = dialogManager.promptEditWebWidget(item)
     fun promptSearch() = dialogManager.promptSearch()
-    fun promptRenamePile(pile: Pile, onRenamed: (String) -> Unit) = dialogManager.promptRenamePile(pile, onRenamed)
+    fun promptRenamePile(pile: Pile, onRenamed: (String) -> Unit) =
+        runOnUiThread { dialogManager.promptRenamePile(pile, onRenamed) }
 
     fun promptAddPhotoFrame(x: Float, y: Float) {
         initialTouchX = x; initialTouchY = y
@@ -550,9 +551,9 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
 
     fun saveLastTouchPosition(x: Float, y: Float) { initialTouchX = x; initialTouchY = y }
 
-    fun createPileFromCaptured(capturedItems: List<BumpItem>) {
+    fun createPileFromCaptured(capturedItems: List<BumpItem>, layoutMode: Pile.LayoutMode = Pile.LayoutMode.STACK) {
         if (!::renderer.isInitialized) return
-        glSurfaceView.queueEvent { renderer.createPileFromCaptured(capturedItems) }
+        glSurfaceView.queueEvent { renderer.createPileFromCaptured(capturedItems, layoutMode) }
     }
 
     fun launchApp(item: BumpItem, mode: Int = WINDOWING_MODE_UNDEFINED) {

@@ -55,6 +55,12 @@ class PileRenderer(
                 return@forEach
             }
 
+            if (pile.showsFolderPreview()) {
+                PileFolderIcons.ensurePreview(context, pile, textureManager)
+                itemRenderer.drawPileFolderPreview(vPMatrix, pile, lightPos)
+                return@forEach
+            }
+
             val isCarousel = pile.layoutMode == Pile.LayoutMode.CAROUSEL
             val widthLimit = 10f * pile.scale
 

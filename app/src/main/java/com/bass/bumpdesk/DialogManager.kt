@@ -98,9 +98,16 @@ class DialogManager(private val context: Context, private val glSurfaceView: GLS
 
     fun promptRenamePile(pile: Pile, onRenamed: (String) -> Unit) {
         val input = EditText(context).apply { setText(pile.name); setSelection(pile.name.length) }
-        AlertDialog.Builder(context).setTitle("Rename Folder").setView(input).setPositiveButton("OK") { _, _ ->
-            val newName = input.text.toString()
-            if (newName.isNotBlank()) glSurfaceView.queueEvent { onRenamed(newName) }
-        }.setNegativeButton("Cancel", null).show()
+        AlertDialog.Builder(context)
+            .setTitle("Rename Folder")
+            .setView(input)
+            .setPositiveButton("OK") { _, _ ->
+                val newName = input.text.toString().trim()
+                if (newName.isNotBlank()) {
+                    glSurfaceView.queueEvent { onRenamed(newName) }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 }

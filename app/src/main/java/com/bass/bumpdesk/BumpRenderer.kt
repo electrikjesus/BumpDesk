@@ -156,13 +156,22 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         val scalePref = prefs.getInt("layout_item_scale", 50) / 100f
         physicsEngine.defaultScale = scalePref + 0.2f
         physicsEngine.gridSpacingBase = (prefs.getInt("layout_grid_spacing", 60) / 100f) * 2.0f
+        val folderGroupScale = (scalePref + 0.5f).coerceIn(0.5f, 2.5f)
         
         sceneState.withWriteLock {
-            sceneState.bumpItems.forEach { it.transform.scale = physicsEngine.defaultScale }
+            sceneState.bumpItems.forEach { item ->
+                if (item.appearance.type != BumpItem.Type.APP_DRAWER) {
+                    item.transform.scale = physicsEngine.defaultScale
+                }
+            }
             sceneState.piles.forEach { p ->
-                p.scale = (scalePref + 0.5f).coerceIn(0.5f, 2.5f)
+                p.scale = folderGroupScale
                 p.items.forEach { it.transform.scale = physicsEngine.defaultScale }
             }
+            sceneState.bumpItems
+                .filter { it.appearance.type == BumpItem.Type.APP_DRAWER }
+                .forEach { it.transform.scale = folderGroupScale }
+            sceneState.appDrawerItem?.transform?.scale = folderGroupScale
         }
         
         val showAppDrawer = prefs.getBoolean("show_app_drawer_icon", true)
@@ -170,7 +179,12 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                            sceneState.piles.any { p -> p.items.any { it.appearance.type == BumpItem.Type.APP_DRAWER } }
         
         if (showAppDrawer && !hasAppDrawer) {
-            sceneState.appDrawerItem = BumpItem(type = BumpItem.Type.APP_DRAWER, position = Vector3(6f, 0.05f, 6f), scale = 0.8f)
+            val folderGroupScale = (scalePref + 0.5f).coerceIn(0.5f, 2.5f)
+            sceneState.appDrawerItem = BumpItem(
+                type = BumpItem.Type.APP_DRAWER,
+                position = Vector3(6f, 0.05f, 6f),
+                scale = folderGroupScale,
+            )
             sceneState.bumpItems.add(sceneState.appDrawerItem!!)
         } else if (!showAppDrawer && hasAppDrawer) {
             sceneState.bumpItems.removeAll { it.appearance.type == BumpItem.Type.APP_DRAWER }
@@ -841,6 +855,15 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                             dismissExpandedPile()
                             return
                         }
+                        FolderDrawerStyle.Hit.TITLE -> {
+                            if (!expandedPile.isSystem) {
+                                hapticManager.selection()
+                                (context as? LauncherActivity)?.promptRenamePile(expandedPile) { newName ->
+                                    renamePile(expandedPile, newName)
+                                }
+                            }
+                            return
+                        }
                         FolderDrawerStyle.Hit.PREV_PAGE -> {
                             expandedPile.scrollIndex--
                             playSound(leafSoundId, 0.2f)
@@ -903,6 +926,10 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                     camera.focusOnWall(CameraManager.ViewMode.BACK_WALL, floatArrayOf(pile.position.x, pile.position.y, pile.position.z + 10f), floatArrayOf(pile.position.x, pile.position.y, pile.position.z), 0.6f)
                 } else {
                     sceneState.piles.forEach { it.isExpanded = false }
+                    pile.scrollIndex = 0
+                    if (pile.layoutMode == Pile.LayoutMode.FOLDER && pile.surface == BumpItem.Surface.FLOOR) {
+                        pile.nameTextureId = -1
+                    }
                     pile.isExpanded = true
                     camera.focusOnFolder(
                         pile.position.toFloatArray(),
@@ -913,17 +940,19 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 (context as? LauncherActivity)?.showResetButton(true); return
             }
             if (item.appearance.type == BumpItem.Type.APP_DRAWER) {
-                val apps = sceneState.allAppsList
+                val apps = sceneState.appsNotInAllAppsDrawer()
                 if (apps.isNotEmpty()) {
                     playSound(expandSoundId, 0.3f)
                     hapticManager.selection()
                     val p = item.transform.position.copy()
+                    val folderGroupScale = item.transform.scale
                     val dp = Pile(
                         apps.map { BumpItem(appInfo = it, position = p.copy(), scale = physicsEngine.defaultScale) }.toMutableList(),
                         p,
                         name = "All Apps",
                         layoutMode = Pile.LayoutMode.GRID,
                         isSystem = true,
+                        scale = folderGroupScale,
                     )
                     dp.nameTextureId = -1
                     dp.scrollIndex = 0
@@ -997,9 +1026,22 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         (context as? LauncherActivity)?.showResetButton(true)
     }
 
-    fun createPileFromCaptured(capturedItems: List<BumpItem>) {
-        PileOperations.createPileFromCaptured(sceneState, capturedItems)
+    fun createPileFromCaptured(capturedItems: List<BumpItem>, layoutMode: Pile.LayoutMode = Pile.LayoutMode.STACK) {
+        PileOperations.createPileFromCaptured(sceneState, capturedItems, layoutMode)
         saveState()
+    }
+
+    fun renamePile(pile: Pile, newName: String) {
+        if (pile.isSystem) return
+        val trimmed = newName.trim()
+        if (trimmed.isBlank()) return
+        pile.name = trimmed
+        pile.nameTextureId = -1
+        if (pile.layoutMode == Pile.LayoutMode.FOLDER) {
+            PileFolderIcons.invalidatePreview(pile)
+        }
+        saveState()
+        glSurfaceView?.requestRender()
     }
 
     fun addItemToPile(item: BumpItem, pile: Pile) {

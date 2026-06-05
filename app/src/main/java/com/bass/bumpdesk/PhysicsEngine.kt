@@ -39,6 +39,7 @@ class PhysicsEngine {
                 
                 val targetScale = when {
                     pile.isExpanded -> if (isVisibleInPage) 0.8f * pile.scale else 0.01f
+                    pile.showsFolderPreview() -> pile.scale
                     pile.layoutMode == Pile.LayoutMode.CAROUSEL -> 1.5f * pile.scale
                     pile.layoutMode == Pile.LayoutMode.GRID -> 0.8f * pile.scale
                     else -> defaultScale
@@ -93,8 +94,16 @@ class PhysicsEngine {
     private fun constrainPile(pile: Pile) {
         val count = pile.items.size
         // 4x4 grid when expanded
-        val side = if (pile.isExpanded) 4 else ceil(sqrt(count.toDouble())).toInt().coerceAtLeast(1)
-        val spacing = if (pile.layoutMode == Pile.LayoutMode.GRID || pile.isExpanded) 2.0f * pile.scale else gridSpacingBase * pile.scale
+        val side = when {
+            pile.isExpanded -> 4
+            pile.showsFolderPreview() -> 1
+            else -> ceil(sqrt(count.toDouble())).toInt().coerceAtLeast(1)
+        }
+        val spacing = when {
+            pile.isExpanded || pile.layoutMode == Pile.LayoutMode.GRID -> 2.0f * pile.scale
+            pile.showsFolderPreview() -> gridSpacingBase * pile.scale
+            else -> gridSpacingBase * pile.scale
+        }
         val halfDim = (side * spacing) / 2f
         
         when (pile.surface) {
@@ -223,6 +232,8 @@ class PhysicsEngine {
                 BumpItem.Surface.RIGHT_WALL -> pile.position.copy(z = pile.position.z - offset)
                 else -> pile.position.copy(x = pile.position.x + offset)
             }
+        } else if (pile.layoutMode == Pile.LayoutMode.FOLDER && !pile.isExpanded) {
+            return pile.position.copy(y = 0.05f)
         } else if (pile.layoutMode == Pile.LayoutMode.GRID) {
             val side = ceil(sqrt(count.toDouble())).toInt().coerceAtLeast(1)
             val gridSpacing = 2.0f * pile.scale
