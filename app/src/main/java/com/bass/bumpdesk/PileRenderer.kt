@@ -11,7 +11,7 @@ class PileRenderer(
     private val overlayRenderer: OverlayRenderer,
     private val sceneState: SceneState
 ) {
-    private val ITEMS_PER_PAGE = 16
+    private val ITEMS_PER_PAGE = FolderDrawerStyle.ITEMS_PER_PAGE
 
     fun drawPiles(
         vPMatrix: FloatArray,
@@ -19,16 +19,23 @@ class PileRenderer(
         lightPos: FloatArray,
         searchQuery: String,
         currentViewMode: CameraManager.ViewMode,
-        onUpdateTexture: (Runnable) -> Unit
+        onUpdateTexture: (Runnable) -> Unit,
+        roomHalfX: Float = 30f,
+        roomHalfZ: Float = 30f,
     ) {
         piles.forEach { pile ->
             val isExpanded = pile.isExpanded
             
             if (isExpanded) {
-                // Performance: Virtualized rendering for expanded folders.
                 val startIdx = pile.scrollIndex * ITEMS_PER_PAGE
                 val endIdx = (startIdx + ITEMS_PER_PAGE).coerceAtMost(pile.items.size)
-                
+                val layout = if (FolderDrawerStyle.usesMaterialChrome(pile)) {
+                    FolderDrawerStyle.layout(pile, roomHalfX, roomHalfZ)
+                } else {
+                    null
+                }
+
+                // Performance: Virtualized rendering for expanded folders.
                 // Task: Clear texture IDs for items on non-visible pages to allow 
                 // TextureManager's LRU cache to manage memory effectively.
                 // We keep a 1-page buffer for smoother scrolling.
@@ -36,6 +43,9 @@ class PileRenderer(
                 
                 pile.items.forEachIndexed { index, item ->
                     if (index in startIdx until endIdx) {
+                        if (layout != null && !FolderDrawerStyle.isInsideContentArea(item, layout, pile.scale)) {
+                            return@forEachIndexed
+                        }
                         itemRenderer.drawItems(vPMatrix, listOf(item), lightPos, searchQuery, onUpdateTexture)
                     } else if (index !in bufferRange) {
                         // Mark texture as eligible for eviction if far from visible page

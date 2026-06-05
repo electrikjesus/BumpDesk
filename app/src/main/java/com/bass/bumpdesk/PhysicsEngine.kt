@@ -199,28 +199,13 @@ class PhysicsEngine {
             val pageIndex = pile.scrollIndex
             val itemInPageIndex = index % ITEMS_PER_PAGE
             val isCurrentPage = index / ITEMS_PER_PAGE == pageIndex
-            
-            // Fixed 4x4 Grid
-            val side = 4
-            val spacing = 2.0f * pile.scale
-            val halfDim = (side * spacing) / 2f
-            val totalHalfDimZ = (side * spacing) / 2f + 0.6f * pile.scale
 
-            val limitX = floorLimitX(halfDim)
-            val limitZ = floorLimitZ(totalHalfDimZ)
-            val uiX = pile.position.x.coerceIn(-limitX, limitX)
-            val uiZ = pile.position.z.coerceIn(-limitZ, limitZ)
+            val layout = FolderDrawerStyle.layout(pile, floorRoomHalfX(), floorRoomHalfZ())
 
-            val row = itemInPageIndex / side
-            val col = itemInPageIndex % side
-            
-            val yPos = if (isCurrentPage) 3.05f else -10f // Hide items not on current page
-            
-            return Vector3(
-                uiX + (col - (side - 1) / 2f) * spacing,
-                yPos,
-                uiZ + (row - (side - 1) / 2f) * spacing + 0.5f * pile.scale
-            )
+            val yPos = if (isCurrentPage) FolderDrawerStyle.ICON_Y else -10f
+            val (x, z) = FolderDrawerStyle.itemGridPosition(pile, index, layout)
+
+            return Vector3(x, yPos, z)
         } else if (pile.isFannedOut) {
             val spacing = if (pile.layoutMode == Pile.LayoutMode.GRID) 2.0f * pile.scale else gridSpacingBase * pile.scale
             val offset = (index - (count - 1) / 2f) * spacing
@@ -296,6 +281,18 @@ class PhysicsEngine {
     }
 
     fun isInPile(item: BumpItem, piles: List<Pile>) = piles.any { it.items.contains(item) }
+
+    private fun floorRoomHalfX(): Float {
+        if (isInfiniteMode) return INFINITE_SIZE
+        if (isFlatFloorMode) return floorHalfX
+        return roomSize
+    }
+
+    private fun floorRoomHalfZ(): Float {
+        if (isInfiniteMode) return INFINITE_SIZE
+        if (isFlatFloorMode) return floorHalfZ
+        return roomSize
+    }
 
     private fun floorLimitX(extraMargin: Float): Float {
         if (isInfiniteMode) return INFINITE_SIZE - extraMargin - 0.05f

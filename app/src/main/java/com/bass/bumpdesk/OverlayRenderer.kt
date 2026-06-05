@@ -1,70 +1,143 @@
 package com.bass.bumpdesk
 
+import android.graphics.Color
 import android.opengl.Matrix
-import kotlin.math.ceil
-import kotlin.math.sqrt
 
 class OverlayRenderer(private val shader: DefaultShader) {
     private val folderBgPlane = Plane(shader)
     private val modelMatrix = FloatArray(16)
+    private var panelTextureId = -1
 
-    data class FolderUIData(val halfDimX: Float, val halfDimZ: Float, val pos: FloatArray)
+    fun drawFolderUI(
+        vPMatrix: FloatArray,
+        pile: Pile,
+        closeBtnTextureId: Int,
+        nameTextureId: Int,
+        lightPos: FloatArray,
+        roomHalfX: Float,
+        roomHalfZ: Float,
+    ) {
+        val data = FolderDrawerStyle.layout(pile, roomHalfX, roomHalfZ)
+        val uiX = data.pos[0]
+        val uiZ = data.pos[2]
+        val material = FolderDrawerStyle.usesMaterialChrome(pile)
 
-    fun drawFolderUI(vPMatrix: FloatArray, pile: Pile, closeBtnTextureId: Int, nameTextureId: Int, lightPos: FloatArray, roomSize: Float) {
-        val data = getConstrainedFolderUI(pile, roomSize)
-        val uiX = data.pos[0]; val uiZ = data.pos[2]
-
-        // Background - lowered to 2.80f to ensure clear separation from icons
-        Matrix.setIdentityM(modelMatrix, 0)
-        Matrix.translateM(modelMatrix, 0, uiX, 2.80f, uiZ)
-        Matrix.scaleM(modelMatrix, 0, data.halfDimX, 1f, data.halfDimZ)
-        folderBgPlane.draw(vPMatrix, modelMatrix, floatArrayOf(0.1f, 0.1f, 0.1f, 0.8f), -1, lightPos, 1.0f, false)
-
-        // Title - elevated to 2.95f
-        if (nameTextureId != -1) {
+        if (material) {
+            if (panelTextureId == -1) {
+                val panelBitmap = TextRenderer.createRoundedPanelBitmap(
+                    fillColor = Color.argb(240, 33, 35, 43),
+                )
+                panelTextureId = TextRenderer.loadTextTexture(panelBitmap)
+                panelBitmap.recycle()
+            }
             Matrix.setIdentityM(modelMatrix, 0)
-            Matrix.translateM(modelMatrix, 0, uiX, 2.95f, uiZ - data.halfDimZ + 0.4f * pile.scale)
-            Matrix.scaleM(modelMatrix, 0, data.halfDimX * 0.8f, 1f, 0.3f * pile.scale)
-            folderBgPlane.draw(vPMatrix, modelMatrix, floatArrayOf(1f, 1f, 1f, 1.0f), nameTextureId, lightPos, 1.0f, false)
+            Matrix.translateM(modelMatrix, 0, uiX, FolderDrawerStyle.PANEL_Y, uiZ)
+            Matrix.scaleM(modelMatrix, 0, data.halfDimX, 1f, data.halfDimZ)
+            folderBgPlane.draw(
+                vPMatrix,
+                modelMatrix,
+                FolderDrawerStyle.surfaceColor(),
+                panelTextureId,
+                lightPos,
+                1.0f,
+                false,
+            )
+        } else {
+            Matrix.setIdentityM(modelMatrix, 0)
+            Matrix.translateM(modelMatrix, 0, uiX, FolderDrawerStyle.PANEL_Y, uiZ)
+            Matrix.scaleM(modelMatrix, 0, data.halfDimX, 1f, data.halfDimZ)
+            folderBgPlane.draw(vPMatrix, modelMatrix, floatArrayOf(0.1f, 0.1f, 0.1f, 0.8f), -1, lightPos, 1.0f, false)
         }
 
-        // Close Button - elevated to 2.95f
+        if (nameTextureId != -1) {
+            val title = FolderDrawerStyle.titleBarLayout(data, pile.scale)
+            Matrix.setIdentityM(modelMatrix, 0)
+            Matrix.translateM(modelMatrix, 0, title[0], FolderDrawerStyle.CHROME_Y, title[1])
+            val titleDepth = if (material) FolderDrawerStyle.TITLE_BAND * 0.72f * pile.scale else 0.3f * pile.scale
+            Matrix.scaleM(modelMatrix, 0, title[2], 1f, titleDepth)
+            folderBgPlane.draw(
+                vPMatrix,
+                modelMatrix,
+                FolderDrawerStyle.onSurfaceColor(),
+                nameTextureId,
+                lightPos,
+                1.0f,
+                false,
+            )
+        }
+
+        val buttonSize = FolderDrawerStyle.touchButtonSize(data.halfDimX, pile.scale)
+        val close = FolderDrawerStyle.closeButtonCenter(data, pile.scale)
         Matrix.setIdentityM(modelMatrix, 0)
-        Matrix.translateM(modelMatrix, 0, uiX + data.halfDimX - 0.3f * pile.scale, 2.95f, uiZ - data.halfDimZ + 0.3f * pile.scale)
-        Matrix.scaleM(modelMatrix, 0, 0.25f * pile.scale, 1f, 0.25f * pile.scale)
-        folderBgPlane.draw(vPMatrix, modelMatrix, floatArrayOf(0.8f, 0.2f, 0.2f, 1.0f), closeBtnTextureId, lightPos, 1.0f, false)
+        Matrix.translateM(modelMatrix, 0, close[0], FolderDrawerStyle.CHROME_Y, close[1])
+        Matrix.scaleM(modelMatrix, 0, buttonSize, 1f, buttonSize)
+        folderBgPlane.draw(
+            vPMatrix,
+            modelMatrix,
+            if (material) FolderDrawerStyle.buttonContainerColor() else floatArrayOf(0.8f, 0.2f, 0.2f, 1.0f),
+            closeBtnTextureId,
+            lightPos,
+            1.0f,
+            false,
+        )
     }
 
-    fun drawPaginationUI(vPMatrix: FloatArray, pile: Pile, arrowLeftId: Int, arrowRightId: Int, lightPos: FloatArray, roomSize: Float) {
-        val data = getConstrainedFolderUI(pile, roomSize)
-        val uiX = data.pos[0]; val uiZ = data.pos[2]
-        val totalPages = ceil(pile.items.size.toFloat() / 16f).toInt().coerceAtLeast(1)
+    fun drawPaginationUI(
+        vPMatrix: FloatArray,
+        pile: Pile,
+        arrowLeftId: Int,
+        arrowRightId: Int,
+        lightPos: FloatArray,
+        roomHalfX: Float,
+        roomHalfZ: Float,
+    ) {
+        val data = FolderDrawerStyle.layout(pile, roomHalfX, roomHalfZ)
+        val totalPages = FolderDrawerStyle.totalPages(pile.items.size)
         val currentPage = pile.scrollIndex
+        val material = FolderDrawerStyle.usesMaterialChrome(pile)
+        val buttonSize = FolderDrawerStyle.touchButtonSize(data.halfDimX, pile.scale)
 
-        // Pagination Arrows - elevated to 2.95f
         if (arrowLeftId != -1 && currentPage > 0) {
+            val prev = FolderDrawerStyle.prevButtonCenter(data, pile.scale)
             Matrix.setIdentityM(modelMatrix, 0)
-            Matrix.translateM(modelMatrix, 0, uiX - 1.5f * pile.scale, 2.95f, uiZ + data.halfDimZ - 0.5f * pile.scale)
-            Matrix.scaleM(modelMatrix, 0, 0.3f * pile.scale, 1f, 0.3f * pile.scale)
-            folderBgPlane.draw(vPMatrix, modelMatrix, floatArrayOf(1f, 1f, 1f, 1.0f), arrowLeftId, lightPos, 1.0f, false)
+            Matrix.translateM(modelMatrix, 0, prev[0], FolderDrawerStyle.CHROME_Y, prev[1])
+            Matrix.scaleM(modelMatrix, 0, buttonSize, 1f, buttonSize)
+            folderBgPlane.draw(
+                vPMatrix,
+                modelMatrix,
+                if (material) FolderDrawerStyle.buttonContainerColor() else floatArrayOf(1f, 1f, 1f, 1f),
+                arrowLeftId,
+                lightPos,
+                1.0f,
+                false,
+            )
         }
 
         if (arrowRightId != -1 && currentPage < totalPages - 1) {
+            val next = FolderDrawerStyle.nextButtonCenter(data, pile.scale)
             Matrix.setIdentityM(modelMatrix, 0)
-            Matrix.translateM(modelMatrix, 0, uiX + 1.5f * pile.scale, 2.95f, uiZ + data.halfDimZ - 0.5f * pile.scale)
-            Matrix.scaleM(modelMatrix, 0, 0.3f * pile.scale, 1f, 0.3f * pile.scale)
-            folderBgPlane.draw(vPMatrix, modelMatrix, floatArrayOf(1f, 1f, 1f, 1.0f), arrowRightId, lightPos, 1.0f, false)
+            Matrix.translateM(modelMatrix, 0, next[0], FolderDrawerStyle.CHROME_Y, next[1])
+            Matrix.scaleM(modelMatrix, 0, buttonSize, 1f, buttonSize)
+            folderBgPlane.draw(
+                vPMatrix,
+                modelMatrix,
+                if (material) FolderDrawerStyle.buttonContainerColor() else floatArrayOf(1f, 1f, 1f, 1f),
+                arrowRightId,
+                lightPos,
+                1.0f,
+                false,
+            )
         }
 
-        // Pagination Dots - elevated to 2.95f
-        val dotSpacing = 0.3f * pile.scale
-        val startX = uiX - ((totalPages - 1) * dotSpacing) / 2f
         for (i in 0 until totalPages) {
+            val dot = FolderDrawerStyle.pageIndicatorCenter(data, pile.scale, i, totalPages)
             val isCurrent = i == currentPage
             Matrix.setIdentityM(modelMatrix, 0)
-            Matrix.translateM(modelMatrix, 0, startX + i * dotSpacing, 2.95f, uiZ + data.halfDimZ - 0.5f * pile.scale)
-            Matrix.scaleM(modelMatrix, 0, 0.1f * pile.scale, 1f, 0.1f * pile.scale)
-            val color = if (isCurrent) floatArrayOf(1f, 1f, 1f, 1f) else floatArrayOf(0.5f, 0.5f, 0.5f, 0.6f)
+            Matrix.translateM(modelMatrix, 0, dot[0], FolderDrawerStyle.CHROME_Y, dot[1])
+            val width = if (isCurrent) 0.24f * pile.scale else 0.12f * pile.scale
+            val depth = if (isCurrent) 0.12f * pile.scale else 0.1f * pile.scale
+            Matrix.scaleM(modelMatrix, 0, width, 1f, depth)
+            val color = if (isCurrent) FolderDrawerStyle.primaryColor() else FolderDrawerStyle.inactiveIndicatorColor()
             folderBgPlane.draw(vPMatrix, modelMatrix, color, -1, lightPos, 1.0f, false)
         }
     }
@@ -72,7 +145,7 @@ class OverlayRenderer(private val shader: DefaultShader) {
     fun drawRecentsOverlay(vPMatrix: FloatArray, pile: Pile, arrowLeftTextureId: Int, arrowRightTextureId: Int, lightPos: FloatArray) {
         val width = 6f * pile.scale
         val height = 4f * pile.scale
-        
+
         Matrix.setIdentityM(modelMatrix, 0)
         Matrix.translateM(modelMatrix, 0, pile.position[0], pile.position[1], pile.position[2] - 0.05f)
         Matrix.rotateM(modelMatrix, 0, 90f, 1f, 0f, 0f)
@@ -91,15 +164,6 @@ class OverlayRenderer(private val shader: DefaultShader) {
         folderBgPlane.draw(vPMatrix, modelMatrix, floatArrayOf(1f, 1f, 1f, 1f), textureId, lightPos, 1.0f, false)
     }
 
-    fun getConstrainedFolderUI(pile: Pile, roomSize: Float): FolderUIData {
-        // Fixed 4x4 Grid dimensions
-        val spacing = 2.0f
-        val sideDim = 4 * spacing
-        val halfDimX = (sideDim / 2f + 0.8f) * pile.scale
-        val halfDimZ = (sideDim / 2f + 1.2f) * pile.scale // Extra room for pagination at bottom
-        
-        val uiX = pile.position[0].coerceIn(-roomSize + halfDimX, roomSize - halfDimX)
-        val uiZ = pile.position[2].coerceIn(-roomSize + halfDimZ, roomSize - halfDimZ)
-        return FolderUIData(halfDimX, halfDimZ, floatArrayOf(uiX, 2.80f, uiZ))
-    }
+    fun getConstrainedFolderUI(pile: Pile, roomHalfX: Float, roomHalfZ: Float): FolderDrawerStyle.Layout =
+        FolderDrawerStyle.layout(pile, roomHalfX, roomHalfZ)
 }

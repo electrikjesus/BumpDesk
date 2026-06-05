@@ -19,7 +19,8 @@ class UIRenderer(
         lightPos: FloatArray,
         searchQuery: String,
         textureManager: TextureManager,
-        roomSize: Float
+        roomHalfX: Float,
+        roomHalfZ: Float,
     ) {
         // Draw Search Overlay if active
         if (searchQuery.isNotEmpty()) {
@@ -28,8 +29,25 @@ class UIRenderer(
 
         val activePile = sceneState.piles.find { it.isExpanded }
         if (camera.currentViewMode == CameraManager.ViewMode.FOLDER_EXPANDED && activePile != null) {
-            overlayRenderer.drawFolderUI(vPMatrix, activePile, textures.closeBtn, activePile.nameTextureId, lightPos, roomSize)
-            overlayRenderer.drawPaginationUI(vPMatrix, activePile, textures.arrowLeft, textures.arrowRight, lightPos, roomSize)
+            ensureFolderTitle(activePile, textureManager)
+            overlayRenderer.drawFolderUI(
+                vPMatrix,
+                activePile,
+                textures.closeBtn,
+                activePile.nameTextureId,
+                lightPos,
+                roomHalfX = roomHalfX,
+                roomHalfZ = roomHalfZ,
+            )
+            overlayRenderer.drawPaginationUI(
+                vPMatrix,
+                activePile,
+                textures.arrowLeft,
+                textures.arrowRight,
+                lightPos,
+                roomHalfX = roomHalfX,
+                roomHalfZ = roomHalfZ,
+            )
         }
         
         sceneState.recentsPile?.let { 
@@ -70,4 +88,15 @@ class UIRenderer(
         val scrollUp: Int,
         val scrollDown: Int
     )
+
+    private fun ensureFolderTitle(pile: Pile, textureManager: TextureManager) {
+        if (pile.nameTextureId != -1) return
+        val bitmap = if (FolderDrawerStyle.isMaterialDrawer(pile)) {
+            TextRenderer.createMaterialTitleBitmap(pile.name)
+        } else {
+            TextRenderer.createTextBitmap(pile.name, 256, 64)
+        }
+        pile.nameTextureId = textureManager.loadTextureFromBitmap(bitmap)
+        bitmap.recycle()
+    }
 }

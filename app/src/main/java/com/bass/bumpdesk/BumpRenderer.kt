@@ -614,9 +614,15 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         wallTextureIds = ThemeManager.getWallTextures(context, textureManager)
         
         uiAssets = UIRenderer.UIAssets(
-            closeBtn = textureManager.loadTextureFromBitmap(TextRenderer.createTextBitmap("X", 64, 64)),
-            arrowLeft = textureManager.loadTextureFromBitmap(TextRenderer.createTextBitmap(" < ", 64, 64)),
-            arrowRight = textureManager.loadTextureFromBitmap(TextRenderer.createTextBitmap(" > ", 64, 64)),
+            closeBtn = textureManager.loadTextureFromBitmap(
+                TextRenderer.createIconButtonBitmap("✕")
+            ),
+            arrowLeft = textureManager.loadTextureFromBitmap(
+                TextRenderer.createIconButtonBitmap("‹")
+            ),
+            arrowRight = textureManager.loadTextureFromBitmap(
+                TextRenderer.createIconButtonBitmap("›")
+            ),
             scrollUp = ThemeManager.loadOptionalWidgetTexture(context, textureManager, "scrollUp"),
             scrollDown = ThemeManager.loadOptionalWidgetTexture(context, textureManager, "scrollDown")
         )
@@ -660,8 +666,27 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         if (shader != null) {
             itemRenderer.drawItems(vPMatrix, sceneState.bumpItems, lightPos, searchQuery, onUpdateTexture)
             widgetRenderer.drawWidgets(vPMatrix, sceneState.widgetItems, sceneState.widgetViews, frameCount, sceneState.selectedWidget, onUpdateTexture)
-            pileRenderer.drawPiles(vPMatrix, sceneState.piles, lightPos, searchQuery, camera.currentViewMode, onUpdateTexture)
-            uiRenderer.drawOverlays(vPMatrix, sceneState, camera, uiAssets, lightPos, searchQuery, textureManager, ROOM_SIZE)
+            pileRenderer.drawPiles(
+                vPMatrix,
+                sceneState.piles,
+                lightPos,
+                searchQuery,
+                camera.currentViewMode,
+                onUpdateTexture,
+                floorHalfWidth,
+                floorHalfDepth,
+            )
+            uiRenderer.drawOverlays(
+                vPMatrix,
+                sceneState,
+                camera,
+                uiAssets,
+                lightPos,
+                searchQuery,
+                textureManager,
+                floorHalfWidth,
+                floorHalfDepth,
+            )
         }
         
         if (interactionManager.lassoPoints.isNotEmpty()) lassoRenderer.draw(vPMatrix, interactionManager.lassoPoints)
@@ -748,7 +773,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 val hitY = rS[1] + t * (rE[1] - rS[1])
                 val hitZ = rS[2] + t * (rE[2] - rS[2])
                 
-                val uiData = overlayRenderer.getConstrainedFolderUI(expandedPile, ROOM_SIZE)
+                val uiData = overlayRenderer.getConstrainedFolderUI(expandedPile, floorHalfWidth, floorHalfDepth)
                 val halfDimX = uiData.halfDimX
                 val halfDimZ = uiData.halfDimZ
                 val pos = uiData.pos
@@ -766,27 +791,39 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                     }
                     if (abs(hitX - expandedPile.position.x) > width || abs(hitY - expandedPile.position.y) > height) { dismissExpandedPile(); return }
                 } else {
-                    val cbX = pos[0] + halfDimX - 0.3f * expandedPile.scale; val cbZ = pos[2] - halfDimZ + 0.3f * expandedPile.scale
-                    if (abs(hitX - cbX) < 0.4f && abs(hitZ - cbZ) < 0.4f) { dismissExpandedPile(); return }
-
-                    val totalPages = ceil(expandedPile.items.size.toFloat() / 16f).toInt().coerceAtLeast(1)
-                    val pZ = pos[2] + halfDimZ - 0.5f * expandedPile.scale
-                    
-                    if (expandedPile.scrollIndex > 0 && abs(hitX - (pos[0] - 1.5f * expandedPile.scale)) < 0.4f && abs(hitZ - pZ) < 0.4f) {
-                        expandedPile.scrollIndex--
-                        playSound(leafSoundId, 0.2f); hapticManager.tick(); return
-                    }
-                    if (expandedPile.scrollIndex < totalPages - 1 && abs(hitX - (pos[0] + 1.5f * expandedPile.scale)) < 0.4f && abs(hitZ - pZ) < 0.4f) {
-                        expandedPile.scrollIndex++
-                        playSound(leafSoundId, 0.2f); hapticManager.tick(); return
-                    }
-                    val dotSpacing = 0.3f * expandedPile.scale
-                    val startX = pos[0] - ((totalPages - 1) * dotSpacing) / 2f
-                    for (i in 0 until totalPages) {
-                        if (abs(hitX - (startX + i * dotSpacing)) < 0.15f && abs(hitZ - pZ) < 0.15f) {
-                            expandedPile.scrollIndex = i
-                            playSound(leafSoundId, 0.2f); hapticManager.tick(); return
+                    val drawerHit = FolderDrawerStyle.hitTestFloorDrawer(
+                        expandedPile,
+                        hitX,
+                        hitZ,
+                        floorHalfWidth,
+                        floorHalfDepth,
+                    )
+                    when (drawerHit.kind) {
+                        FolderDrawerStyle.Hit.CLOSE -> {
+                            dismissExpandedPile()
+                            return
                         }
+                        FolderDrawerStyle.Hit.PREV_PAGE -> {
+                            expandedPile.scrollIndex--
+                            playSound(leafSoundId, 0.2f)
+                            hapticManager.tick()
+                            return
+                        }
+                        FolderDrawerStyle.Hit.NEXT_PAGE -> {
+                            expandedPile.scrollIndex++
+                            playSound(leafSoundId, 0.2f)
+                            hapticManager.tick()
+                            return
+                        }
+                        FolderDrawerStyle.Hit.PAGE_DOT -> {
+                            if (drawerHit.pageIndex >= 0) {
+                                expandedPile.scrollIndex = drawerHit.pageIndex
+                                playSound(leafSoundId, 0.2f)
+                                hapticManager.tick()
+                            }
+                            return
+                        }
+                        FolderDrawerStyle.Hit.NONE -> Unit
                     }
                 }
             }
@@ -839,7 +876,15 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                     playSound(expandSoundId, 0.3f)
                     hapticManager.selection()
                     val p = item.transform.position.copy()
-                    val dp = Pile(apps.map { BumpItem(appInfo = it, position = p.copy(), scale = physicsEngine.defaultScale) }.toMutableList(), p, name = "All Apps", isSystem = true)
+                    val dp = Pile(
+                        apps.map { BumpItem(appInfo = it, position = p.copy(), scale = physicsEngine.defaultScale) }.toMutableList(),
+                        p,
+                        name = "All Apps",
+                        layoutMode = Pile.LayoutMode.GRID,
+                        isSystem = true,
+                    )
+                    dp.nameTextureId = -1
+                    dp.scrollIndex = 0
                     sceneState.piles.forEach { it.isExpanded = false }; dp.isExpanded = true; sceneState.piles.add(dp); camera.focusOnFolder(p.toFloatArray(), dp.scale); (context as? LauncherActivity)?.showResetButton(true)
                 }
                 return

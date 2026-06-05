@@ -121,7 +121,7 @@ class ItemRenderer(
                 }
             }
             BumpItem.Type.APP_DRAWER -> {
-                val labelBitmap = TextRenderer.createTextBitmap("All Apps", 256, 64)
+                val labelBitmap = TextRenderer.createMaterialTitleBitmap("All Apps", width = 320, height = 72)
                 val iconBitmap = TextureUtils.createAppDrawerIcon(context)
                 val combined = TextureUtils.getCombinedBitmap(context, iconBitmap, labelBitmap, false)
                 appearance.textureId = textureManager.loadTextureFromBitmap(combined)
