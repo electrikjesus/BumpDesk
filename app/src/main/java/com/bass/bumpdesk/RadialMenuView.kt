@@ -2,6 +2,8 @@ package com.bass.bumpdesk
 
 import android.content.Context
 import android.graphics.*
+import android.text.TextPaint
+import android.text.TextUtils
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
@@ -14,31 +16,17 @@ class RadialMenuView @JvmOverloads constructor(
 
     private var items = listOf<RadialMenuItem>()
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.WHITE
+    private val chipPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+    private val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.rgb(245, 246, 250)
         textAlign = Paint.Align.CENTER
         typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
     }
 
     private var centerX = 0f
     private var centerY = 0f
-    
-    private var innerRadius = 55f
-    private var outerRadius = 145f
-    private var secondaryOuterRadius = 235f
+    private var layout = RadialLayout()
 
-    private fun scaledRadii(itemCount: Int): Triple<Float, Float, Float> {
-        val baseInner = ScreenMetrics.radialInnerRadiusPx(context)
-        val baseOuter = ScreenMetrics.radialOuterRadiusPx(context)
-        val (inner, outer) = if (itemCount > 4) {
-            val scaleFactor = 1f + (itemCount - 4) * 0.15f
-            baseInner * scaleFactor to baseOuter * scaleFactor
-        } else {
-            baseInner to baseOuter
-        }
-        return Triple(inner, outer, outer + ScreenMetrics.radialSecondaryOffsetPx(context))
-    }
-    
     private var selectedIndex = -1
     private var selectedSubIndex = -1
 
@@ -47,25 +35,29 @@ class RadialMenuView @JvmOverloads constructor(
 
     private val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.BLACK
-        alpha = 60
-        maskFilter = BlurMaskFilter(8f, BlurMaskFilter.Blur.OUTER)
+        alpha = 70
+        maskFilter = BlurMaskFilter(10f, BlurMaskFilter.Blur.OUTER)
     }
 
     private var isFirstUpAfterShow = false
 
+    private data class RadialLayout(
+        val innerRadius: Float = 56f,
+        val outerRadius: Float = 152f,
+        val secondaryOuterRadius: Float = 244f,
+        val totalArc: Float = 160f,
+        val startAngle: Float = 190f,
+        val sweepAngle: Float = 32f,
+    )
+
     fun setItems(items: List<RadialMenuItem>, x: Float, y: Float, onSelected: (RadialMenuItem) -> Unit, onDismiss: () -> Unit) {
         this.items = items
-
-        val count = items.size
-        val (inner, outer, secondary) = scaledRadii(count)
-        innerRadius = inner
-        outerRadius = outer
-        secondaryOuterRadius = secondary
+        layout = computeLayout(items.size)
         textPaint.textSize = ScreenMetrics.dpToPx(context, 14f)
-        
-        this.centerX = x.coerceIn(secondaryOuterRadius, resources.displayMetrics.widthPixels - secondaryOuterRadius)
-        this.centerY = y.coerceIn(secondaryOuterRadius, resources.displayMetrics.heightPixels - secondaryOuterRadius)
-        
+
+        this.centerX = x.coerceIn(layout.secondaryOuterRadius, resources.displayMetrics.widthPixels - layout.secondaryOuterRadius)
+        this.centerY = y.coerceIn(layout.secondaryOuterRadius, resources.displayMetrics.heightPixels - layout.secondaryOuterRadius)
+
         this.onItemSelected = onSelected
         this.onDismiss = onDismiss
         this.selectedIndex = -1
@@ -75,113 +67,167 @@ class RadialMenuView @JvmOverloads constructor(
         invalidate()
     }
 
+    private fun computeLayout(itemCount: Int): RadialLayout {
+        val count = itemCount.coerceAtLeast(1)
+        val baseInner = ScreenMetrics.radialInnerRadiusPx(context)
+        val baseOuter = ScreenMetrics.radialOuterRadiusPx(context)
+        val scaleFactor = if (count > 4) 1f + (count - 4) * 0.12f else 1f
+        val inner = baseInner * scaleFactor
+        val outer = baseOuter * scaleFactor
+        val secondary = outer + ScreenMetrics.radialSecondaryOffsetPx(context)
+        val totalArc = RadialMenuStyle.totalArcForItemCount(count)
+        val startAngle = 270f - totalArc / 2f
+        val sweepAngle = totalArc / count
+        return RadialLayout(inner, outer, secondary, totalArc, startAngle, sweepAngle)
+    }
+
     override fun onDraw(canvas: Canvas) {
         if (items.isEmpty()) return
 
-        val count = items.size
-        val totalArc = 160f
-        val startAngle = 270f - (totalArc / 2f)
-        val sweepAngle = totalArc / count
+        val rect = RectF(centerX - layout.outerRadius, centerY - layout.outerRadius, centerX + layout.outerRadius, centerY + layout.outerRadius)
+        val innerRect = RectF(centerX - layout.innerRadius, centerY - layout.innerRadius, centerX + layout.innerRadius, centerY + layout.innerRadius)
 
-        val rect = RectF(centerX - outerRadius, centerY - outerRadius, centerX + outerRadius, centerY + outerRadius)
-        val innerRect = RectF(centerX - innerRadius, centerY - innerRadius, centerX + innerRadius, centerY + innerRadius)
-
-        paint.color = Color.argb(25, 0, 0, 0)
-        canvas.drawCircle(centerX, centerY, outerRadius + 10f, paint)
+        paint.color = Color.argb(40, 0, 0, 0)
+        canvas.drawCircle(centerX, centerY, layout.outerRadius + 14f, paint)
 
         for (i in items.indices) {
-            val angle = startAngle + i * sweepAngle
-            drawItem(canvas, items[i], angle, sweepAngle, rect, innerRect, i == selectedIndex, false)
-            
-            // Draw sub-items if this item is selected and has sub-items
+            val angle = layout.startAngle + i * layout.sweepAngle
+            drawItem(canvas, items[i], angle, layout.sweepAngle, rect, innerRect, i == selectedIndex, false)
+
             if (i == selectedIndex && items[i].subItems != null) {
-                val subItems = items[i].subItems!!
-                val subSweepAngle = sweepAngle / subItems.size
-                val subRect = RectF(centerX - secondaryOuterRadius, centerY - secondaryOuterRadius, centerX + secondaryOuterRadius, centerY + secondaryOuterRadius)
-                val subInnerRect = RectF(centerX - (outerRadius + 5f), centerY - (outerRadius + 5f), centerX + (outerRadius + 5f), centerY + (outerRadius + 5f))
-                
-                for (j in subItems.indices) {
-                    val subAngle = angle + j * subSweepAngle
-                    drawItem(canvas, subItems[j], subAngle, subSweepAngle, subRect, subInnerRect, j == selectedSubIndex, true)
-                }
+                drawSubItems(canvas, items[i].subItems!!, angle)
             }
         }
     }
 
-    private fun drawItem(canvas: Canvas, item: RadialMenuItem, angle: Float, sweepAngle: Float, rect: RectF, innerRect: RectF, isSelected: Boolean, isSecondary: Boolean) {
+    private fun drawSubItems(canvas: Canvas, subItems: List<RadialMenuItem>, parentAngle: Float) {
+        val subSweep = (layout.sweepAngle / subItems.size).coerceAtLeast(RadialMenuStyle.MIN_SUB_SWEEP_DEG)
+        val subArc = subSweep * subItems.size
+        val subStart = parentAngle + (layout.sweepAngle - subArc) / 2f
+        val subRect = RectF(
+            centerX - layout.secondaryOuterRadius,
+            centerY - layout.secondaryOuterRadius,
+            centerX + layout.secondaryOuterRadius,
+            centerY + layout.secondaryOuterRadius,
+        )
+        val subInnerRect = RectF(
+            centerX - (layout.outerRadius + 8f),
+            centerY - (layout.outerRadius + 8f),
+            centerX + (layout.outerRadius + 8f),
+            centerY + (layout.outerRadius + 8f),
+        )
+        for (j in subItems.indices) {
+            val subAngle = subStart + j * subSweep
+            drawItem(canvas, subItems[j], subAngle, subSweep, subRect, subInnerRect, j == selectedSubIndex, true)
+        }
+    }
+
+    private fun drawItem(
+        canvas: Canvas,
+        item: RadialMenuItem,
+        angle: Float,
+        sweepAngle: Float,
+        rect: RectF,
+        innerRect: RectF,
+        isSelected: Boolean,
+        isSecondary: Boolean,
+    ) {
         paint.style = Paint.Style.FILL
         if (isSelected) {
-            // Task: Use theme selection color for radial menu highlights
             val selectionColor = ThemeManager.getSelectionColor()
-            val colorInt = Color.argb((selectionColor[3] * 255).toInt(), (selectionColor[0] * 255).toInt(), (selectionColor[1] * 255).toInt(), (selectionColor[2] * 255).toInt())
-            
-            // Use a gradient based on theme color
-            paint.shader = LinearGradient(centerX, centerY - rect.width()/2, centerX, centerY - innerRect.width()/2,
-                intArrayOf(colorInt, adjustAlpha(colorInt, 0.8f)),
-                null, Shader.TileMode.CLAMP)
+            val colorInt = Color.argb(
+                (selectionColor[3] * 255).toInt(),
+                (selectionColor[0] * 255).toInt(),
+                (selectionColor[1] * 255).toInt(),
+                (selectionColor[2] * 255).toInt(),
+            )
+            paint.shader = LinearGradient(
+                centerX,
+                centerY - rect.width() / 2,
+                centerX,
+                centerY - innerRect.width() / 2,
+                intArrayOf(colorInt, adjustAlpha(colorInt, 0.82f)),
+                null,
+                Shader.TileMode.CLAMP,
+            )
         } else {
             paint.shader = null
-            paint.color = if (isSecondary) Color.argb(235, 40, 40, 40) else Color.argb(235, 20, 20, 20)
+            paint.color = if (isSecondary) RadialMenuStyle.secondaryFill else RadialMenuStyle.surfaceFill
         }
-        
+
         val path = Path()
         path.arcTo(rect, angle, sweepAngle)
         path.arcTo(innerRect, angle + sweepAngle, -sweepAngle)
         path.close()
-        
+
         if (isSelected) canvas.drawPath(path, shadowPaint)
         canvas.drawPath(path, paint)
 
         paint.shader = null
         paint.style = Paint.Style.STROKE
-        paint.strokeWidth = 1.5f
-        paint.color = if (isSelected) Color.WHITE else Color.argb(70, 200, 200, 200)
+        paint.strokeWidth = ScreenMetrics.dpToPx(context, 1.25f)
+        paint.color = if (isSelected) Color.argb(220, 245, 246, 250) else RadialMenuStyle.strokeColor
         canvas.drawPath(path, paint)
 
         val midAngle = angle + sweepAngle / 2f
         val rad = Math.toRadians(midAngle.toDouble())
-        val contentRadius = (innerRect.width()/2 + rect.width()/2) / 2f
-        val tx = centerX + cos(rad).toFloat() * contentRadius
-        val ty = centerY + sin(rad).toFloat() * contentRadius
-        
-        val fontMetrics = textPaint.fontMetrics
-        val textOffset = if (item.iconRes != null) 12f else 0f
-        val baseline = ty - (fontMetrics.ascent + fontMetrics.descent) / 2f + textOffset
-        
-        canvas.drawText(item.label, tx, baseline, textPaint)
+        val ringSpan = rect.width() / 2f - innerRect.width() / 2f
+        val iconRadius = innerRect.width() / 2f + ringSpan * 0.38f
+        val labelRadius = innerRect.width() / 2f + ringSpan * 0.78f
+
+        val iconX = centerX + cos(rad).toFloat() * iconRadius
+        val iconY = centerY + sin(rad).toFloat() * iconRadius
+        val labelX = centerX + cos(rad).toFloat() * labelRadius
+        val labelY = centerY + sin(rad).toFloat() * labelRadius
 
         item.iconRes?.let { iconRes ->
-            val icon = ContextCompat.getDrawable(context, iconRes)
-            icon?.let {
-                val iconSize = 28
-                val left = (tx - iconSize / 2).toInt()
-                val top = (ty - iconSize - 4).toInt()
-                it.setBounds(left, top, left + iconSize, top + iconSize)
-                it.setTint(Color.WHITE)
-                it.draw(canvas)
+            ContextCompat.getDrawable(context, iconRes)?.let { icon ->
+                val iconSize = ScreenMetrics.dpToPx(context, if (isSecondary) 32f else 36f).toInt()
+                val left = (iconX - iconSize / 2).toInt()
+                val top = (iconY - iconSize / 2).toInt()
+                icon.setBounds(left, top, left + iconSize, top + iconSize)
+                icon.setTint(Color.WHITE)
+                icon.draw(canvas)
             }
         }
+
+        val maxLabelWidth = ringSpan * 0.95f
+        textPaint.textSize = ScreenMetrics.dpToPx(context, if (isSecondary) 13f else 14f)
+        drawLabelChip(canvas, item.label, labelX, labelY, maxLabelWidth)
     }
 
-    private fun adjustAlpha(color: Int, factor: Float): Int {
-        val alpha = (Color.alpha(color) * factor).toInt()
-        val red = Color.red(color)
-        val green = Color.green(color)
-        val blue = Color.blue(color)
-        return Color.argb(alpha, red, green, blue)
+    private fun drawLabelChip(canvas: Canvas, label: String, cx: Float, cy: Float, maxWidth: Float) {
+        val display = TextUtils.ellipsize(label, textPaint, maxWidth, TextUtils.TruncateAt.END).toString()
+        val textWidth = textPaint.measureText(display)
+        val padH = ScreenMetrics.dpToPx(context, 10f)
+        val padV = ScreenMetrics.dpToPx(context, 5f)
+        val fm = textPaint.fontMetrics
+        val chipW = (textWidth + padH * 2).coerceAtMost(maxWidth + padH * 2)
+        val chipH = (fm.descent - fm.ascent) + padV * 2
+        val rect = RectF(cx - chipW / 2f, cy - chipH / 2f, cx + chipW / 2f, cy + chipH / 2f)
+        chipPaint.color = RadialMenuStyle.labelChipFill
+        canvas.drawRoundRect(rect, chipH / 2f, chipH / 2f, chipPaint)
+        canvas.drawText(display, cx, cy - (fm.ascent + fm.descent) / 2f, textPaint)
     }
+
+    private fun adjustAlpha(color: Int, factor: Float): Int =
+        Color.argb(
+            (Color.alpha(color) * factor).toInt(),
+            Color.red(color),
+            Color.green(color),
+            Color.blue(color),
+        )
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         val x = event.x
         val y = event.y
-
         val dx = x - centerX
         val dy = y - centerY
         val dist = sqrt(dx * dx + dy * dy)
 
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
-                if (dist > secondaryOuterRadius * 1.2f || (dist < innerRadius && !isFirstUpAfterShow)) {
+                if (dist > layout.secondaryOuterRadius * 1.2f || (dist < layout.innerRadius && !isFirstUpAfterShow)) {
                     dismiss()
                     return true
                 }
@@ -194,8 +240,7 @@ class RadialMenuView @JvmOverloads constructor(
             }
             MotionEvent.ACTION_UP -> {
                 if (selectedSubIndex != -1 && selectedIndex != -1) {
-                    val subItem = items[selectedIndex].subItems!![selectedSubIndex]
-                    subItem.action?.invoke()
+                    items[selectedIndex].subItems!![selectedSubIndex].action?.invoke()
                     dismiss()
                 } else if (selectedIndex != -1) {
                     val item = items[selectedIndex]
@@ -203,8 +248,8 @@ class RadialMenuView @JvmOverloads constructor(
                         item.action?.invoke()
                         dismiss()
                     }
-                } else {
-                    if (!isFirstUpAfterShow) dismiss()
+                } else if (!isFirstUpAfterShow) {
+                    dismiss()
                 }
                 isFirstUpAfterShow = false
                 return true
@@ -222,7 +267,7 @@ class RadialMenuView @JvmOverloads constructor(
         val dy = y - centerY
         val dist = sqrt(dx * dx + dy * dy)
 
-        if (dist < innerRadius || dist > secondaryOuterRadius) {
+        if (dist < layout.innerRadius || dist > layout.secondaryOuterRadius) {
             selectedIndex = -1
             selectedSubIndex = -1
             invalidate()
@@ -232,63 +277,50 @@ class RadialMenuView @JvmOverloads constructor(
         var angle = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble()).toDouble()).toFloat()
         if (angle < 0) angle += 360f
 
-        val totalArc = 160f
-        val startAngle = 270f - (totalArc / 2f)
-        var normalizedAngle = angle - startAngle
+        var normalizedAngle = angle - layout.startAngle
         while (normalizedAngle < 0) normalizedAngle += 360f
 
-        if (dist <= outerRadius) {
-            if (normalizedAngle < totalArc) {
-                val sweepAngle = totalArc / items.size
-                selectedIndex = (normalizedAngle / sweepAngle).toInt().coerceIn(0, items.size - 1)
-                selectedSubIndex = -1
+        if (dist <= layout.outerRadius) {
+            selectedIndex = if (normalizedAngle < layout.totalArc) {
+                (normalizedAngle / layout.sweepAngle).toInt().coerceIn(0, items.size - 1)
             } else {
-                selectedIndex = -1
+                -1
+            }
+            selectedSubIndex = -1
+            invalidate()
+            return
+        }
+
+        if (normalizedAngle >= layout.totalArc) {
+            selectedIndex = -1
+            selectedSubIndex = -1
+            invalidate()
+            return
+        }
+
+        val parentIndex = (normalizedAngle / layout.sweepAngle).toInt().coerceIn(0, items.size - 1)
+        val subItems = items[parentIndex].subItems
+        selectedIndex = parentIndex
+
+        if (subItems == null) {
+            selectedSubIndex = -1
+            invalidate()
+            return
+        }
+
+        val subSweep = (layout.sweepAngle / subItems.size).coerceAtLeast(RadialMenuStyle.MIN_SUB_SWEEP_DEG)
+        val subArc = subSweep * subItems.size
+        val parentStart = parentIndex * layout.sweepAngle
+        val relInParent = normalizedAngle - parentStart
+        selectedSubIndex = if (relInParent in 0f..layout.sweepAngle) {
+            val subRel = relInParent - (layout.sweepAngle - subArc) / 2f
+            if (subRel in 0f..subArc) {
+                (subRel / subSweep).toInt().coerceIn(0, subItems.size - 1)
+            } else {
+                -1
             }
         } else {
-            if (selectedIndex != -1 && items[selectedIndex].subItems != null) {
-                val subItems = items[selectedIndex].subItems!!
-                val sweepAngle = totalArc / items.size
-                val itemStartAngle = selectedIndex * sweepAngle
-                val itemEndAngle = (selectedIndex + 1) * sweepAngle
-                
-                if (normalizedAngle in itemStartAngle..itemEndAngle) {
-                    val subSweepAngle = sweepAngle / subItems.size
-                    val relAngle = normalizedAngle - itemStartAngle
-                    selectedSubIndex = (relAngle / subSweepAngle).toInt().coerceIn(0, subItems.size - 1)
-                } else {
-                    if (normalizedAngle < totalArc) {
-                        selectedIndex = (normalizedAngle / sweepAngle).toInt().coerceIn(0, items.size - 1)
-                        val newSubItems = items[selectedIndex].subItems
-                        if (newSubItems != null) {
-                            val newSubSweep = sweepAngle / newSubItems.size
-                            val newRelAngle = normalizedAngle - (selectedIndex * sweepAngle)
-                            selectedSubIndex = (newRelAngle / newSubSweep).toInt().coerceIn(0, newSubItems.size - 1)
-                        } else {
-                            selectedSubIndex = -1
-                        }
-                    } else {
-                        selectedIndex = -1
-                        selectedSubIndex = -1
-                    }
-                }
-            } else {
-                if (normalizedAngle < totalArc) {
-                    val sweepAngle = totalArc / items.size
-                    selectedIndex = (normalizedAngle / sweepAngle).toInt().coerceIn(0, items.size - 1)
-                    val subItems = items[selectedIndex].subItems
-                    if (subItems != null) {
-                        val subSweepAngle = sweepAngle / subItems.size
-                        val relAngle = normalizedAngle - (selectedIndex * sweepAngle)
-                        selectedSubIndex = (relAngle / subSweepAngle).toInt().coerceIn(0, subItems.size - 1)
-                    } else {
-                        selectedSubIndex = -1
-                    }
-                } else {
-                    selectedIndex = -1
-                    selectedSubIndex = -1
-                }
-            }
+            -1
         }
         invalidate()
     }

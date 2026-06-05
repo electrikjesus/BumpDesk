@@ -306,7 +306,7 @@ object TextureUtils {
     fun getCombinedBitmap(context: Context, icon: Bitmap, label: Bitmap, isShortcut: Boolean = false): Bitmap {
         val iconSize = icon.width.coerceAtLeast(icon.height)
         val combinedWidth = iconSize
-        val combinedHeight = (iconSize * 1.25f).toInt()
+        val combinedHeight = (iconSize * 1.38f).toInt()
         
         val combinedBitmap = Bitmap.createBitmap(combinedWidth, combinedHeight, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(combinedBitmap)

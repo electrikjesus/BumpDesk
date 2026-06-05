@@ -727,7 +727,14 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
 
     fun gridSelectedItems(items: List<BumpItem>, mode: GridLayout) {
         if (items.isEmpty()) return
-        val spacing = physicsEngine.gridSpacingBase; val startX = items.map { it.transform.position.x }.average().toFloat(); val startZ = items.map { it.transform.position.z }.average().toFloat()
+        val maxScale = items.maxOf { it.transform.scale }
+        val spacing = when (mode) {
+            GridLayout.ROW -> maxOf(physicsEngine.gridSpacingBase, maxScale * 2.55f)
+            GridLayout.COLUMN -> maxOf(physicsEngine.gridSpacingBase, maxScale * 3.25f)
+            GridLayout.GRID -> maxOf(physicsEngine.gridSpacingBase, maxScale * 2.55f)
+        }
+        val startX = items.map { it.transform.position.x }.average().toFloat()
+        val startZ = items.map { it.transform.position.z }.average().toFloat()
         when (mode) {
             GridLayout.GRID -> {
                 val side = Math.ceil(Math.sqrt(items.size.toDouble())).toInt(); val offset = (side * spacing) / 2f

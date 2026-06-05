@@ -134,9 +134,9 @@ object ScreenMetrics {
 
     fun touchSlopPx(context: Context): Float = dpToPx(context, 16f)
 
-    fun radialInnerRadiusPx(context: Context): Float = dpToPx(context, 48f)
+    fun radialInnerRadiusPx(context: Context): Float = dpToPx(context, 56f)
 
-    fun radialOuterRadiusPx(context: Context): Float = dpToPx(context, 120f)
+    fun radialOuterRadiusPx(context: Context): Float = dpToPx(context, 152f)
 
-    fun radialSecondaryOffsetPx(context: Context): Float = dpToPx(context, 72f)
+    fun radialSecondaryOffsetPx(context: Context): Float = dpToPx(context, 92f)
 }

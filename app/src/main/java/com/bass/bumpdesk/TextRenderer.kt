@@ -23,6 +23,20 @@ object TextRenderer {
         )
     }
 
+    /** App icon label — slightly larger type for readability at default icon scale. */
+    fun createAppLabelBitmap(text: String, width: Int = 280, height: Int = 88): Bitmap {
+        return createStyledTextBitmap(
+            text = text,
+            width = width,
+            height = height,
+            textSizeSp = 44f,
+            bold = true,
+            textColor = Color.WHITE,
+            align = Paint.Align.CENTER,
+            shadow = true,
+        )
+    }
+
     fun createMaterialTitleBitmap(text: String, width: Int = 768, height: Int = 128): Bitmap {
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)

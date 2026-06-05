@@ -47,7 +47,7 @@ class ItemRenderer(
         
         // Use a unique key for caching dynamically generated bitmaps
         val cacheKey = when (appearance.type) {
-            BumpItem.Type.APP -> "app:${appInfo?.packageName}"
+            BumpItem.Type.APP -> "app:v2:${appInfo?.packageName}"
             BumpItem.Type.APP_DRAWER -> "drawer:icon"
             else -> null
         }
@@ -67,7 +67,7 @@ class ItemRenderer(
                     val iconBitmap = overrideBitmap ?: (app.icon?.let { TextureUtils.getBitmapFromDrawable(it) })
                     
                     if (iconBitmap != null) {
-                        val labelBitmap = TextRenderer.createTextBitmap(app.label, 256, 64)
+                        val labelBitmap = TextRenderer.createAppLabelBitmap(app.label)
                         val combined = TextureUtils.getCombinedBitmap(context, iconBitmap, labelBitmap, false)
                         appearance.textureId = textureManager.loadTextureFromBitmap(combined)
                         
