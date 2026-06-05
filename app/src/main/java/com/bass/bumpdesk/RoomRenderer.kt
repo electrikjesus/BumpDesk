@@ -27,16 +27,43 @@ class RoomRenderer(private val shader: DefaultShader) {
         isAnimated: Boolean = false
     ) {
         // Floor - Fill the entire plane
-        Matrix.setIdentityM(modelMatrix, 0)
-        if (isInfiniteMode) {
-            Matrix.scaleM(modelMatrix, 0, 100f, 1f, 100f)
-        } else {
-            Matrix.scaleM(modelMatrix, 0, floorHalfWidth, 1f, floorHalfDepth)
+        SurfaceRenderDepth.withRoomPolygonOffset {
+            Matrix.setIdentityM(modelMatrix, 0)
+            if (isInfiniteMode) {
+                Matrix.scaleM(modelMatrix, 0, 100f, 1f, 100f)
+            } else {
+                Matrix.scaleM(modelMatrix, 0, floorHalfWidth, 1f, floorHalfDepth)
+            }
+            floor.updateUVs(1.0f, 1.0f)
+            floor.draw(vPMatrix, modelMatrix, floatArrayOf(0.4f, 0.4f, 0.4f, 1.0f), floorTexture, lightPos, 0.3f, true, time, isAnimated)
         }
-        floor.updateUVs(1.0f, 1.0f)
-        floor.draw(vPMatrix, modelMatrix, floatArrayOf(0.4f, 0.4f, 0.4f, 1.0f), floorTexture, lightPos, 0.3f, true, time, isAnimated)
         
         if (!isInfiniteMode) {
+            SurfaceRenderDepth.withRoomPolygonOffset {
+                drawWalls(
+                    vPMatrix,
+                    floorHalfWidth,
+                    floorHalfDepth,
+                    roomHeight,
+                    wallTextures,
+                    lightPos,
+                    time,
+                    isAnimated,
+                )
+            }
+        }
+    }
+
+    private fun drawWalls(
+        vPMatrix: FloatArray,
+        floorHalfWidth: Float,
+        floorHalfDepth: Float,
+        roomHeight: Float,
+        wallTextures: IntArray,
+        lightPos: FloatArray,
+        time: Float,
+        isAnimated: Boolean,
+    ) {
             GLES20.glEnable(GLES20.GL_CULL_FACE)
             GLES20.glCullFace(GLES20.GL_BACK)
 
@@ -84,7 +111,6 @@ class RoomRenderer(private val shader: DefaultShader) {
             wallTop.updateUVs(1.0f, 1.0f)
             wallTop.draw(vPMatrix, modelMatrix, floatArrayOf(0.3f, 0.3f, 0.3f, 1.0f), wallTextures[3], lightPos, 0.1f, true, time, isAnimated)
 
-            GLES20.glDisable(GLES20.GL_CULL_FACE)
-        }
+        GLES20.glDisable(GLES20.GL_CULL_FACE)
     }
 }

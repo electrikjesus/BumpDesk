@@ -81,6 +81,12 @@ class Box(private val shader: DefaultShader) {
     }
 
     fun draw(vPMatrix: FloatArray, modelMatrix: FloatArray, textureId: Int, color: FloatArray, isAnimated: Boolean = false) {
+        SurfaceRenderDepth.withContentPolygonOffset {
+            drawInner(vPMatrix, modelMatrix, textureId, color, isAnimated)
+        }
+    }
+
+    private fun drawInner(vPMatrix: FloatArray, modelMatrix: FloatArray, textureId: Int, color: FloatArray, isAnimated: Boolean) {
         shader.use()
         
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, vboId)
