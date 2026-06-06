@@ -17,11 +17,8 @@ class WidgetRenderer(
     private val widgetBox = Box(shader)
     private val handlePlane = Plane(shader)
     private val modelMatrix = FloatArray(16)
-    
-    private var captureBitmap: Bitmap? = null
-    private var captureCanvas: Canvas? = null
+
     private val configuredCaptureSizes = mutableMapOf<Int, Pair<Int, Int>>()
-    private val lastUploadSizes = mutableMapOf<Int, Pair<Int, Int>>()
     private var moveHandleTextureId = -1
     private var resizeHandleTextureId = -1
 
@@ -73,47 +70,39 @@ class WidgetRenderer(
 
     fun invalidateLayoutForWidget(appWidgetId: Int) {
         configuredCaptureSizes.remove(appWidgetId)
-        lastUploadSizes.remove(appWidgetId)
+    }
+
+    fun releaseWidgetTexture(appWidgetId: Int, widget: WidgetItem) {
+        configuredCaptureSizes.remove(appWidgetId)
+        val textureId = widget.textureId
+        widget.textureId = -1
+        if (textureId > 0) {
+            textureManager.deleteTexture(textureId)
+        }
     }
 
     private fun uploadWidgetTexture(
         widget: WidgetItem,
-        upload: Bitmap,
-        cropped: Bitmap,
+        snapshot: Bitmap,
         onUpdateTexture: (Runnable) -> Unit,
     ) {
-        val uploadSize = upload.width to upload.height
-        val glBitmap = upload.copy(Bitmap.Config.ARGB_8888, false)
-
-        if (upload !== captureBitmap && upload !== cropped) {
-            upload.recycle()
-        }
-        if (cropped !== captureBitmap) {
-            cropped.recycle()
-        }
-
         onUpdateTexture(Runnable {
             try {
-                if (glBitmap.isRecycled) return@Runnable
+                if (snapshot.isRecycled) return@Runnable
                 val existingId = widget.textureId
-                val canUpdate = existingId > 0 && lastUploadSizes[widget.appWidgetId] == uploadSize
-                if (canUpdate) {
-                    textureManager.updateTextureFromBitmap(existingId, glBitmap)
-                } else {
-                    if (existingId > 0) {
-                        textureManager.deleteTexture(existingId)
-                    }
-                    widget.textureId = textureManager.loadTextureFromBitmap(glBitmap)
-                    lastUploadSizes[widget.appWidgetId] = uploadSize
-                    BumpDeskLog.d(
-                        BumpDeskLog.Tag.WIDGET,
-                        "createTexture",
-                        "id=${widget.appWidgetId} tex=${widget.textureId} crop=${glBitmap.width}x${glBitmap.height} quad=${widget.size.x}x${widget.size.z}",
-                    )
+                if (existingId > 0) {
+                    textureManager.deleteTexture(existingId)
                 }
+                widget.textureId = textureManager.loadTextureFromBitmap(snapshot)
+                BumpDeskLog.d(
+                    BumpDeskLog.Tag.WIDGET,
+                    "createTexture",
+                    "id=${widget.appWidgetId} tex=${widget.textureId} " +
+                        "crop=${snapshot.width}x${snapshot.height} quad=${widget.size.x}x${widget.size.z}",
+                )
             } finally {
-                if (!glBitmap.isRecycled) {
-                    glBitmap.recycle()
+                if (!snapshot.isRecycled) {
+                    snapshot.recycle()
                 }
                 WidgetCaptureCoordinator.markCaptureFinished(widget.appWidgetId)
             }
@@ -175,27 +164,33 @@ class WidgetRenderer(
             val w = view.width.coerceAtLeast(1)
             val h = view.height.coerceAtLeast(1)
 
-            if (captureBitmap == null || captureBitmap!!.width != w || captureBitmap!!.height != h) {
-                captureBitmap?.recycle()
-                captureBitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-                captureCanvas = Canvas(captureBitmap!!)
-            }
-
-            captureCanvas?.let { canvas ->
+            val scratch = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(scratch)
+            try {
                 canvas.drawColor(0)
                 view.draw(canvas)
 
-                val uploadSource = if (info != null && WidgetUtils.supportsFreeformResize(info)) {
-                    captureBitmap!!
+                val cropped = if (info != null && WidgetUtils.supportsFreeformResize(info)) {
+                    TextureUtils.prepareBitmapForGl(scratch)
                 } else {
-                    TextureUtils.centerCropToAspect(
-                        captureBitmap!!,
+                    val prepared = TextureUtils.prepareBitmapForGl(scratch)
+                    val aspectCrop = TextureUtils.centerCropToAspect(
+                        prepared,
                         widget.size.x,
                         widget.size.z,
                     )
+                    if (aspectCrop !== prepared && prepared !== scratch) {
+                        prepared.recycle()
+                    }
+                    aspectCrop
                 }
-                val upload = TextureUtils.prepareBitmapForGl(uploadSource)
-                uploadWidgetTexture(widget, upload, uploadSource, onUpdateTexture)
+                val snapshot = cropped.copy(Bitmap.Config.ARGB_8888, false)
+                if (cropped !== scratch) {
+                    cropped.recycle()
+                }
+                uploadWidgetTexture(widget, snapshot, onUpdateTexture)
+            } finally {
+                scratch.recycle()
             }
         } catch (e: Exception) {
             WidgetCaptureCoordinator.markCaptureFinished(widget.appWidgetId)

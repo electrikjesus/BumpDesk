@@ -60,6 +60,7 @@ object WidgetPlacement {
         widgets.forEach { widget ->
             if (constrain(widget, bounds)) changed = true
         }
+        if (separateOverlappingFloorWidgets(widgets, bounds)) changed = true
         return changed
     }
 
@@ -162,5 +163,40 @@ object WidgetPlacement {
     private fun clampHorizontal(value: Float, half: Float, bound: Float): Float {
         val limit = max(bound - half - EDGE_MARGIN, 0f)
         return if (limit <= 0f) 0f else value.coerceIn(-limit, limit)
+    }
+
+    private fun separateOverlappingFloorWidgets(widgets: List<WidgetItem>, bounds: RoomBounds): Boolean {
+        if (!bounds.isFlatFloorMode) return false
+        val floorWidgets = widgets.filter { it.surface == BumpItem.Surface.FLOOR }
+        var changed = false
+        for (i in floorWidgets.indices) {
+            for (j in i + 1 until floorWidgets.size) {
+                val first = floorWidgets[i]
+                val second = floorWidgets[j]
+                if (!floorWidgetsOverlap(first, second)) continue
+                val moved = if (first.appWidgetId <= second.appWidgetId) second else first
+                val anchor = if (moved === second) first else second
+                nudgeFloorWidgetApart(moved, anchor, bounds)
+                changed = true
+            }
+        }
+        return changed
+    }
+
+    private fun floorWidgetsOverlap(a: WidgetItem, b: WidgetItem): Boolean {
+        val aHalf = a.displayHalfSize()
+        val bHalf = b.displayHalfSize()
+        return kotlin.math.abs(a.position.x - b.position.x) < (aHalf.x + bHalf.x + 0.05f) &&
+            kotlin.math.abs(a.position.z - b.position.z) < (aHalf.z + bHalf.z + 0.05f)
+    }
+
+    private fun nudgeFloorWidgetApart(widget: WidgetItem, anchor: WidgetItem, bounds: RoomBounds) {
+        val gap = widget.displayHalfSize().x + anchor.displayHalfSize().x + 0.35f
+        widget.position = widget.position.copy(
+            x = anchor.position.x + gap,
+            z = anchor.position.z,
+            y = FLOOR_Y,
+        )
+        constrainFloorWidget(widget, bounds)
     }
 }

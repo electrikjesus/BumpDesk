@@ -79,4 +79,23 @@ class WidgetPlacementTest {
         assertFalse(WidgetPlacement.constrain(widget, bounds))
         assertEquals(100f, widget.position.x, 0.001f)
     }
+
+    @Test
+    fun constrainAllSeparatesOverlappingFloorWidgets() {
+        val calendar = WidgetItem(
+            appWidgetId = 10,
+            position = Vector3(0f, 0.1f, 0f),
+            size = Vector3(2f, 0f, 2f),
+            surface = BumpItem.Surface.FLOOR,
+        )
+        val clock = WidgetItem(
+            appWidgetId = 11,
+            position = Vector3(0.2f, 0.1f, 0.1f),
+            size = Vector3(2f, 0f, 2f),
+            surface = BumpItem.Surface.FLOOR,
+        )
+
+        assertTrue(WidgetPlacement.constrainAll(listOf(calendar, clock), flatBounds))
+        assertTrue(kotlin.math.abs(clock.position.x - calendar.position.x) > 3f)
+    }
 }

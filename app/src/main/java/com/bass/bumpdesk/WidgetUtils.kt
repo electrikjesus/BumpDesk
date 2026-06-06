@@ -234,6 +234,9 @@ object WidgetUtils {
 
         hostView.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
         hostView.setPadding(0, 0, 0, 0)
+        // Keep each host view in its own off-screen slot so stacked layouts cannot bleed captures.
+        hostView.translationX = widget.appWidgetId * 4096f
+        hostView.translationY = 0f
 
         if (WidgetCaptureCoordinator.shouldUpdateAppWidgetSize(widget.appWidgetId, widthDp, heightDp)) {
             val options = AppWidgetManager.getInstance(context).getAppWidgetOptions(widget.appWidgetId)
