@@ -25,6 +25,9 @@ class SceneState {
     var selectedItem: BumpItem? = null
     @Volatile
     var selectedWidget: WidgetItem? = null
+    /** Pinned desktop drawer (e.g. Recents) showing resize chrome while selected. */
+    @Volatile
+    var selectedPile: Pile? = null
     /** Items highlighted after lasso "Move"; cleared when drag finishes or selection is dismissed. */
     @Volatile
     var groupSelectedItems: List<BumpItem>? = null

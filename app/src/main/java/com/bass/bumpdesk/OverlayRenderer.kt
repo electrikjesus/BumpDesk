@@ -366,9 +366,20 @@ class OverlayRenderer(
         roomHalfX: Float,
         roomHalfZ: Float,
         roomSize: Float = roomHalfX,
+        showResizeHandle: Boolean = false,
     ) {
         if (pile.recentsOnWall() && FolderDrawerStyle.usesMaterialChrome(pile)) {
-            drawWallFolderUI(vPMatrix, pile, closeBtnTextureId, nameTextureId, lightPos, roomHalfX, roomHalfZ, roomSize)
+            drawWallFolderUI(
+                vPMatrix,
+                pile,
+                closeBtnTextureId,
+                nameTextureId,
+                lightPos,
+                roomHalfX,
+                roomHalfZ,
+                roomSize,
+                showResizeHandle,
+            )
             return
         }
 
@@ -429,7 +440,7 @@ class OverlayRenderer(
             false,
         )
 
-        if (FolderDrawerStyle.usesFloorPinnedRecents(pile)) {
+        if (showResizeHandle && FolderDrawerStyle.usesFloorPinnedRecents(pile)) {
             ensureResizeHandleTexture()
             val resize = FolderDrawerStyle.recentsFloorResizeHandleCenter(pile, data)
             val handleHalf = FolderDrawerStyle.recentsDrawerResizeHandleHalfSize(pile, data)
@@ -525,6 +536,7 @@ class OverlayRenderer(
         roomHalfX: Float,
         roomHalfZ: Float,
         roomSize: Float,
+        showResizeHandle: Boolean,
     ) {
         val data = FolderDrawerStyle.layoutForPile(pile, roomHalfX, roomHalfZ, roomSize)
         drawWallMaterialPanel(
@@ -575,7 +587,7 @@ class OverlayRenderer(
             FolderDrawerStyle.WALL_CHROME_DEPTH + 0.02f,
         )
 
-        if (pile.showsDesktopPinnedDrawer() && pile.recentsOnWall()) {
+        if (showResizeHandle && pile.showsDesktopPinnedDrawer() && pile.recentsOnWall()) {
             ensureResizeHandleTexture()
             val resize = FolderDrawerStyle.recentsWallResizeHandleCenter(pile, pile.surface, data)
             val handleHalf = FolderDrawerStyle.recentsDrawerResizeHandleHalfSize(pile, data)

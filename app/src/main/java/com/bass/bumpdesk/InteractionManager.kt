@@ -107,6 +107,7 @@ class InteractionManager(
         // Check for widget interaction first
         val widgetHit = findIntersectingWidget(rS, rE, sceneState.widgetItems)
         if (widgetHit != null) {
+            sceneState.selectedPile = null
             val widget = widgetHit.first
             val widgetUv = widgetSurfaceUv(widget, rS, rE)
             if (widgetUv != null && WidgetHandleStyle.isTouchOnHandle(widget, widgetUv.first, widgetUv.second, WidgetHandleStyle.Kind.MOVE)) {
@@ -140,6 +141,7 @@ class InteractionManager(
                     isResizingRecentsDrawer = true
                     isDragging = true
                     resizingRecentsPile = pile
+                    sceneState.selectedPile = pile
                     resizeStartGridCols = pile.drawerGridColumns
                     resizeStartGridRows = pile.drawerGridRows
                     resizeStartPrimary = resizeHit.first
@@ -152,6 +154,7 @@ class InteractionManager(
         if (pinnedRecents != null) {
             draggingPile = pinnedRecents
             draggingPileStartPos = pinnedRecents.position.copy()
+            sceneState.selectedPile = pinnedRecents
             sceneState.selectedItem = null
             sceneState.selectedWidget = widgetHit?.first
             return pinnedRecents
@@ -161,12 +164,14 @@ class InteractionManager(
         if (collapsedPile != null) {
             draggingPile = collapsedPile
             draggingPileStartPos = collapsedPile.position.copy()
+            sceneState.selectedPile = null
             sceneState.selectedItem = collapsedPile.items.firstOrNull()
             sceneState.selectedWidget = widgetHit?.first
             return collapsedPile
         }
 
         findStickyNoteResizeHandleHit(rS, rE, sceneState)?.let { note ->
+            sceneState.selectedPile = null
             sceneState.selectedItem = note
             isResizingStickyNote = true
             resizeStickyNote = note
@@ -186,6 +191,9 @@ class InteractionManager(
             sceneState.piles,
         )
         sceneState.selectedWidget = widgetHit?.first
+        if (sceneState.selectedItem != null) {
+            sceneState.selectedPile = null
+        }
 
         sceneState.selectedItem?.let { item ->
             if (item.appearance.type == BumpItem.Type.STICKY_NOTE &&
@@ -612,6 +620,7 @@ class InteractionManager(
         groupDragLastAnchorPos = null
         sceneState.selectedItem = null
         sceneState.selectedWidget = null
+        sceneState.selectedPile = null
         widgetDragGrabOffset = null
         isLassoPending = false
         lassoStartPoint = null

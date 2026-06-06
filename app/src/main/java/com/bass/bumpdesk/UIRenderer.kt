@@ -42,6 +42,7 @@ class UIRenderer(
                 roomHalfX = roomHalfX,
                 roomHalfZ = roomHalfZ,
                 roomSize = roomSize,
+                showResizeHandle = activePile == sceneState.selectedPile,
             )
             overlayRenderer.drawPaginationUI(
                 vPMatrix,
