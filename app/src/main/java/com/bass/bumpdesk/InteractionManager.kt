@@ -51,6 +51,12 @@ class InteractionManager(
     private var resizeStartPos: Vector3? = null
     private var widgetDragGrabOffset: Vector3? = null
 
+    // For sticky note shape resizing
+    private var isResizingStickyNote = false
+    private var resizeStickyNote: BumpItem? = null
+    private var resizeStickyNoteStartShape: Vector3? = null
+    private var resizeStickyNoteStartPos: Vector3? = null
+
     private var isResizingRecentsDrawer = false
     private var resizingRecentsPile: Pile? = null
     private var resizeStartGridCols = 2
@@ -80,6 +86,10 @@ class InteractionManager(
         isDragging = false
         isLeafing = false
         isResizingWidget = false
+        isResizingStickyNote = false
+        resizeStickyNote = null
+        resizeStickyNoteStartShape = null
+        resizeStickyNoteStartPos = null
         isResizingRecentsDrawer = false
         resizingRecentsPile = null
         isLassoPending = false
@@ -124,26 +134,18 @@ class InteractionManager(
 
         val pinnedRecents = findPinnedOpenRecentsDrawerHit(rS, rE, sceneState)
         sceneState.recentsPile?.let { pile ->
-            if (pile.showsDesktopPinnedDrawer() && pile.recentsOnWall()) {
-                wallDrawerHitPrimaryVertical(pile, rS, rE)?.let { (primary, vertical) ->
-                    if (FolderDrawerStyle.hitTestRecentsWallResizeHandle(
-                            pile,
-                            primary,
-                            vertical,
-                            floorHalfX,
-                            floorHalfZ,
-                            roomSize,
-                        )
-                    ) {
-                        isResizingRecentsDrawer = true
-                        resizingRecentsPile = pile
-                        resizeStartGridCols = pile.drawerGridColumns
-                        resizeStartGridRows = pile.drawerGridRows
-                        resizeStartPrimary = primary
-                        resizeStartVertical = vertical
-                        sceneState.selectedItem = null
-                        return pile
-                    }
+            if (pile.showsDesktopPinnedDrawer()) {
+                val resizeHit = recentsDrawerResizeHit(pile, rS, rE)
+                if (resizeHit != null) {
+                    isResizingRecentsDrawer = true
+                    isDragging = true
+                    resizingRecentsPile = pile
+                    resizeStartGridCols = pile.drawerGridColumns
+                    resizeStartGridRows = pile.drawerGridRows
+                    resizeStartPrimary = resizeHit.first
+                    resizeStartVertical = resizeHit.second
+                    sceneState.selectedItem = null
+                    return pile
                 }
             }
         }
@@ -164,6 +166,19 @@ class InteractionManager(
             return collapsedPile
         }
 
+        findStickyNoteResizeHandleHit(rS, rE, sceneState)?.let { note ->
+            sceneState.selectedItem = note
+            isResizingStickyNote = true
+            resizeStickyNote = note
+            resizeStickyNoteStartShape = Vector3(
+                note.transform.shapeHalfX,
+                0f,
+                note.transform.shapeHalfZ,
+            )
+            resizeStickyNoteStartPos = getStickyNotePoint(note, x, y)
+            return note
+        }
+
         sceneState.selectedItem = findIntersectingItem(
             rS,
             rE,
@@ -171,27 +186,42 @@ class InteractionManager(
             sceneState.piles,
         )
         sceneState.selectedWidget = widgetHit?.first
-        widgetHit?.first?.let { beginWidgetDrag(it, x, y) }
 
-        sceneState.selectedItem?.let {
-            dragStartPos = it.transform.position.copy()
-            dragStartSurface = it.transform.surface
+        sceneState.selectedItem?.let { item ->
+            if (item.appearance.type == BumpItem.Type.STICKY_NOTE &&
+                isTouchOnStickyNoteResizeHandle(item, rS, rE)
+            ) {
+                isResizingStickyNote = true
+                resizeStickyNote = item
+                resizeStickyNoteStartShape = Vector3(
+                    item.transform.shapeHalfX,
+                    0f,
+                    item.transform.shapeHalfZ,
+                )
+                resizeStickyNoteStartPos = getStickyNotePoint(item, x, y)
+                return item
+            }
+
+            dragStartPos = item.transform.position.copy()
+            dragStartSurface = item.transform.surface
 
             val group = sceneState.groupSelectedItems
-            if (group != null && group.contains(it)) {
-                groupDragLastAnchorPos = it.transform.position.copy()
+            if (group != null && group.contains(item)) {
+                groupDragLastAnchorPos = item.transform.position.copy()
             } else if (group != null) {
                 sceneState.groupSelectedItems = null
             }
             
-            val pile = sceneState.getPileOf(it)
+            val pile = sceneState.getPileOf(item)
             if (pile != null && !pile.isExpanded) {
                 leafStartY = y
             }
-            return it
+            widgetHit?.first?.let { beginWidgetDrag(it, x, y) }
+            return item
         }
+        widgetHit?.first?.let { beginWidgetDrag(it, x, y) }
 
-        if (sceneState.selectedItem == null && sceneState.selectedWidget == null && 
+        if (sceneState.selectedItem == null && sceneState.selectedWidget == null &&
             (camera.currentViewMode == CameraManager.ViewMode.DEFAULT || camera.currentViewMode == CameraManager.ViewMode.FLOOR)) {
             sceneState.groupSelectedItems = null
             groupDragLastAnchorPos = null
@@ -218,7 +248,7 @@ class InteractionManager(
         val dyTouch = abs(y - lastTouchY)
         
         if (dxTouch > touchThreshold || dyTouch > touchThreshold) {
-            if (!isDragging && !isLeafing && !isResizingWidget) {
+            if (!isDragging && !isLeafing && !isResizingWidget && !isResizingStickyNote) {
                 if (draggingPile != null) {
                     isDragging = true
                 } else {
@@ -234,6 +264,8 @@ class InteractionManager(
                     }
                 } else if (resizeWidget != null && isResizingWidget) {
                     // isResizingWidget is already set
+                } else if (resizeStickyNote != null && isResizingStickyNote) {
+                    // isResizingStickyNote is already set
                 } else if (sceneState.selectedWidget != null) {
                     isDragging = true
                 } else {
@@ -248,6 +280,21 @@ class InteractionManager(
         }
         
         val rS = FloatArray(4); val rE = FloatArray(4); calculateRay(x, y, rS, rE)
+
+        if (isResizingStickyNote && resizeStickyNote != null) {
+            val point = getStickyNotePoint(resizeStickyNote!!, x, y)
+            resizeStickyNoteStartPos?.let { start ->
+                val du = point.x - start.x
+                val dv = point.z - start.z
+                resizeStickyNoteStartShape?.let { shapeStart ->
+                    val note = resizeStickyNote!!
+                    val scale = note.transform.scale
+                    note.transform.shapeHalfX = StickyNoteStyle.clampShapeHalf(shapeStart.x + du / scale)
+                    note.transform.shapeHalfZ = StickyNoteStyle.clampShapeHalf(shapeStart.z + dv / scale)
+                }
+            }
+            return true
+        }
 
         if (isResizingWidget && resizeWidget != null) {
             val point = getWidgetPoint(resizeWidget!!, x, y)
@@ -295,34 +342,50 @@ class InteractionManager(
             }
         }
 
-        if (isResizingRecentsDrawer && resizingRecentsPile != null && isDragging) {
+        if (isResizingRecentsDrawer && resizingRecentsPile != null) {
             val pile = resizingRecentsPile!!
-            val hit = wallDrawerHitPrimaryVertical(pile, rS, rE)
-            if (hit != null) {
-                val (primary, vertical) = hit
-                val (cols, rows) = FolderDrawerStyle.computeRecentsWallGridResize(
-                    pile,
-                    primary - resizeStartPrimary,
-                    vertical - resizeStartVertical,
-                    resizeStartGridCols,
-                    resizeStartGridRows,
-                )
-                if (cols != pile.drawerGridColumns || rows != pile.drawerGridRows) {
-                    pile.drawerGridColumns = cols
-                    pile.drawerGridRows = rows
-                    pile.scrollIndex = pile.scrollIndex.coerceIn(
-                        0,
-                        (FolderDrawerStyle.totalPages(pile) - 1).coerceAtLeast(0),
+            val (cols, rows) = when (pile.surface) {
+                BumpItem.Surface.FLOOR -> {
+                    val layout = FolderDrawerStyle.layoutForPile(pile, floorHalfX, floorHalfZ, roomSize)
+                    val t = (layout.pos[1] - rS[1]) / (rE[1] - rS[1])
+                    if (t <= 0f) return true
+                    val hitX = rS[0] + t * (rE[0] - rS[0])
+                    val hitZ = rS[2] + t * (rE[2] - rS[2])
+                    FolderDrawerStyle.computeRecentsFloorGridResize(
+                        pile,
+                        hitX - resizeStartPrimary,
+                        hitZ - resizeStartVertical,
+                        resizeStartGridCols,
+                        resizeStartGridRows,
                     )
-                    pile.items.forEach { it.appearance.textureId = -1 }
-                    pile.previewTextureId = -1
-                    pile.previewSignature = ""
-                    context?.let { ctx ->
-                        RecentsPreferences.saveFromPile(
-                            pile,
-                            ctx.getSharedPreferences("bump_prefs", Context.MODE_PRIVATE),
-                        )
-                    }
+                }
+                else -> {
+                    val hit = wallDrawerHitPrimaryVertical(pile, rS, rE) ?: return true
+                    val (primary, vertical) = hit
+                    FolderDrawerStyle.computeRecentsWallGridResize(
+                        pile,
+                        primary - resizeStartPrimary,
+                        vertical - resizeStartVertical,
+                        resizeStartGridCols,
+                        resizeStartGridRows,
+                    )
+                }
+            }
+            if (cols != pile.drawerGridColumns || rows != pile.drawerGridRows) {
+                pile.drawerGridColumns = cols
+                pile.drawerGridRows = rows
+                pile.scrollIndex = pile.scrollIndex.coerceIn(
+                    0,
+                    (FolderDrawerStyle.totalPages(pile) - 1).coerceAtLeast(0),
+                )
+                pile.items.forEach { it.appearance.textureId = -1 }
+                pile.previewTextureId = -1
+                pile.previewSignature = ""
+                context?.let { ctx ->
+                    RecentsPreferences.saveFromPile(
+                        pile,
+                        ctx.getSharedPreferences("bump_prefs", Context.MODE_PRIVATE),
+                    )
                 }
             }
             lastTouchX = x
@@ -438,6 +501,15 @@ class InteractionManager(
             dispatchWidgetTouchEvent(MotionEvent.ACTION_UP, lastTouchX, lastTouchY)
             activeInteractingWidget = null
             activeWidgetView = null
+            return
+        }
+
+        if (isResizingStickyNote) {
+            isResizingStickyNote = false
+            resizeStickyNote = null
+            resizeStickyNoteStartShape = null
+            resizeStickyNoteStartPos = null
+            (context as? LauncherActivity)?.onStickyNoteShapeChanged()
             return
         }
 
@@ -637,6 +709,51 @@ class InteractionManager(
             }
         }?.takeIf { it > 0f }
 
+    private fun recentsDrawerResizeHit(
+        pile: Pile,
+        rS: FloatArray,
+        rE: FloatArray,
+    ): Pair<Float, Float>? {
+        return when (pile.surface) {
+            BumpItem.Surface.FLOOR -> {
+                val layout = FolderDrawerStyle.layoutForPile(pile, floorHalfX, floorHalfZ, roomSize)
+                val t = (layout.pos[1] - rS[1]) / (rE[1] - rS[1])
+                if (t <= 0f) return null
+                val hitX = rS[0] + t * (rE[0] - rS[0])
+                val hitZ = rS[2] + t * (rE[2] - rS[2])
+                if (!FolderDrawerStyle.hitTestRecentsFloorResizeHandle(
+                        pile,
+                        hitX,
+                        hitZ,
+                        floorHalfX,
+                        floorHalfZ,
+                    )
+                ) {
+                    null
+                } else {
+                    hitX to hitZ
+                }
+            }
+            else -> {
+                val hit = wallDrawerHitPrimaryVertical(pile, rS, rE) ?: return null
+                val (primary, vertical) = hit
+                if (!FolderDrawerStyle.hitTestRecentsWallResizeHandle(
+                        pile,
+                        primary,
+                        vertical,
+                        floorHalfX,
+                        floorHalfZ,
+                        roomSize,
+                    )
+                ) {
+                    null
+                } else {
+                    primary to vertical
+                }
+            }
+        }
+    }
+
     private fun wallDrawerHitPrimaryVertical(
         pile: Pile,
         rS: FloatArray,
@@ -741,6 +858,60 @@ class InteractionManager(
         return getWidgetUV(widget, rS, rE, t)
     }
 
+    private fun isTouchOnStickyNoteResizeHandle(item: BumpItem, rS: FloatArray, rE: FloatArray): Boolean {
+        val t = StickyNoteStyle.wallPlaneT(item, roomSize, rS, rE)
+        if (t < 0f) return false
+        val iX = rS[0] + t * (rE[0] - rS[0])
+        val iY = rS[1] + t * (rE[1] - rS[1])
+        val iZ = rS[2] + t * (rE[2] - rS[2])
+        return StickyNoteStyle.hitTestResizeHandleWorld(item, iX, iY, iZ)
+    }
+
+    private fun findStickyNoteResizeHandleHit(
+        rS: FloatArray,
+        rE: FloatArray,
+        sceneState: SceneState,
+    ): BumpItem? {
+        val items = AllAppsDrawer.visibleBumpItems(sceneState) +
+            sceneState.piles.flatMap { it.items }
+        var best: BumpItem? = null
+        var minT = Float.MAX_VALUE
+        items.forEach { item ->
+            if (item.appearance.type != BumpItem.Type.STICKY_NOTE) return@forEach
+            val t = StickyNoteStyle.intersectsRay(item, roomSize, rS, rE)
+            if (t <= 0f) return@forEach
+            val iX = rS[0] + t * (rE[0] - rS[0])
+            val iY = rS[1] + t * (rE[1] - rS[1])
+            val iZ = rS[2] + t * (rE[2] - rS[2])
+            if (!StickyNoteStyle.hitTestResizeHandleWorld(item, iX, iY, iZ)) return@forEach
+            if (t < minT) {
+                minT = t
+                best = item
+            }
+        }
+        return best
+    }
+
+    private fun stickyNoteSurfaceUv(item: BumpItem, rS: FloatArray, rE: FloatArray): Pair<Float, Float>? {
+        val t = StickyNoteStyle.wallPlaneT(item, roomSize, rS, rE)
+        if (t < 0) return null
+        val iX = rS[0] + t * (rE[0] - rS[0])
+        val iY = rS[1] + t * (rE[1] - rS[1])
+        val iZ = rS[2] + t * (rE[2] - rS[2])
+        return StickyNoteStyle.intersectionToTextureUv(item, iX, iY, iZ)
+    }
+
+    private fun getStickyNotePoint(item: BumpItem, x: Float, y: Float): Vector3 {
+        val rS = FloatArray(4)
+        val rE = FloatArray(4)
+        calculateRay(x, y, rS, rE)
+        val t = StickyNoteStyle.wallPlaneT(item, roomSize, rS, rE)
+        val iX = rS[0] + t * (rE[0] - rS[0])
+        val iY = rS[1] + t * (rE[1] - rS[1])
+        val iZ = rS[2] + t * (rE[2] - rS[2])
+        return Vector3(iX, iY, iZ)
+    }
+
     private fun isTouchOnResizeHandle(widget: WidgetItem, rS: FloatArray, rE: FloatArray): Boolean {
         val uv = widgetSurfaceUv(widget, rS, rE) ?: return false
         return WidgetHandleStyle.isTouchOnHandle(widget, uv.first, uv.second, WidgetHandleStyle.Kind.RESIZE)
@@ -807,6 +978,10 @@ class InteractionManager(
         findPinnedOpenRecentsDrawerHit(rS, rE, sceneState)
 
     private fun checkIntersection(item: BumpItem, rS: FloatArray, rE: FloatArray): Float {
+        if (item.appearance.type == BumpItem.Type.STICKY_NOTE) {
+            return StickyNoteStyle.intersectsRay(item, roomSize, rS, rE)
+        }
+
         val rDX = rE[0] - rS[0]; val rDY = rE[1] - rS[1]; val rDZ = rE[2] - rS[2]
         val rL = sqrt((rDX*rDX + rDY*rDY + rDZ*rDZ).toDouble()).toFloat()
         
