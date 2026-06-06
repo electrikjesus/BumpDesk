@@ -1407,18 +1407,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                             }
                             return
                         }
-                        FolderDrawerStyle.Hit.NONE -> {
-                            if (FolderDrawerStyle.containsPointInFloorDrawer(
-                                    overlayPile,
-                                    testX,
-                                    testZ,
-                                    floorHalfWidth,
-                                    floorHalfDepth,
-                                )
-                            ) {
-                                return
-                            }
-                        }
+                        FolderDrawerStyle.Hit.NONE -> Unit
                     }
                 } else if (overlayPile.showsRecentsMaterialDrawer()) {
                     val (hitPrimary, hitVertical) = when (overlayPile.surface) {
