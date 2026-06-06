@@ -21,6 +21,10 @@ BumpDesk is an experimental **3D Android launcher** inspired by BumpTop. Apps, w
 adb install -r app-release.apk
 ```
 
+### Automatic updates (Obtainium)
+
+Install [Obtainium](https://github.com/ImranR98/Obtainium), add GitHub repo **`electrikjesus/BumpDesk`**, filter releases to **`app-release.apk`**, and it will track new **`v*`** tags from this page. See [docs/distribution.md](https://github.com/electrikjesus/BumpDesk/blob/main/docs/distribution.md).
+
 ### Recommended setup (ADB)
 
 Enable usage stats (required for Recents):

@@ -442,7 +442,7 @@ object TextureUtils {
         val bitmap = Bitmap.createBitmap(iconSize, combinedHeight, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.argb(240, 45, 48, 58)
+            color = ThemeManager.colorFloatArrayToArgb(ThemeManager.getMaterialSurfaceColor(), 0.94f)
             style = Paint.Style.FILL
         }
         canvas.drawRoundRect(0f, 0f, iconSize.toFloat(), iconSize.toFloat(), iconSize * 0.22f, iconSize * 0.22f, bgPaint)

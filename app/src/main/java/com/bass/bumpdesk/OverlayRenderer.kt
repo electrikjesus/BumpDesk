@@ -9,7 +9,6 @@ class OverlayRenderer(
 ) {
     private val folderBgPlane = Plane(shader)
     private val modelMatrix = FloatArray(16)
-    private var panelTextureId = -1
 
     companion object {
         private const val PAGE_DOT_ACTIVE_KEY = "folder:pageDot:active:v2"
@@ -84,13 +83,15 @@ class OverlayRenderer(
 
     private data class PanelUvRect(val u0: Float, val v0: Float, val u1: Float, val v1: Float)
 
-    private fun ensurePanelTexture() {
-        if (panelTextureId != -1) return
-        val panelBitmap = TextRenderer.createRoundedPanelBitmap(
-            fillColor = Color.argb(240, 33, 35, 43),
-        )
-        panelTextureId = TextRenderer.loadTextTexture(panelBitmap)
+    private fun panelTextureId(): Int {
+        val fill = floatColorToArgb(FolderDrawerStyle.surfaceColor(), forceOpaque = true)
+        val key = "folder:panel:$fill"
+        textureManager.getCachedTexture(key).takeIf { it > 0 }?.let { return it }
+
+        val panelBitmap = TextRenderer.createRoundedPanelBitmap(fillColor = fill)
+        val textureId = textureManager.loadTextureFromBitmap(panelBitmap, key)
         panelBitmap.recycle()
+        return textureId
     }
 
     private fun drawFloorPanelRect(
@@ -108,10 +109,11 @@ class OverlayRenderer(
         if (uv != null) {
             folderBgPlane.updateUVRect(uv.u0, uv.v0, uv.u1, uv.v1)
         }
+        val drawColor = if (textureId > 0) floatArrayOf(1f, 1f, 1f, 1f) else color
         Matrix.setIdentityM(modelMatrix, 0)
         Matrix.translateM(modelMatrix, 0, centerX, centerY, centerZ)
         Matrix.scaleM(modelMatrix, 0, halfWidth, 1f, halfDepth)
-        folderBgPlane.draw(vPMatrix, modelMatrix, color, textureId, lightPos, 1.0f, false)
+        folderBgPlane.draw(vPMatrix, modelMatrix, drawColor, textureId, lightPos, 1.0f, false)
         if (uv != null) {
             folderBgPlane.resetUVs()
         }
@@ -140,10 +142,9 @@ class OverlayRenderer(
             uv: PanelUvRect?,
         ) -> Unit,
     ) {
-        ensurePanelTexture()
         val cornerRadius = FolderDrawerStyle.panelCornerRadius(halfX, halfZ, pile.scale)
         if (cornerRadius < 0.04f * pile.scale) {
-            drawRect(0f, 0f, halfX, halfZ, panelTextureId, null)
+            drawRect(0f, 0f, halfX, halfZ, panelTextureId(), null)
             return
         }
 
@@ -166,12 +167,13 @@ class OverlayRenderer(
             drawRect(halfX - cornerHalf, 0f, cornerHalf, centerHalfCross, -1, null)
         }
 
+        val panelTex = panelTextureId()
         drawRect(
             -halfX + cornerHalf,
             topCross,
             cornerHalf,
             cornerHalf,
-            panelTextureId,
+            panelTex,
             PanelUvRect(0f, 0f, uCorner, vCorner),
         )
         drawRect(
@@ -179,7 +181,7 @@ class OverlayRenderer(
             topCross,
             cornerHalf,
             cornerHalf,
-            panelTextureId,
+            panelTex,
             PanelUvRect(1f - uCorner, 0f, 1f, vCorner),
         )
         drawRect(
@@ -187,7 +189,7 @@ class OverlayRenderer(
             bottomCross,
             cornerHalf,
             cornerHalf,
-            panelTextureId,
+            panelTex,
             PanelUvRect(0f, 1f - vCorner, uCorner, 1f),
         )
         drawRect(
@@ -195,7 +197,7 @@ class OverlayRenderer(
             bottomCross,
             cornerHalf,
             cornerHalf,
-            panelTextureId,
+            panelTex,
             PanelUvRect(1f - uCorner, 1f - vCorner, 1f, 1f),
         )
     }
@@ -205,15 +207,15 @@ class OverlayRenderer(
         data: FolderDrawerStyle.Layout,
         lightPos: FloatArray,
     ) {
-        ensurePanelTexture()
+        val panelTex = panelTextureId()
         Matrix.setIdentityM(modelMatrix, 0)
         Matrix.translateM(modelMatrix, 0, data.pos[0], data.pos[1], data.pos[2])
         Matrix.scaleM(modelMatrix, 0, data.halfDimX, 1f, data.halfDimZ)
         folderBgPlane.draw(
             vPMatrix,
             modelMatrix,
-            FolderDrawerStyle.surfaceColor(),
-            panelTextureId,
+            floatArrayOf(1f, 1f, 1f, 1f),
+            panelTex,
             lightPos,
             1.0f,
             false,
@@ -259,7 +261,7 @@ class OverlayRenderer(
         nineSlice: Boolean,
     ) {
             if (!nineSlice) {
-            ensurePanelTexture()
+            val panelTex = panelTextureId()
             drawWallElement(
                 vPMatrix,
                 pile.surface,
@@ -268,8 +270,8 @@ class OverlayRenderer(
                 data.pos[2],
                 data.halfDimX,
                 data.halfDimZ,
-                color,
-                panelTextureId,
+                floatArrayOf(1f, 1f, 1f, 1f),
+                panelTex,
                 lightPos,
                 depth,
             )
@@ -324,6 +326,7 @@ class OverlayRenderer(
         if (uv != null) {
             folderBgPlane.updateUVRect(uv.u0, uv.v0, uv.u1, uv.v1)
         }
+        val drawColor = if (textureId > 0) floatArrayOf(1f, 1f, 1f, 1f) else color
         when (surface) {
             BumpItem.Surface.LEFT_WALL, BumpItem.Surface.RIGHT_WALL -> drawWallElement(
                 vPMatrix,
@@ -333,7 +336,7 @@ class OverlayRenderer(
                 primary,
                 halfWidth,
                 halfHeight,
-                color,
+                drawColor,
                 textureId,
                 lightPos,
                 depth,
@@ -346,7 +349,7 @@ class OverlayRenderer(
                 wallZ,
                 halfWidth,
                 halfHeight,
-                color,
+                drawColor,
                 textureId,
                 lightPos,
                 depth,

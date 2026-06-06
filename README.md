@@ -29,12 +29,14 @@ BumpDesk is in an **Advanced Beta** state.
 ### Quick Start (Releases)
 The easiest way to try BumpDesk is to download the latest APK from the **[Releases](https://github.com/electrikjesus/BumpDesk/releases)** page.
 
-1.  Download the `app-debug.apk` from the latest release.
+1.  Download the `app-debug.apk` or signed `app-release.apk` from the latest release.
 2.  Install it via ADB:
     ```bash
     adb install app-debug.apk
     ```
 3.  Launch the app and follow the **Onboarding Wizard**.
+
+**Obtainium:** For automatic updates from GitHub tags, add this repo in [Obtainium](https://github.com/ImranR98/Obtainium) and filter releases to `app-release.apk`. See [docs/distribution.md](docs/distribution.md) for F-Droid vs Obtainium details.
 
 ### Build from Source
 If you are a developer and want to contribute or customize:

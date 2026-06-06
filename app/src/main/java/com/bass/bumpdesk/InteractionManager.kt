@@ -368,7 +368,12 @@ class InteractionManager(
                     )
                 }
                 else -> {
-                    val hit = wallDrawerHitPrimaryVertical(pile, rS, rE) ?: return true
+                    val hit = wallDrawerHitPrimaryVertical(
+                        pile,
+                        rS,
+                        rE,
+                        FolderDrawerStyle.wallChromeRayT(pile.surface, roomSize, rS, rE),
+                    ) ?: return true
                     val (primary, vertical) = hit
                     FolderDrawerStyle.computeRecentsWallGridResize(
                         pile,
@@ -744,7 +749,12 @@ class InteractionManager(
                 }
             }
             else -> {
-                val hit = wallDrawerHitPrimaryVertical(pile, rS, rE) ?: return null
+                val hit = wallDrawerHitPrimaryVertical(
+                    pile,
+                    rS,
+                    rE,
+                    FolderDrawerStyle.wallChromeRayT(pile.surface, roomSize, rS, rE),
+                ) ?: return null
                 val (primary, vertical) = hit
                 if (!FolderDrawerStyle.hitTestRecentsWallResizeHandle(
                         pile,
@@ -767,8 +777,9 @@ class InteractionManager(
         pile: Pile,
         rS: FloatArray,
         rE: FloatArray,
+        rayT: Float?,
     ): Pair<Float, Float>? {
-        val t = FolderDrawerStyle.wallRayT(pile.surface, roomSize, rS, rE) ?: return null
+        val t = rayT ?: return null
         if (t <= 0f) return null
         val hitX = rS[0] + t * (rE[0] - rS[0])
         val hitY = rS[1] + t * (rE[1] - rS[1])

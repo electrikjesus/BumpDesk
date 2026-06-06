@@ -191,6 +191,12 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
                 pendingThemeReload = true
                 BumpDeskLog.exit(BumpDeskLog.Tag.CORE, "onSharedPreferenceChanged", "key=$key deferred")
             }
+            ThemeManager.PREF_EXPRESSIVE_M3_FOLDER_CHROME -> {
+                BumpDeskLog.enter(BumpDeskLog.Tag.CORE, "onSharedPreferenceChanged", "key=$key")
+                ThemeManager.invalidateSystemColors()
+                pendingThemeReload = true
+                BumpDeskLog.exit(BumpDeskLog.Tag.CORE, "onSharedPreferenceChanged", "key=$key deferred")
+            }
             "infinite_desktop_mode", FlatFloorMode.PREF_KEY -> {
                 BumpDeskLog.enter(BumpDeskLog.Tag.CORE, "onSharedPreferenceChanged", "key=$key")
                 pendingSettingsUpdate = true

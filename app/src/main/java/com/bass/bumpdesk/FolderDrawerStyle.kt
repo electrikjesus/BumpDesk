@@ -506,15 +506,30 @@ object FolderDrawerStyle {
             else -> layout(pile, roomHalfX, roomHalfZ)
         }
 
-    fun wallRayT(surface: BumpItem.Surface, roomSize: Float, rS: FloatArray, rE: FloatArray): Float? {
+    fun wallRayT(surface: BumpItem.Surface, roomSize: Float, rS: FloatArray, rE: FloatArray): Float? =
+        wallRayTAtDepth(surface, roomSize, rS, rE, depthOffset = 0f)
+
+    /** Intersect the view ray with a plane parallel to the drawer, offset toward the camera. */
+    fun wallRayTAtDepth(
+        surface: BumpItem.Surface,
+        roomSize: Float,
+        rS: FloatArray,
+        rE: FloatArray,
+        depthOffset: Float,
+    ): Float? {
+        val inset = WALL_DRAWER_INSET + depthOffset
         val t = when (surface) {
-            BumpItem.Surface.BACK_WALL -> (-roomSize + 0.6f - rS[2]) / (rE[2] - rS[2])
-            BumpItem.Surface.LEFT_WALL -> (-roomSize + 0.6f - rS[0]) / (rE[0] - rS[0])
-            BumpItem.Surface.RIGHT_WALL -> (roomSize - 0.6f - rS[0]) / (rE[0] - rS[0])
+            BumpItem.Surface.BACK_WALL -> (-roomSize + inset - rS[2]) / (rE[2] - rS[2])
+            BumpItem.Surface.LEFT_WALL -> (-roomSize + inset - rS[0]) / (rE[0] - rS[0])
+            BumpItem.Surface.RIGHT_WALL -> (roomSize - inset - rS[0]) / (rE[0] - rS[0])
             else -> null
         }
         return t?.takeIf { it > 0f }
     }
+
+    /** Match [WALL_CHROME_DEPTH] used when drawing wall drawer controls (incl. resize). */
+    fun wallChromeRayT(surface: BumpItem.Surface, roomSize: Float, rS: FloatArray, rE: FloatArray): Float? =
+        wallRayTAtDepth(surface, roomSize, rS, rE, WALL_CHROME_DEPTH + 0.04f)
 
     fun backWallLayout(pile: Pile, roomHalfX: Float, roomSize: Float): Layout {
         val halfX = panelHalfDimX(pile)

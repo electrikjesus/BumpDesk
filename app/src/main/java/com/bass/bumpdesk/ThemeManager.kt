@@ -10,6 +10,13 @@ import org.json.JSONObject
 object ThemeManager {
     private const val FALLBACK_THEME = "BumpDesk Animated"
     const val DEFAULT_THEME = "Material Expressive"
+    const val PREF_EXPRESSIVE_M3_FOLDER_CHROME = "expressive_m3_folder_chrome"
+
+    private val STANDARD_DARK_SURFACE = floatArrayOf(0.13f, 0.14f, 0.17f, 0.94f)
+    private val STANDARD_DARK_ON_SURFACE = floatArrayOf(0.96f, 0.97f, 0.99f, 1f)
+    private val STANDARD_DARK_PRIMARY = floatArrayOf(0.55f, 0.74f, 1f, 1f)
+    private val STANDARD_DARK_BUTTON_CONTAINER = floatArrayOf(0.24f, 0.26f, 0.33f, 0.98f)
+    private val STANDARD_DARK_INACTIVE_INDICATOR = floatArrayOf(0.45f, 0.47f, 0.52f, 0.75f)
 
     /** Maps json-only theme packs to the nearest complete asset bundle. */
     private val THEME_ASSET_SOURCES = mapOf(
@@ -34,6 +41,23 @@ object ThemeManager {
 
     fun usesSystemColors(): Boolean =
         themeConfig?.optString("colorSource", "") == "system"
+
+    fun usesM3FolderChrome(): Boolean {
+        if (!usesSystemColors()) return true
+        val ctx = appContext ?: return true
+        return ctx.getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
+            .getBoolean(PREF_EXPRESSIVE_M3_FOLDER_CHROME, true)
+    }
+
+    fun colorFloatArrayToArgb(color: FloatArray, alphaScale: Float = 1f): Int {
+        val a = (color[3] * alphaScale * 255f).toInt().coerceIn(0, 255)
+        return android.graphics.Color.argb(
+            a,
+            (color[0] * 255f).toInt().coerceIn(0, 255),
+            (color[1] * 255f).toInt().coerceIn(0, 255),
+            (color[2] * 255f).toInt().coerceIn(0, 255),
+        )
+    }
 
     fun init(context: Context, forceReload: Boolean = false) {
         if (isInitialized && !forceReload) return
@@ -441,47 +465,72 @@ object ThemeManager {
     }
 
     fun getMaterialSurfaceColor(): FloatArray {
-        appContext?.let { ctx ->
-            systemPalette(ctx)?.let {
-                return SystemMaterialColors.toFloatArray(it.surface, 245)
+        if (usesSystemColors()) {
+            if (usesM3FolderChrome()) {
+                appContext?.let { ctx ->
+                    systemPalette(ctx)?.let {
+                        return SystemMaterialColors.toFloatArray(it.surface, 245)
+                    }
+                }
             }
+            return STANDARD_DARK_SURFACE
         }
-        return colorFromTheme("material", "surface", floatArrayOf(0.13f, 0.14f, 0.17f, 0.94f))
+        return colorFromTheme("material", "surface", STANDARD_DARK_SURFACE)
     }
 
     fun getMaterialOnSurfaceColor(): FloatArray {
-        appContext?.let { ctx ->
-            systemPalette(ctx)?.let {
-                return SystemMaterialColors.toFloatArray(it.onSurface)
+        if (usesSystemColors()) {
+            if (usesM3FolderChrome()) {
+                appContext?.let { ctx ->
+                    systemPalette(ctx)?.let {
+                        return SystemMaterialColors.toFloatArray(it.onSurface)
+                    }
+                }
             }
+            return STANDARD_DARK_ON_SURFACE
         }
-        return colorFromTheme("material", "onSurface", floatArrayOf(0.96f, 0.97f, 0.99f, 1f))
+        return colorFromTheme("material", "onSurface", STANDARD_DARK_ON_SURFACE)
     }
 
     fun getMaterialPrimaryColor(): FloatArray {
-        appContext?.let { ctx ->
-            systemPalette(ctx)?.let {
-                return SystemMaterialColors.toFloatArray(it.primary)
+        if (usesSystemColors()) {
+            if (usesM3FolderChrome()) {
+                appContext?.let { ctx ->
+                    systemPalette(ctx)?.let {
+                        return SystemMaterialColors.toFloatArray(it.primary)
+                    }
+                }
             }
+            return STANDARD_DARK_PRIMARY
         }
-        return colorFromTheme("material", "primary", floatArrayOf(0.55f, 0.74f, 1f, 1f))
+        return colorFromTheme("material", "primary", STANDARD_DARK_PRIMARY)
     }
 
     fun getMaterialButtonContainerColor(): FloatArray {
-        appContext?.let { ctx ->
-            systemPalette(ctx)?.let {
-                return SystemMaterialColors.toFloatArray(it.primaryContainer, 252)
+        if (usesSystemColors()) {
+            if (usesM3FolderChrome()) {
+                appContext?.let { ctx ->
+                    systemPalette(ctx)?.let {
+                        return SystemMaterialColors.toFloatArray(it.primaryContainer, 252)
+                    }
+                }
             }
+            return STANDARD_DARK_BUTTON_CONTAINER
         }
-        return colorFromTheme("material", "buttonContainer", floatArrayOf(0.24f, 0.26f, 0.33f, 0.98f))
+        return colorFromTheme("material", "buttonContainer", STANDARD_DARK_BUTTON_CONTAINER)
     }
 
     fun getMaterialInactiveIndicatorColor(): FloatArray {
-        appContext?.let { ctx ->
-            systemPalette(ctx)?.let {
-                return SystemMaterialColors.toFloatArray(it.inactiveIndicator, 200)
+        if (usesSystemColors()) {
+            if (usesM3FolderChrome()) {
+                appContext?.let { ctx ->
+                    systemPalette(ctx)?.let {
+                        return SystemMaterialColors.toFloatArray(it.inactiveIndicator, 200)
+                    }
+                }
             }
+            return STANDARD_DARK_INACTIVE_INDICATOR
         }
-        return colorFromTheme("material", "inactiveIndicator", floatArrayOf(0.45f, 0.47f, 0.52f, 0.75f))
+        return colorFromTheme("material", "inactiveIndicator", STANDARD_DARK_INACTIVE_INDICATOR)
     }
 }

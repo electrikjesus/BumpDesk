@@ -1149,6 +1149,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 sceneState.piles.forEach { p ->
                     p.items.forEach { it.appearance.textureId = -1 }
                     p.nameTextureId = -1
+                    PileFolderIcons.invalidatePreview(p)
                 }
                 sceneState.widgetItems.forEach { it.textureId = -1 }
             }

@@ -122,6 +122,9 @@ object ScreenMetrics {
             if (!prefs.contains("use_wallpaper_as_floor")) {
                 putBoolean("use_wallpaper_as_floor", true)
             }
+            if (!prefs.contains(ThemeManager.PREF_EXPRESSIVE_M3_FOLDER_CHROME)) {
+                putBoolean(ThemeManager.PREF_EXPRESSIVE_M3_FOLDER_CHROME, true)
+            }
             if (!prefs.contains("room_size_scale")) {
                 putInt("room_size_scale", profile.recommendedRoomSize)
             }

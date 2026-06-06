@@ -38,6 +38,8 @@
 
     <string name="settings_theme_hint">Swap room textures, floor art, and icon styling.</string>
     <string name="settings_select_theme">Select visual theme</string>
+    <string name="settings_expressive_m3_folder_chrome">Material You folder backgrounds</string>
+    <string name="settings_expressive_m3_folder_chrome_hint">When Material Expressive is selected, folders, piles, and Recents panels can follow your wallpaper palette or use the classic dark chrome.</string>
     <string name="settings_friction">Friction</string>
     <string name="settings_bounciness">Bounciness</string>
     <string name="settings_gravity">Wall gravity</string>

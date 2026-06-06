@@ -165,6 +165,18 @@ class RecentsWallDrawerTest {
     }
 
     @Test
+    fun wallChromeRayTHitsPlaneCloserToCameraThanDrawerPanel() {
+        val roomSize = 30f
+        val rS = floatArrayOf(0f, 10f, 5f, 1f)
+        val rE = floatArrayOf(0f, 10f, -50f, 1f)
+        val panelT = FolderDrawerStyle.wallRayT(BumpItem.Surface.BACK_WALL, roomSize, rS, rE)
+        val chromeT = FolderDrawerStyle.wallChromeRayT(BumpItem.Surface.BACK_WALL, roomSize, rS, rE)
+        requireNotNull(panelT)
+        requireNotNull(chromeT)
+        assertTrue(chromeT < panelT)
+    }
+
+    @Test
     fun resizeGridSnapsWithinBounds() {
         val pile = Pile(
             items = mutableListOf(),

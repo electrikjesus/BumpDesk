@@ -103,6 +103,8 @@ class TextureManager(private val context: Context) {
         textureCache.remove(key)
     }
 
+    fun isActive(textureId: Int): Boolean = textureId > 0 && allTextures.contains(textureId)
+
     fun clearCache() {
         textureCache.evictAll() // This will trigger entryRemoved for all cached items
         // Delete any textures that were loaded without a key and thus not in the LruCache

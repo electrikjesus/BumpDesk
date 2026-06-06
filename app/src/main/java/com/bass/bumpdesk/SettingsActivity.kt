@@ -43,6 +43,8 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var appManager: AppManager
     private var pendingWallpaperSwitch: MaterialSwitch? = null
     private lateinit var wallpaperFloorSwitch: MaterialSwitch
+    private lateinit var expressiveFolderChromeGroup: View
+    private lateinit var expressiveM3FolderChromeSwitch: MaterialSwitch
     private val desktopCards = linkedMapOf<DesktopMode, MaterialCardView>()
     private var selectedDesktopMode = DesktopMode.ROOM
 
@@ -121,16 +123,20 @@ class SettingsActivity : AppCompatActivity() {
 
         appManager = AppManager(this)
         val prefs = getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
+        ThemeManager.init(this)
 
         findViewById<MaterialToolbar>(R.id.toolbar).setNavigationOnClickListener { finish() }
 
         wallpaperFloorSwitch = findViewById(R.id.switchUseWallpaperAsFloor)
+        expressiveFolderChromeGroup = findViewById(R.id.groupExpressiveFolderChrome)
+        expressiveM3FolderChromeSwitch = findViewById(R.id.switchExpressiveM3FolderChrome)
 
         setupDesktopModeCards(prefs)
         setupAppToggles(prefs)
         setupLaunchPreferences(prefs)
         setupRecentsViewMode(prefs)
-        setupThemePicker()
+        setupThemePicker(prefs)
+        setupExpressiveFolderChrome(prefs)
         setupSliders()
         setupMaintenanceActions(prefs)
 
@@ -321,8 +327,7 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
-    private fun setupThemePicker() {
-        val prefs = getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
+    private fun setupThemePicker(prefs: android.content.SharedPreferences) {
         val themes = ThemeManager.getThemeList(this)
         findViewById<com.google.android.material.button.MaterialButton>(R.id.btnChangeTheme).setOnClickListener {
             androidx.appcompat.app.AlertDialog.Builder(this)
@@ -331,10 +336,26 @@ class SettingsActivity : AppCompatActivity() {
                     val selected = themes[which]
                     prefs.edit().putString("selected_theme", selected).apply()
                     ThemeManager.setTheme(selected, this@SettingsActivity)
+                    updateExpressiveFolderChromeVisibility()
                     Toast.makeText(this@SettingsActivity, "Theme set to: $selected", Toast.LENGTH_SHORT).show()
                 }
                 .show()
         }
+        updateExpressiveFolderChromeVisibility()
+    }
+
+    private fun setupExpressiveFolderChrome(prefs: android.content.SharedPreferences) {
+        expressiveM3FolderChromeSwitch.apply {
+            isChecked = prefs.getBoolean(ThemeManager.PREF_EXPRESSIVE_M3_FOLDER_CHROME, true)
+            setOnCheckedChangeListener { _, isChecked ->
+                prefs.edit().putBoolean(ThemeManager.PREF_EXPRESSIVE_M3_FOLDER_CHROME, isChecked).apply()
+            }
+        }
+    }
+
+    private fun updateExpressiveFolderChromeVisibility() {
+        val visible = ThemeManager.usesSystemColors()
+        expressiveFolderChromeGroup.visibility = if (visible) View.VISIBLE else View.GONE
     }
 
     private fun setupSliders() {
@@ -394,6 +415,7 @@ class SettingsActivity : AppCompatActivity() {
                 putBoolean(FlatFloorMode.PREF_KEY, false)
                 putBoolean("use_wallpaper_as_floor", true)
                 putString("selected_theme", ThemeManager.DEFAULT_THEME)
+                putBoolean(ThemeManager.PREF_EXPRESSIVE_M3_FOLDER_CHROME, true)
                 putString(RecentsPreferences.PREF_VIEW_MODE, RecentsPreferences.VIEW_ICONS)
                 apply()
             }

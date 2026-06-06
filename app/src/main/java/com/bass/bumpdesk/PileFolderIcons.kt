@@ -17,7 +17,13 @@ object PileFolderIcons {
     fun ensurePreview(context: Context, pile: Pile, textureManager: TextureManager) {
         if (!pile.showsCollapsedPreview()) return
         val sig = signature(pile)
-        if (pile.previewTextureId != -1 && pile.previewSignature == sig) return
+        if (
+            pile.previewTextureId != -1 &&
+            pile.previewSignature == sig &&
+            textureManager.isActive(pile.previewTextureId)
+        ) {
+            return
+        }
 
         val iconBitmaps = pile.items.take(4).mapNotNull { item ->
             val appInfo = item.appData?.appInfo ?: return@mapNotNull null
