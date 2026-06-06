@@ -52,11 +52,13 @@ class RadialMenuView @JvmOverloads constructor(
 
     fun setItems(items: List<RadialMenuItem>, x: Float, y: Float, onSelected: (RadialMenuItem) -> Unit, onDismiss: () -> Unit) {
         this.items = items
-        layout = computeLayout(items.size)
+        val spanW = if (width > 0) width.toFloat() else resources.displayMetrics.widthPixels.toFloat()
+        val spanH = if (height > 0) height.toFloat() else resources.displayMetrics.heightPixels.toFloat()
+        layout = computeLayout(items.size, spanW, spanH)
         textPaint.textSize = ScreenMetrics.dpToPx(context, 14f)
 
-        this.centerX = x.coerceIn(layout.secondaryOuterRadius, resources.displayMetrics.widthPixels - layout.secondaryOuterRadius)
-        this.centerY = y.coerceIn(layout.secondaryOuterRadius, resources.displayMetrics.heightPixels - layout.secondaryOuterRadius)
+        this.centerX = RadialMenuGeometry.clampMenuCenter(x, layout.secondaryOuterRadius, spanW)
+        this.centerY = RadialMenuGeometry.clampMenuCenter(y, layout.secondaryOuterRadius, spanH)
 
         this.onItemSelected = onSelected
         this.onDismiss = onDismiss
@@ -67,18 +69,27 @@ class RadialMenuView @JvmOverloads constructor(
         invalidate()
     }
 
-    private fun computeLayout(itemCount: Int): RadialLayout {
+    private fun computeLayout(itemCount: Int, spanW: Float, spanH: Float): RadialLayout {
         val count = itemCount.coerceAtLeast(1)
-        val baseInner = ScreenMetrics.radialInnerRadiusPx(context)
-        val baseOuter = ScreenMetrics.radialOuterRadiusPx(context)
-        val scaleFactor = if (count > 4) 1f + (count - 4) * 0.12f else 1f
+        val menuScale = RadialMenuPreferences.sizeScale(context)
+        val baseInner = ScreenMetrics.radialInnerRadiusPx(context) * menuScale
+        val baseOuter = ScreenMetrics.radialOuterRadiusPx(context) * menuScale
+        val scaleFactor = RadialMenuPreferences.itemCountScaleFactor(count, menuScale)
         val inner = baseInner * scaleFactor
         val outer = baseOuter * scaleFactor
-        val secondary = outer + ScreenMetrics.radialSecondaryOffsetPx(context)
+        val secondary = outer + ScreenMetrics.radialSecondaryOffsetPx(context) * menuScale
+        val fitted = RadialMenuGeometry.fitRadiiToScreen(inner, outer, secondary, spanW, spanH)
         val totalArc = RadialMenuStyle.totalArcForItemCount(count)
         val startAngle = 270f - totalArc / 2f
         val sweepAngle = totalArc / count
-        return RadialLayout(inner, outer, secondary, totalArc, startAngle, sweepAngle)
+        return RadialLayout(
+            fitted.inner,
+            fitted.outer,
+            fitted.secondary,
+            totalArc,
+            startAngle,
+            sweepAngle,
+        )
     }
 
     override fun onDraw(canvas: Canvas) {

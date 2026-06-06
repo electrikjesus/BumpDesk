@@ -29,6 +29,31 @@ object RadialMenuGeometry {
     fun totalArcForItemCount(count: Int, minSweepDeg: Float, baseArcDeg: Float, maxArcDeg: Float): Float =
         (count * minSweepDeg).coerceIn(baseArcDeg, maxArcDeg)
 
+    data class RadialRadii(val inner: Float, val outer: Float, val secondary: Float)
+
+    /** Scale radii down when the menu would not fit on screen (foldables, dense displays). */
+    fun fitRadiiToScreen(
+        inner: Float,
+        outer: Float,
+        secondary: Float,
+        maxWidth: Float,
+        maxHeight: Float,
+        insetFraction: Float = 0.92f,
+    ): RadialRadii {
+        val maxRadius = minOf(maxWidth, maxHeight) / 2f * insetFraction
+        if (secondary <= maxRadius) return RadialRadii(inner, outer, secondary)
+        val scale = maxRadius / secondary
+        return RadialRadii(inner * scale, outer * scale, secondary * scale)
+    }
+
+    /** Avoid Kotlin coerceIn crash when margin * 2 exceeds the available span. */
+    fun clampMenuCenter(value: Float, margin: Float, span: Float): Float {
+        val min = margin
+        val max = span - margin
+        if (min >= max) return span / 2f
+        return value.coerceIn(min, max)
+    }
+
     private fun isAngleInSweep(angle: Float, start: Float, end: Float): Boolean {
         val a = normalizeAngle(angle)
         val s = normalizeAngle(start)

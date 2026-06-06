@@ -125,6 +125,9 @@ object ScreenMetrics {
             if (!prefs.contains(ThemeManager.PREF_EXPRESSIVE_M3_FOLDER_CHROME)) {
                 putBoolean(ThemeManager.PREF_EXPRESSIVE_M3_FOLDER_CHROME, true)
             }
+            if (!prefs.contains(RadialMenuPreferences.PREF_KEY)) {
+                putString(RadialMenuPreferences.PREF_KEY, RadialMenuPreferences.PRESET_AUTO)
+            }
             if (!prefs.contains("room_size_scale")) {
                 putInt("room_size_scale", profile.recommendedRoomSize)
             }

@@ -46,11 +46,6 @@ class CameraManager {
     enum class ViewMode { DEFAULT, FLOOR, BACK_WALL, LEFT_WALL, RIGHT_WALL, FOLDER_EXPANDED, WIDGET_FOCUS }
     var currentViewMode = ViewMode.DEFAULT
 
-    /** Eye distance when focusing an expanded folder (was 14f; drawer chrome needs more margin). */
-    private val folderFocusDistanceBase = 18f
-    /** Slight zoom-out so the drawer grid fits phone/tablet screens without crowding edges. */
-    private val folderFocusZoom = 1.06f
-
     fun update() {
         // Apply focal length shift (FOV) when boundaries are reached in any mode
         if (!isInfiniteMode) {
@@ -388,25 +383,76 @@ class CameraManager {
         CameraDiagnostics.logTransition(this, "focusFloor", "zoom=$zoomLevel")
     }
 
-    fun focusOnFolder(folderPos: FloatArray, scale: Float = 1.0f, panelHalfExtent: Float = 0f) {
+    fun focusOnFolder(
+        folderLookAt: FloatArray,
+        scale: Float = 1.0f,
+        panelHalfX: Float = 0f,
+        panelHalfZ: Float = 0f,
+        screenWidthPx: Int = 0,
+        screenHeightPx: Int = 0,
+        isPhone: Boolean = false,
+        panelCenter: FloatArray? = null,
+    ) {
         saveCurrentView()
-        val focusDist = (folderFocusDistanceBase + panelHalfExtent * 0.38f) * scale
-        targetPos = floatArrayOf(folderPos[0], folderPos[1] + focusDist, folderPos[2] + focusDist * 0.5f)
-        targetLookAt = floatArrayOf(folderPos[0], folderPos[1], folderPos[2])
+        val framing = FolderFocusFraming.compute(
+            FolderFocusFraming.Params(
+                panelHalfX = panelHalfX,
+                panelHalfZ = panelHalfZ,
+                pileScale = scale,
+                screenWidthPx = screenWidthPx,
+                screenHeightPx = screenHeightPx,
+                isPhone = isPhone,
+                vFovDeg = baseFieldOfView,
+            ),
+        )
+        val focusDist = framing.focusDistance
+        val center = panelCenter ?: folderLookAt
+        var lookAt = folderLookAt.copyOf()
+        if (isPhone && screenWidthPx > 0 && screenHeightPx > 0) {
+            lookAt = FolderFocusFraming.centerLookAtForPhone(
+                panelCenter = center,
+                initialLookAt = lookAt,
+                focusDistance = focusDist,
+                zoomLevel = framing.zoomLevel,
+                vFovDeg = framing.fieldOfView,
+                screenWidthPx = screenWidthPx,
+                screenHeightPx = screenHeightPx,
+            )
+        }
+        targetPos = floatArrayOf(lookAt[0], lookAt[1] + focusDist, lookAt[2] + focusDist * 0.5f)
+        targetLookAt = lookAt
         currentViewMode = ViewMode.FOLDER_EXPANDED
-        zoomLevel = folderFocusZoom
-        fieldOfView = 60f
+        zoomLevel = framing.zoomLevel
+        fieldOfView = framing.fieldOfView
         CameraDiagnostics.logTransition(
             this,
             "focusFolder",
-            "pos=(${folderPos[0]},${folderPos[1]},${folderPos[2]}) scale=$scale dist=${"%.1f".format(focusDist)} zoom=$folderFocusZoom panelHalf=${"%.1f".format(panelHalfExtent)}",
+            "lookAt=(${lookAt[0]},${lookAt[1]},${lookAt[2]}) center=(${center[0]},${center[1]},${center[2]}) scale=$scale " +
+                "dist=${"%.1f".format(focusDist)} zoom=${"%.2f".format(framing.zoomLevel)} " +
+                "fov=${"%.0f".format(framing.fieldOfView)} panel=${"%.1f".format(panelHalfX)}x${"%.1f".format(panelHalfZ)} " +
+                "screen=${screenWidthPx}x${screenHeightPx} phone=$isPhone",
         )
     }
 
-    fun focusOnWidget(widget: WidgetItem) {
+    fun focusOnWidget(
+        widget: WidgetItem,
+        screenWidthPx: Int = 0,
+        screenHeightPx: Int = 0,
+        isPhone: Boolean = false,
+    ) {
         saveCurrentView()
         val maxDim = max(widget.size.x * widget.scale, widget.size.z * widget.scale)
-        val dist = (maxDim * 2.5f).coerceIn(4f, 15f)
+        var dist = (maxDim * 2.5f).coerceIn(4f, 15f)
+        var zoom = 1.0f
+        if (isPhone && screenWidthPx > 0 && screenHeightPx > 0) {
+            val aspect = screenWidthPx.toFloat() / screenHeightPx
+            dist = (dist * 1.15f).coerceAtMost(22f)
+            zoom = when {
+                aspect < 0.55f -> 1.28f
+                aspect < 0.78f -> 1.18f
+                else -> 1.1f
+            }
+        }
         
         when (widget.surface) {
             BumpItem.Surface.BACK_WALL -> {
@@ -427,7 +473,7 @@ class CameraManager {
             }
         }
         currentViewMode = ViewMode.WIDGET_FOCUS
-        zoomLevel = 1.0f
-        fieldOfView = 60f
+        zoomLevel = zoom
+        fieldOfView = if (isPhone) max(baseFieldOfView, 62f) else baseFieldOfView
     }
 }

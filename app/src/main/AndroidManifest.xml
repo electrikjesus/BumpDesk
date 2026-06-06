@@ -15,11 +15,9 @@
 
     <!-- Android 13+: shown and grantable as "Photos and videos" in App Settings -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
-    <!-- WallpaperManager on API 33–34 still checks this at the binder. Sideloaded apps cannot
-         self-grant legacy Storage in Settings on Android 13+; use adb pm grant or pick an image. -->
-    <uses-permission
-        android:name="android.permission.READ_EXTERNAL_STORAGE"
-        android:maxSdkVersion="34" />
+    <!-- Legacy storage: WallpaperManager binder still checks this on API 33–34; keep declared
+         on newer releases so adb pm grant works on devices where users expect Storage in diagnostics. -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
 
     <!-- Standard permission to reorder tasks (bring to front) -->
     <uses-permission android:name="android.permission.REORDER_TASKS" />

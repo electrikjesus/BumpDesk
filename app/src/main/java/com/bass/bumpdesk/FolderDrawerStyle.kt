@@ -451,6 +451,10 @@ object FolderDrawerStyle {
         return Layout(halfX, halfZ, floatArrayOf(uiX, uiY, uiZ))
     }
 
+    /** World-space center of the expanded drawer — use for folder-focus camera look-at. */
+    fun drawerFocusLookAt(pile: Pile, roomHalfX: Float, roomHalfZ: Float, roomSize: Float): FloatArray =
+        layoutForPile(pile, roomHalfX, roomHalfZ, roomSize).pos.clone()
+
     fun floorChromeY(pile: Pile, layout: Layout): Float =
         if (usesFloorPinnedRecents(pile)) {
             layout.pos[1] + TITLE_BAND * 0.16f * pile.scale

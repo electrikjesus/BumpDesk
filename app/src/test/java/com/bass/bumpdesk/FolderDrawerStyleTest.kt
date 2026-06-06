@@ -16,6 +16,7 @@ class FolderDrawerStyleTest {
             name = "All Apps",
         )
         val layout = FolderDrawerStyle.layout(pile, roomHalfX = 20f, roomHalfZ = 12f)
+        assertTrue(layout.pos[1] > pile.position.y + 1f)
         assertTrue(layout.pos[0] <= 20f - layout.halfDimX + 0.01f)
         assertTrue(layout.pos[2] <= 12f - layout.halfDimZ + 0.01f)
     }

@@ -137,6 +137,7 @@ class SettingsActivity : AppCompatActivity() {
         setupRecentsViewMode(prefs)
         setupThemePicker(prefs)
         setupExpressiveFolderChrome(prefs)
+        setupRadialMenuSize(prefs)
         setupSliders()
         setupMaintenanceActions(prefs)
 
@@ -327,6 +328,28 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
+    private fun setupRadialMenuSize(prefs: android.content.SharedPreferences) {
+        val group = findViewById<RadioGroup>(R.id.rgRadialMenuSize)
+        val checkedId = when (RadialMenuPreferences.readPreset(prefs)) {
+            RadialMenuPreferences.PRESET_PHONE -> R.id.rbRadialMenuPhone
+            RadialMenuPreferences.PRESET_TABLET -> R.id.rbRadialMenuTablet
+            RadialMenuPreferences.PRESET_LARGE -> R.id.rbRadialMenuLarge
+            else -> R.id.rbRadialMenuAuto
+        }
+        group.check(checkedId)
+        group.setOnCheckedChangeListener { _, id ->
+            val preset = when (id) {
+                R.id.rbRadialMenuPhone -> RadialMenuPreferences.PRESET_PHONE
+                R.id.rbRadialMenuTablet -> RadialMenuPreferences.PRESET_TABLET
+                R.id.rbRadialMenuLarge -> RadialMenuPreferences.PRESET_LARGE
+                else -> RadialMenuPreferences.PRESET_AUTO
+            }
+            if (RadialMenuPreferences.readPreset(prefs) != preset) {
+                prefs.edit().putString(RadialMenuPreferences.PREF_KEY, preset).apply()
+            }
+        }
+    }
+
     private fun setupThemePicker(prefs: android.content.SharedPreferences) {
         val themes = ThemeManager.getThemeList(this)
         findViewById<com.google.android.material.button.MaterialButton>(R.id.btnChangeTheme).setOnClickListener {
@@ -416,6 +439,7 @@ class SettingsActivity : AppCompatActivity() {
                 putBoolean("use_wallpaper_as_floor", true)
                 putString("selected_theme", ThemeManager.DEFAULT_THEME)
                 putBoolean(ThemeManager.PREF_EXPRESSIVE_M3_FOLDER_CHROME, true)
+                putString(RadialMenuPreferences.PREF_KEY, RadialMenuPreferences.PRESET_AUTO)
                 putString(RecentsPreferences.PREF_VIEW_MODE, RecentsPreferences.VIEW_ICONS)
                 apply()
             }

@@ -944,11 +944,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
             // Stay in the room view — wall Recents behaves like a pinned widget panel.
             onShowResetButton(false)
         } else {
-            camera.focusOnFolder(
-                pile.position.toFloatArray(),
-                pile.scale,
-                folderPanelHalfExtent(pile),
-            )
+            focusCameraOnFolder(pile)
             onShowResetButton(true)
         }
         glSurfaceView?.requestRender()
@@ -1554,7 +1550,12 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
             if (camera.currentViewMode != CameraManager.ViewMode.WIDGET_FOCUS) { 
                 playSound(focusSoundId, 0.4f)
                 hapticManager.selection()
-                camera.focusOnWidget(widgetHit.first)
+                camera.focusOnWidget(
+                    widgetHit.first,
+                    surfaceWidth,
+                    surfaceHeight,
+                    ScreenMetrics.from(context).isPhone,
+                )
                 (context as? LauncherActivity)?.showResetButton(true) 
             }
             return 
@@ -1590,11 +1591,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                     if (pile.recentsOnWall()) {
                         focusRecentsPile { (context as? LauncherActivity)?.showResetButton(it) }
                     } else {
-                        camera.focusOnFolder(
-                            pile.position.toFloatArray(),
-                            pile.scale,
-                            folderPanelHalfExtent(pile),
-                        )
+                        focusCameraOnFolder(pile)
                         (context as? LauncherActivity)?.showResetButton(true)
                     }
                     return
@@ -1605,11 +1602,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                         pile.nameTextureId = -1
                     }
                     pile.isExpanded = true
-                    camera.focusOnFolder(
-                        pile.position.toFloatArray(),
-                        pile.scale,
-                        folderPanelHalfExtent(pile),
-                    )
+                    focusCameraOnFolder(pile)
                 }
                 (context as? LauncherActivity)?.showResetButton(true); return
             }
@@ -1630,7 +1623,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                     )
                     dp.nameTextureId = -1
                     dp.scrollIndex = 0
-                    collapseNonPinnedPiles(); dp.isExpanded = true; sceneState.piles.add(dp); camera.focusOnFolder(p.toFloatArray(), dp.scale, folderPanelHalfExtent(dp)); (context as? LauncherActivity)?.showResetButton(true)
+                    collapseNonPinnedPiles(); dp.isExpanded = true; sceneState.piles.add(dp); focusCameraOnFolder(dp); (context as? LauncherActivity)?.showResetButton(true)
                 }
                 return
             }
@@ -1973,8 +1966,26 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         }
     }
 
-    private fun folderPanelHalfExtent(pile: Pile): Float =
-        (FolderDrawerStyle.panelHalfDimX(pile) + FolderDrawerStyle.panelHalfDimY(pile)) * 0.5f
+    private fun focusCameraOnFolder(pile: Pile) {
+        val profile = ScreenMetrics.from(context)
+        val w = if (surfaceWidth > 0) surfaceWidth else profile.widthPx
+        val h = if (surfaceHeight > 0) surfaceHeight else profile.heightPx
+        val roomHalfX = floorHalfWidth
+        val roomHalfZ = floorHalfDepth
+        val roomSize = if (isFlatFloorMode) floorHalfWidth else ROOM_SIZE
+        val panelCenter = FolderDrawerStyle.drawerFocusLookAt(pile, roomHalfX, roomHalfZ, roomSize)
+        val compactScreen = profile.isPhone || profile.shortestSideDp < 720f
+        camera.focusOnFolder(
+            folderLookAt = panelCenter,
+            scale = pile.scale,
+            panelHalfX = FolderDrawerStyle.panelHalfDimX(pile),
+            panelHalfZ = FolderDrawerStyle.panelHalfDimY(pile),
+            screenWidthPx = w,
+            screenHeightPx = h,
+            isPhone = compactScreen,
+            panelCenter = panelCenter,
+        )
+    }
 
     private fun applyFlatFloorBounds(profile: ScreenMetrics.DisplayProfile) {
         val aspect = if (surfaceWidth > 0 && surfaceHeight > 0) {

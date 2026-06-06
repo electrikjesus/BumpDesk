@@ -44,4 +44,23 @@ class RadialMenuGeometryTest {
 
         assertEquals(1, RadialMenuGeometry.hitSubMenuItem(rowCenter, layout, subItemCount = 3))
     }
+
+    @Test
+    fun fitRadiiToScreen_scalesDownWhenMenuIsTooLarge() {
+        val fitted = RadialMenuGeometry.fitRadiiToScreen(
+            inner = 270f,
+            outer = 734f,
+            secondary = 928f,
+            maxWidth = 2208f,
+            maxHeight = 1756f,
+        )
+        assertTrue(fitted.secondary <= 1756f / 2f * 0.92f + 0.01f)
+        assertTrue(fitted.outer < 734f)
+        assertTrue(fitted.inner < 270f)
+    }
+
+    @Test
+    fun clampMenuCenter_doesNotCrashWhenMarginExceedsHalfSpan() {
+        assertEquals(878f, RadialMenuGeometry.clampMenuCenter(100f, margin = 928f, span = 1756f), 0.01f)
+    }
 }

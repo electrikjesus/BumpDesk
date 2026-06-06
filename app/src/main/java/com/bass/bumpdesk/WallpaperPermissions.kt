@@ -49,6 +49,9 @@ object WallpaperPermissions {
     }
 
     fun canReadWallpaperFile(context: Context): Boolean {
+        if (Build.VERSION.SDK_INT >= 35) {
+            return hasRuntimePermission(context) && hasAppOpAccess(context)
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             return hasLegacyStorage(context)
         }

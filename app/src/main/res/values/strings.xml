@@ -40,6 +40,12 @@
     <string name="settings_select_theme">Select visual theme</string>
     <string name="settings_expressive_m3_folder_chrome">Material You folder backgrounds</string>
     <string name="settings_expressive_m3_folder_chrome_hint">When Material Expressive is selected, folders, piles, and Recents panels can follow your wallpaper palette or use the classic dark chrome.</string>
+    <string name="settings_radial_menu_size_label">Radial menu size</string>
+    <string name="settings_radial_menu_size_auto">Auto (match screen class)</string>
+    <string name="settings_radial_menu_size_phone">Phone — compact</string>
+    <string name="settings_radial_menu_size_tablet">Tablet — standard</string>
+    <string name="settings_radial_menu_size_large">Large screen — spacious</string>
+    <string name="settings_radial_menu_size_hint">Long-press and circle menus scale to stay on screen. Auto picks compact sizing on phones and spacious sizing on large displays.</string>
     <string name="settings_friction">Friction</string>
     <string name="settings_bounciness">Bounciness</string>
     <string name="settings_gravity">Wall gravity</string>
