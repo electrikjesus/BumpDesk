@@ -9,6 +9,7 @@ import org.json.JSONObject
 
 object ThemeManager {
     private const val FALLBACK_THEME = "BumpDesk Animated"
+    const val DEFAULT_THEME = "Material Expressive"
 
     /** Maps json-only theme packs to the nearest complete asset bundle. */
     private val THEME_ASSET_SOURCES = mapOf(
@@ -18,18 +19,28 @@ object ThemeManager {
         "BumpTop Test" to "BumpDesk Animated"
     )
 
-    var currentThemeName: String = "BumpDesk Animated"
+    var currentThemeName: String = DEFAULT_THEME
         internal set
         
     private var isInitialized = false
     var themeConfig: JSONObject? = null
         private set
 
+    @Volatile
+    private var appContext: Context? = null
+
+    @Volatile
+    private var cachedSystemPalette: SystemMaterialColors.Palette? = null
+
+    fun usesSystemColors(): Boolean =
+        themeConfig?.optString("colorSource", "") == "system"
+
     fun init(context: Context, forceReload: Boolean = false) {
         if (isInitialized && !forceReload) return
         BumpDeskLog.enter(BumpDeskLog.Tag.THEME, "init", "forceReload=$forceReload")
         val prefs = context.getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
-        currentThemeName = prefs.getString("selected_theme", "BumpDesk Animated") ?: "BumpDesk Animated"
+        currentThemeName = prefs.getString("selected_theme", DEFAULT_THEME) ?: DEFAULT_THEME
+        appContext = context.applicationContext
         loadThemeConfig(context)
         isInitialized = true
         BumpDeskLog.exit(BumpDeskLog.Tag.THEME, "init", "theme=$currentThemeName")
@@ -44,12 +55,26 @@ object ThemeManager {
             BumpDeskLog.fail(BumpDeskLog.Tag.THEME, "loadThemeConfig", "theme=$currentThemeName", e)
             themeConfig = null
         }
+        cachedSystemPalette = null
     }
 
     fun setTheme(themeName: String, context: Context) {
         currentThemeName = themeName
+        appContext = context.applicationContext
         loadThemeConfig(context)
         isInitialized = true
+    }
+
+    fun invalidateSystemColors() {
+        cachedSystemPalette = null
+    }
+
+    private fun systemPalette(context: Context): SystemMaterialColors.Palette? {
+        if (!usesSystemColors()) return null
+        cachedSystemPalette?.let { return it }
+        val palette = SystemMaterialColors.resolve(context, themeConfig)
+        cachedSystemPalette = palette
+        return palette
     }
 
     fun getThemeList(context: Context): List<String> {
@@ -91,6 +116,17 @@ object ThemeManager {
             BumpDeskLog.d(BumpDeskLog.Tag.WALLPAPER, "getFloorTexture", "falling back to theme floor texture")
         }
 
+        if (usesSystemColors()) {
+            val palette = systemPalette(context) ?: return -1
+            val bitmap = TextureUtils.createExpressiveFloorBitmap(1024, 1024, palette)
+            val tex = textureManager.loadTextureFromBitmap(bitmap, "system:expressive:floor")
+            bitmap.recycle()
+            if (tex != -1) {
+                BumpDeskLog.d(BumpDeskLog.Tag.THEME, "getFloorTexture", "loaded system expressive floor textureId=$tex")
+                return tex
+            }
+        }
+
         val themePathBase = "BumpTop/$currentThemeName/desktop/"
         val configuredDesktop = themeConfig?.optJSONObject("textures")
             ?.optJSONObject("floor")
@@ -119,8 +155,31 @@ object ThemeManager {
 
     fun getWallTextures(context: Context, textureManager: TextureManager): IntArray {
         init(context)
-        val walls = themeConfig?.optJSONObject("textures")?.optJSONObject("wall")
         val ids = IntArray(4) { -1 }
+
+        if (usesSystemColors()) {
+            val palette = systemPalette(context) ?: return ids
+            val backBitmap = TextureUtils.createExpressiveWallBitmap(1024, 512, palette)
+            val backId = textureManager.loadTextureFromBitmap(backBitmap, "system:expressive:wall:back")
+            backBitmap.recycle()
+            val topBitmap = TextureUtils.createExpressiveWallBitmap(1024, 1024, palette)
+            val topId = textureManager.loadTextureFromBitmap(topBitmap, "system:expressive:wall:top")
+            topBitmap.recycle()
+            if (backId != -1) {
+                ids[0] = backId
+                ids[1] = backId
+                ids[2] = backId
+            }
+            if (topId != -1) {
+                ids[3] = topId
+            }
+            if (ids.any { it != -1 }) {
+                BumpDeskLog.d(BumpDeskLog.Tag.THEME, "getWallTextures", "loaded system expressive walls")
+                return ids
+            }
+        }
+
+        val walls = themeConfig?.optJSONObject("textures")?.optJSONObject("wall")
         
         val backPath = walls?.optString("bottom")?.takeIf { it.isNotBlank() } ?: "wall.svg"
         val leftPath = walls?.optString("left")?.takeIf { it.isNotBlank() } ?: backPath
@@ -323,6 +382,14 @@ object ThemeManager {
     }
 
     fun getSelectionColor(): FloatArray {
+        val selectionAlpha = themeConfig?.optJSONObject("ui")?.optJSONObject("icon")
+            ?.optJSONObject("highlight")?.optJSONObject("color")?.optJSONArray("selection")
+            ?.optInt(3, 130) ?: 130
+        appContext?.let { ctx ->
+            systemPalette(ctx)?.let {
+                return SystemMaterialColors.toFloatArray(it.primary, selectionAlpha)
+            }
+        }
         val colorArray = themeConfig?.optJSONObject("ui")?.optJSONObject("icon")?.optJSONObject("highlight")?.optJSONObject("color")?.optJSONArray("selection")
         if (colorArray != null && colorArray.length() == 4) {
             return floatArrayOf(
@@ -358,5 +425,63 @@ object ThemeManager {
             }
         }
         return null
+    }
+
+    private fun colorFromTheme(section: String, key: String, fallback: FloatArray): FloatArray {
+        val colorArray = themeConfig?.optJSONObject(section)?.optJSONArray(key)
+        if (colorArray != null && colorArray.length() == 4) {
+            return floatArrayOf(
+                colorArray.getDouble(0).toFloat() / 255f,
+                colorArray.getDouble(1).toFloat() / 255f,
+                colorArray.getDouble(2).toFloat() / 255f,
+                colorArray.getDouble(3).toFloat() / 255f,
+            )
+        }
+        return fallback
+    }
+
+    fun getMaterialSurfaceColor(): FloatArray {
+        appContext?.let { ctx ->
+            systemPalette(ctx)?.let {
+                return SystemMaterialColors.toFloatArray(it.surface, 245)
+            }
+        }
+        return colorFromTheme("material", "surface", floatArrayOf(0.13f, 0.14f, 0.17f, 0.94f))
+    }
+
+    fun getMaterialOnSurfaceColor(): FloatArray {
+        appContext?.let { ctx ->
+            systemPalette(ctx)?.let {
+                return SystemMaterialColors.toFloatArray(it.onSurface)
+            }
+        }
+        return colorFromTheme("material", "onSurface", floatArrayOf(0.96f, 0.97f, 0.99f, 1f))
+    }
+
+    fun getMaterialPrimaryColor(): FloatArray {
+        appContext?.let { ctx ->
+            systemPalette(ctx)?.let {
+                return SystemMaterialColors.toFloatArray(it.primary)
+            }
+        }
+        return colorFromTheme("material", "primary", floatArrayOf(0.55f, 0.74f, 1f, 1f))
+    }
+
+    fun getMaterialButtonContainerColor(): FloatArray {
+        appContext?.let { ctx ->
+            systemPalette(ctx)?.let {
+                return SystemMaterialColors.toFloatArray(it.primaryContainer, 252)
+            }
+        }
+        return colorFromTheme("material", "buttonContainer", floatArrayOf(0.24f, 0.26f, 0.33f, 0.98f))
+    }
+
+    fun getMaterialInactiveIndicatorColor(): FloatArray {
+        appContext?.let { ctx ->
+            systemPalette(ctx)?.let {
+                return SystemMaterialColors.toFloatArray(it.inactiveIndicator, 200)
+            }
+        }
+        return colorFromTheme("material", "inactiveIndicator", floatArrayOf(0.45f, 0.47f, 0.52f, 0.75f))
     }
 }

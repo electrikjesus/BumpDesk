@@ -295,6 +295,120 @@ object TextureUtils {
         }
     }
 
+    /** Material Expressive wall — tonal gradient, primary glow, accent dot pattern. */
+    fun createExpressiveWallBitmap(
+        width: Int,
+        height: Int,
+        palette: SystemMaterialColors.Palette,
+    ): Bitmap {
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+
+        val wallPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            shader = LinearGradient(
+                0f,
+                0f,
+                0f,
+                height.toFloat(),
+                intArrayOf(
+                    palette.surfaceBright,
+                    palette.surface,
+                    palette.surfaceContainerLow,
+                ),
+                floatArrayOf(0f, 0.55f, 1f),
+                Shader.TileMode.CLAMP,
+            )
+        }
+        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), wallPaint)
+
+        val glowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            shader = RadialGradient(
+                width * 0.5f,
+                height * 0.18f,
+                width * 0.65f,
+                intArrayOf(
+                    Color.argb(140, Color.red(palette.primaryContainer), Color.green(palette.primaryContainer), Color.blue(palette.primaryContainer)),
+                    Color.argb(0, Color.red(palette.primaryContainer), Color.green(palette.primaryContainer), Color.blue(palette.primaryContainer)),
+                ),
+                floatArrayOf(0f, 1f),
+                Shader.TileMode.CLAMP,
+            )
+        }
+        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), glowPaint)
+
+        val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = palette.primary
+            alpha = 31
+        }
+        val spacing = (width / 10.67f).coerceAtLeast(32f)
+        val radius = spacing * 0.031f
+        var y = spacing * 0.5f
+        while (y < height) {
+            var x = spacing * 0.5f
+            while (x < width) {
+                canvas.drawCircle(x, y, radius, dotPaint)
+                x += spacing
+            }
+            y += spacing
+        }
+        return bitmap
+    }
+
+    /** Material Expressive floor — surface base with container grid and accent dots. */
+    fun createExpressiveFloorBitmap(
+        width: Int,
+        height: Int,
+        palette: SystemMaterialColors.Palette,
+    ): Bitmap {
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+
+        canvas.drawColor(palette.surfaceContainerLow)
+
+        val gridSpacing = (width / 8f).coerceAtLeast(48f)
+        val gridPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = palette.secondaryContainer
+            style = Paint.Style.STROKE
+            strokeWidth = 1f
+        }
+        var x = 0f
+        while (x <= width) {
+            canvas.drawLine(x, 0f, x, height.toFloat(), gridPaint)
+            x += gridSpacing
+        }
+        var y = 0f
+        while (y <= height) {
+            canvas.drawLine(0f, y, width.toFloat(), y, gridPaint)
+            y += gridSpacing
+        }
+
+        val primaryDot = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = palette.primaryContainer
+            alpha = 89
+        }
+        val tertiaryDot = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = palette.tertiaryContainer
+            alpha = 64
+        }
+        val dotSpacing = gridSpacing * 2f
+        var dotY = dotSpacing * 0.25f
+        while (dotY < height) {
+            var dotX = dotSpacing * 0.25f
+            while (dotX < width) {
+                canvas.drawCircle(dotX, dotY, gridSpacing * 0.047f, primaryDot)
+                canvas.drawCircle(
+                    dotX + dotSpacing * 0.5f,
+                    dotY + dotSpacing * 0.5f,
+                    gridSpacing * 0.031f,
+                    tertiaryDot,
+                )
+                dotX += dotSpacing
+            }
+            dotY += dotSpacing
+        }
+        return bitmap
+    }
+
     fun createAppDrawerIcon(context: Context, size: Int = 256): Bitmap {
         val slots = List(4) { index -> createAppDrawerSlotBitmap(index) }
         return createPileFolderIcon(slots, label = "All Apps", size = size)

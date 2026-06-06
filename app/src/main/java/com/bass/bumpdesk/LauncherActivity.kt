@@ -97,10 +97,10 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        ThemeManager.init(this)
         val prefs = getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
         AppLaunchUtils.init(this)
         ScreenMetrics.applyFirstLaunchDefaults(this, prefs)
+        ThemeManager.init(this)
         touchSlop = ScreenMetrics.touchSlopPx(this)
         prefs.registerOnSharedPreferenceChangeListener(this)
 
@@ -227,6 +227,10 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
 
     private fun reloadSystemWallpaperFloor() {
         if (!::renderer.isInitialized) return
+        if (ThemeManager.usesSystemColors()) {
+            ThemeManager.invalidateSystemColors()
+            renderer.reloadTheme()
+        }
         val prefs = getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
         if (!prefs.getBoolean("use_wallpaper_as_floor", false)) return
         if (WallpaperFloorProvider.usesPickedWallpaper(this)) return
