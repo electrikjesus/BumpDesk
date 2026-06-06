@@ -31,8 +31,9 @@ object WidgetUtils {
     private const val FALLBACK_MAX_CELLS = 12
 
     fun aspectRatioFromProvider(info: AppWidgetProviderInfo): Float {
-        val w = info.minWidth.coerceAtLeast(1)
-        val h = info.minHeight.coerceAtLeast(1)
+        val cellDp = dpPerCell(info)
+        val w = defaultWidthDp(info, cellDp).coerceAtLeast(1)
+        val h = defaultHeightDp(info, cellDp).coerceAtLeast(1)
         return w.toFloat() / h.toFloat()
     }
 
@@ -86,6 +87,17 @@ object WidgetUtils {
     private fun defaultHeightDp(info: AppWidgetProviderInfo, cellDp: Float): Int {
         if (info.targetCellHeight > 0) {
             return (info.targetCellHeight * cellDp).roundToInt().coerceAtLeast(info.minHeight)
+        }
+        if (info.minResizeHeight > info.minHeight) {
+            return info.minResizeHeight
+        }
+        // Strip minHeight (e.g. At a Glance 450×56 dp) is not the launcher default footprint.
+        if (info.minWidth > info.minHeight * 3) {
+            val wideDefault = (info.minWidth / 2.5f).roundToInt()
+            val cellDefault = (2f * cellDp).roundToInt()
+            val estimated = maxOf(cellDefault, wideDefault).coerceAtLeast(info.minHeight)
+            val maxH = if (info.maxResizeHeight > 0) info.maxResizeHeight else estimated
+            return estimated.coerceAtMost(maxH)
         }
         return info.minHeight
     }

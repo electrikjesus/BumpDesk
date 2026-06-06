@@ -79,6 +79,24 @@ class WidgetUtilsTest {
     }
 
     @Test
+    fun defaultWorldSize_usesSensibleHeightForStripMinHeightProviders() {
+        val info = android.appwidget.AppWidgetProviderInfo().apply {
+            minWidth = 450
+            minHeight = 56
+            minResizeWidth = 450
+            minResizeHeight = 56
+            maxResizeWidth = 1290
+            maxResizeHeight = 896
+            resizeMode = 3
+        }
+        val grid = WidgetUtils.resizeGridFrom(info)
+        assertTrue(grid.defaultHeightDp > 56)
+        val size = WidgetUtils.defaultWorldSize(info)
+        assertTrue("floor depth ${size.z} should be visible", size.z > 0.8f)
+        assertTrue(size.x / size.z < 6f)
+    }
+
+    @Test
     fun needsAspectCorrection_detectsSquareCorruptionOnly() {
         val grid = atAGlanceGrid()
         val wideSize = WidgetUtils.worldHalfSizeFromDp(grid, 700, 280)

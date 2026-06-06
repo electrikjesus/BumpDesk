@@ -556,7 +556,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         sceneState.widgetViews[appWidgetId] = hostView
         val info = AppWidgetManager.getInstance(context).getAppWidgetInfo(appWidgetId)
         val aspect = info?.let { WidgetUtils.aspectRatioFromProvider(it) } ?: 1f
-        val defaultSize = info?.let { WidgetUtils.defaultWorldSize(it) }
+        val defaultSize = info?.let { WidgetUtils.normalizeGridSize(it, WidgetUtils.defaultWorldSize(it)) }
             ?: WidgetUtils.defaultSizeForAspect(aspect)
         val rS = FloatArray(4); val rE = FloatArray(4); interactionManager.calculateRay(x, y, rS, rE)
         val hit = interactionManager.findWallOrFloorHit(rS, rE, 0.05f)
@@ -1147,6 +1147,9 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         if (AllAppsDrawer.reconcile(sceneState, camera.currentViewMode)) {
             (context as? LauncherActivity)?.showResetButton(false)
         }
+        if (ExpandedFolderDrawer.reconcile(sceneState, camera.currentViewMode)) {
+            (context as? LauncherActivity)?.showResetButton(false)
+        }
 
         frameCount++
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
@@ -1326,7 +1329,6 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         sceneState.recentsPile?.reconcilePinnedOpenState()
         val rS = FloatArray(4); val rE = FloatArray(4); interactionManager.calculateRay(x, y, rS, rE)
         val overlayPile = FolderDrawerStyle.resolveOverlayPile(sceneState.piles, camera.currentViewMode)
-            ?: sceneState.piles.find { it.layoutAsExpandedDrawer() }
         if (overlayPile != null) {
             val isWall = overlayPile.surface != BumpItem.Surface.FLOOR
             val t = when (overlayPile.surface) {
@@ -1581,6 +1583,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
 
     private fun shouldDismissFocusedViewOnEmptyTap(): Boolean {
         if (AllAppsDrawer.isOpen(sceneState)) return true
+        if (ExpandedFolderDrawer.isOpen(sceneState)) return true
         return when (camera.currentViewMode) {
             CameraManager.ViewMode.FOLDER_EXPANDED,
             CameraManager.ViewMode.WIDGET_FOCUS,

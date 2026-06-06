@@ -37,6 +37,9 @@ object WallpaperFloorProvider {
 
     fun hasBitmap(): Boolean = cachedBitmap != null
 
+    fun usesPickedWallpaper(context: Context): Boolean =
+        File(context.filesDir, WALLPAPER_FLOOR_FILE).exists()
+
     fun refresh(context: Context, floorAspectWidth: Float = 1f, floorAspectDepth: Float = 1f): Boolean {
         cropAspectWidth = floorAspectWidth
         cropAspectHeight = floorAspectDepth

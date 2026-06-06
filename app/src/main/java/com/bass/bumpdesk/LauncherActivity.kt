@@ -72,6 +72,13 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
         }
     }
 
+    private val wallpaperChangedReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action != Intent.ACTION_WALLPAPER_CHANGED) return
+            reloadSystemWallpaperFloor()
+        }
+    }
+
     companion object {
         const val APPWIDGET_HOST_ID = 1024
         const val REQUEST_PICK_APPWIDGET = 1
@@ -218,6 +225,20 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
         }
     }
 
+    private fun reloadSystemWallpaperFloor() {
+        if (!::renderer.isInitialized) return
+        val prefs = getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
+        if (!prefs.getBoolean("use_wallpaper_as_floor", false)) return
+        if (WallpaperFloorProvider.usesPickedWallpaper(this)) return
+        BumpDeskLog.i(BumpDeskLog.Tag.WALLPAPER, "reloadSystemWallpaperFloor", "system wallpaper changed")
+        val (cropW, cropH) = FlatFloorMode.floorCropAspectFor(this)
+        WallpaperFloorProvider.refreshWithRetry(this, cropW, cropH) { loaded ->
+            if (loaded && ::renderer.isInitialized) {
+                renderer.reloadFloorTexture()
+            }
+        }
+    }
+
     private var didReloadFloorThisResume = false
 
     private fun applyPendingPreferenceUpdates(sharedPreferences: SharedPreferences?) {
@@ -267,7 +288,11 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
         }
         val (cropW, cropH) = FlatFloorMode.floorCropAspectFor(this)
         if (WallpaperFloorProvider.hasBitmap()) {
-            WallpaperFloorProvider.updateFloorCropAspect(cropW, cropH)
+            if (WallpaperFloorProvider.usesPickedWallpaper(this)) {
+                WallpaperFloorProvider.updateFloorCropAspect(cropW, cropH)
+            } else {
+                WallpaperFloorProvider.refresh(this, cropW, cropH)
+            }
             onReady?.invoke()
             return
         }
@@ -648,22 +673,46 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
     }
     private fun configureWidget(id: Int) {
         val info = appWidgetManager.getAppWidgetInfo(id)
-        if (info?.configure != null) startActivityForResult(Intent(AppWidgetManager.ACTION_APPWIDGET_CONFIGURE).setComponent(info.configure).putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id), REQUEST_CREATE_APPWIDGET)
-        else addWidgetToRenderer(id)
+        val configure = info?.configure
+        if (configure != null) {
+            try {
+                startActivityForResult(
+                    Intent(AppWidgetManager.ACTION_APPWIDGET_CONFIGURE)
+                        .setComponent(configure)
+                        .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id),
+                    REQUEST_CREATE_APPWIDGET,
+                )
+            } catch (e: Exception) {
+                BumpDeskLog.w(
+                    BumpDeskLog.Tag.WIDGET,
+                    "configureWidget",
+                    "configure unavailable ${configure.className}: ${e.message}",
+                )
+                addWidgetToRenderer(id)
+            }
+        } else {
+            addWidgetToRenderer(id)
+        }
     }
     private fun addWidgetToRenderer(id: Int) {
         val info = appWidgetManager.getAppWidgetInfo(id) ?: run {
             BumpDeskLog.w(BumpDeskLog.Tag.WIDGET, "addWidgetToRenderer", "no provider info id=$id")
+            appWidgetHost.deleteAppWidgetId(id)
             return
         }
-        val view = appWidgetHost.createView(ContextThemeWrapper(applicationContext, R.style.Theme_BumpDesk), id, info)
-        widgetContainer.addView(view)
-        BumpDeskLog.d(BumpDeskLog.Tag.WIDGET, "addWidgetToRenderer", "id=$id provider=${info.provider.className}")
-        if (::renderer.isInitialized) {
-            glSurfaceView.queueEvent {
-                renderer.addWidgetAt(id, view, initialTouchX, initialTouchY)
-                glSurfaceView.post { configureWidgetHostView(id) }
+        try {
+            val view = appWidgetHost.createView(ContextThemeWrapper(applicationContext, R.style.Theme_BumpDesk), id, info)
+            widgetContainer.addView(view)
+            BumpDeskLog.d(BumpDeskLog.Tag.WIDGET, "addWidgetToRenderer", "id=$id provider=${info.provider.className}")
+            if (::renderer.isInitialized) {
+                glSurfaceView.queueEvent {
+                    renderer.addWidgetAt(id, view, initialTouchX, initialTouchY)
+                    glSurfaceView.post { configureWidgetHostView(id) }
+                }
             }
+        } catch (e: Exception) {
+            BumpDeskLog.fail(BumpDeskLog.Tag.WIDGET, "addWidgetToRenderer", "id=$id ${e.message}", e)
+            appWidgetHost.deleteAppWidgetId(id)
         }
     }
 
@@ -761,10 +810,17 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
         } else {
             registerReceiver(recentsReceiver, filter)
         }
+        val wallpaperFilter = IntentFilter(Intent.ACTION_WALLPAPER_CHANGED)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(wallpaperChangedReceiver, wallpaperFilter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(wallpaperChangedReceiver, wallpaperFilter)
+        }
     }
     override fun onStop() { 
         super.onStop()
         try { unregisterReceiver(recentsReceiver) } catch (e: Exception) {}
+        try { unregisterReceiver(wallpaperChangedReceiver) } catch (e: Exception) {}
     }
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
@@ -788,14 +844,18 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
             val prefs = getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
             applyPendingPreferenceUpdates(prefs)
             if (prefs.getBoolean("use_wallpaper_as_floor", false) && !didReloadFloorThisResume) {
-                val (cropW, cropH) = FlatFloorMode.floorCropAspectFor(this)
-                if (WallpaperFloorProvider.hasBitmap()) {
-                    WallpaperFloorProvider.updateFloorCropAspect(cropW, cropH)
-                    renderer.reloadFloorTexture()
-                } else {
-                    prepareWallpaperFloorIfNeeded(prefs) {
+                if (WallpaperFloorProvider.usesPickedWallpaper(this)) {
+                    val (cropW, cropH) = FlatFloorMode.floorCropAspectFor(this)
+                    if (WallpaperFloorProvider.hasBitmap()) {
+                        WallpaperFloorProvider.updateFloorCropAspect(cropW, cropH)
                         renderer.reloadFloorTexture()
+                    } else {
+                        prepareWallpaperFloorIfNeeded(prefs) {
+                            renderer.reloadFloorTexture()
+                        }
                     }
+                } else {
+                    reloadSystemWallpaperFloor()
                 }
             }
         }
