@@ -25,6 +25,9 @@ class SceneState {
     var selectedItem: BumpItem? = null
     @Volatile
     var selectedWidget: WidgetItem? = null
+    /** Items highlighted after lasso "Move"; cleared when drag finishes or selection is dismissed. */
+    @Volatile
+    var groupSelectedItems: List<BumpItem>? = null
 
     // Thread-safe accessors
     val bumpItems: MutableList<BumpItem> get() = _bumpItems

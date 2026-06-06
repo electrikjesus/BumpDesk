@@ -244,6 +244,24 @@ object PileOperations {
         }
     }
 
+    fun removeItemsFromScene(sceneState: SceneState, items: List<BumpItem>) {
+        sceneState.withWriteLock {
+            removeItemsFromSceneUnlocked(sceneState, items)
+        }
+    }
+
+    internal fun removeItemsFromSceneUnlocked(sceneState: SceneState, items: List<BumpItem>) {
+        val targets = items.distinct().toSet()
+        if (targets.isEmpty()) return
+        sceneState.bumpItems.removeAll(targets)
+        sceneState.piles.forEach { pile ->
+            if (pile.items.removeAll(targets)) {
+                PileFolderIcons.invalidatePreview(pile)
+            }
+        }
+        pruneEmptyPilesUnlocked(sceneState)
+    }
+
     private fun pruneEmptyPilesUnlocked(sceneState: SceneState) {
         val singletonPiles = sceneState.piles.filter { it.items.size == 1 && !it.isSystem }
         singletonPiles.forEach { pile ->

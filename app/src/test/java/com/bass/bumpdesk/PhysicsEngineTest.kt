@@ -53,7 +53,7 @@ class PhysicsEngineTest {
         }
         repeat(8) { pile.items.add(BumpItem()) }
 
-        engine.update(mutableListOf(), mutableListOf(pile), null) {}
+        engine.update(mutableListOf(), mutableListOf(pile), null, null) {}
 
         assertEquals(0.05f, pile.position.y, 0.001f)
     }

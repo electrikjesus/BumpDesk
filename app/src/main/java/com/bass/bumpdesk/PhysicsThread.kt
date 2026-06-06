@@ -21,6 +21,7 @@ class PhysicsThread(
                         sceneState.bumpItems,
                         sceneState.piles,
                         sceneState.selectedItem,
+                        sceneState.groupSelectedItems,
                         onBump
                     )
                 }

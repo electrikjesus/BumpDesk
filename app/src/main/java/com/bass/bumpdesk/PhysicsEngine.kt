@@ -51,8 +51,10 @@ class PhysicsEngine {
         items: MutableList<BumpItem>,
         piles: MutableList<Pile>,
         selectedItem: BumpItem?,
+        groupSelectedItems: List<BumpItem>?,
         onBump: (Float) -> Unit
     ) {
+        val manipulated = buildManipulatedSet(selectedItem, groupSelectedItems)
         val pileSnapshot = piles.toList()
         pileSnapshot.forEach { pile ->
             pile.reconcilePinnedOpenState()
@@ -64,7 +66,7 @@ class PhysicsEngine {
             }
 
             pile.items.toList().forEachIndexed { index, item ->
-                if (item == selectedItem) return@forEachIndexed
+                if (item in manipulated) return@forEachIndexed
                 
                 val pageSize = itemsPerPage(pile)
                 val isExpandedLayout = pile.layoutAsExpandedDrawer()
@@ -102,7 +104,7 @@ class PhysicsEngine {
         val itemsSnapshot = items.toList()
         val activeItems = itemsSnapshot.filter { item -> !isInPile(item, pileSnapshot) }
         activeItems.forEach { item ->
-            if (item == selectedItem) {
+            if (item in manipulated) {
                 applyConstraints(item, onBump)
                 return@forEach
             }
@@ -118,13 +120,25 @@ class PhysicsEngine {
 
             applyConstraints(item, onBump)
 
-            val otherItems = activeItems + listOfNotNull(selectedItem)
+            val otherItems = activeItems + manipulated.toList()
             otherItems.forEach { other ->
                 if (item != other && item.transform.surface == other.transform.surface) {
-                    resolveCollision(item, other, selectedItem, onBump)
+                    resolveCollision(item, other, manipulated, onBump)
                 }
             }
         }
+    }
+
+    private fun buildManipulatedSet(
+        selectedItem: BumpItem?,
+        groupSelectedItems: List<BumpItem>?,
+    ): Set<BumpItem> {
+        if (selectedItem == null) return emptySet()
+        val group = groupSelectedItems
+        if (group != null && group.size > 1 && group.contains(selectedItem)) {
+            return group.toSet()
+        }
+        return setOf(selectedItem)
     }
 
     private fun layoutExpandedPileItems(pile: Pile, @Suppress("UNUSED_PARAMETER") selectedItem: BumpItem?) {
@@ -419,9 +433,9 @@ class PhysicsEngine {
             BumpItem.Surface.RIGHT_WALL -> pile.position.copy(x = roomSize - 0.6f)
         }
 
-    private fun resolveCollision(item: BumpItem, other: BumpItem, selectedItem: BumpItem?, onBump: (Float) -> Unit) {
-        val itemCanMove = !item.transform.isPinned && item != selectedItem
-        val otherCanMove = !other.transform.isPinned && other != selectedItem
+    private fun resolveCollision(item: BumpItem, other: BumpItem, manipulated: Set<BumpItem>, onBump: (Float) -> Unit) {
+        val itemCanMove = !item.transform.isPinned && item !in manipulated
+        val otherCanMove = !other.transform.isPinned && other !in manipulated
         if (!itemCanMove && !otherCanMove) return
 
         val itemScale = item.transform.scale

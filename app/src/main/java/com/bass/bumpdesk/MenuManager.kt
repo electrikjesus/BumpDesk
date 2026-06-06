@@ -277,6 +277,27 @@ class MenuManager(
 
     fun showLassoMenu(x: Float, y: Float, selectedItems: List<BumpItem>) {
         val menuItems = mutableListOf<RadialMenuItem>()
+
+        menuItems.add(RadialMenuItem("Move", android.R.drawable.ic_menu_mylocation) {
+            BumpDeskLog.enter(BumpDeskLog.Tag.ICON_GROUP, "lassoMove", "count=${selectedItems.size}")
+            glSurfaceView.queueEvent { renderer.prepareGroupMove(selectedItems) }
+        })
+
+        menuItems.add(RadialMenuItem("Grow", android.R.drawable.ic_input_add) {
+            glSurfaceView.queueEvent { renderer.scaleLassoSelection(selectedItems, grow = true) }
+        })
+
+        menuItems.add(RadialMenuItem("Shrink", android.R.drawable.ic_input_delete) {
+            glSurfaceView.queueEvent { renderer.scaleLassoSelection(selectedItems, grow = false) }
+        })
+
+        val allPinned = selectedItems.all { it.transform.isPinned }
+        val pinText = if (allPinned) "Unpin All" else "Pin All"
+        val pinIcon = if (allPinned) android.R.drawable.ic_menu_close_clear_cancel else android.R.drawable.ic_menu_mylocation
+        menuItems.add(RadialMenuItem(pinText, pinIcon) {
+            glSurfaceView.queueEvent { renderer.pinLassoSelection(selectedItems, pinned = !allPinned) }
+        })
+
         val createPileSubItems = listOf(
             RadialMenuItem("Folder", android.R.drawable.ic_menu_agenda) {
                 BumpDeskLog.enter(BumpDeskLog.Tag.ICON_GROUP, "lassoCreatePile", "mode=FOLDER count=${selectedItems.size}")
@@ -314,7 +335,7 @@ class MenuManager(
         })
 
         menuItems.add(RadialMenuItem("Delete All", android.R.drawable.ic_menu_delete) {
-            glSurfaceView.queueEvent { renderer.sceneState.bumpItems.removeAll(selectedItems) }
+            glSurfaceView.queueEvent { renderer.deleteLassoSelection(selectedItems) }
         })
         radialMenu.setItems(menuItems, x, y, { it.action?.invoke() }, {})
     }

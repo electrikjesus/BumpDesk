@@ -26,11 +26,11 @@ object RecentsPreferences {
     fun prefValueFor(mode: Pile.RecentsViewMode): String =
         if (mode == Pile.RecentsViewMode.TASK_CARDS) VIEW_TASK_CARDS else VIEW_ICONS
 
-    fun applyToPile(pile: Pile, prefs: SharedPreferences, isFlatFloorMode: Boolean, roomSize: Float) {
+    fun applyToPile(pile: Pile, prefs: SharedPreferences, useFloorLayout: Boolean, roomSize: Float) {
         pile.recentsViewMode = viewModeFromPref(prefs.getString(PREF_VIEW_MODE, VIEW_ICONS))
         pile.isPinnedOpen = prefs.getBoolean(PREF_PINNED_OPEN, false)
 
-        val defaultSurface = if (isFlatFloorMode) {
+        val defaultSurface = if (useFloorLayout) {
             BumpItem.Surface.FLOOR
         } else {
             BumpItem.Surface.BACK_WALL
@@ -45,7 +45,7 @@ object RecentsPreferences {
                 prefs.getFloat(PREF_POS_Y, if (pile.surface == BumpItem.Surface.FLOOR) 0.05f else 4f),
                 prefs.getFloat(PREF_POS_Z, pile.position.z),
             )
-        } else if (isFlatFloorMode) {
+        } else if (useFloorLayout) {
             pile.position = Vector3(-6f, 0.05f, 6f)
             pile.surface = BumpItem.Surface.FLOOR
         } else {

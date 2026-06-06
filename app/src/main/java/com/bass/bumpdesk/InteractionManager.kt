@@ -38,6 +38,7 @@ class InteractionManager(
     private var dragStartSurface: BumpItem.Surface? = null
     private var draggingPile: Pile? = null
     private var draggingPileStartPos: Vector3? = null
+    private var groupDragLastAnchorPos: Vector3? = null
 
     // For leafing gesture
     private var isLeafing = false
@@ -87,6 +88,7 @@ class InteractionManager(
         activeWidgetView = null
         draggingPile = null
         draggingPileStartPos = null
+        groupDragLastAnchorPos = null
         
         val rS = FloatArray(4)
         val rE = FloatArray(4)
@@ -162,13 +164,25 @@ class InteractionManager(
             return collapsedPile
         }
 
-        sceneState.selectedItem = findIntersectingItem(rS, rE, sceneState.bumpItems, sceneState.piles)
+        sceneState.selectedItem = findIntersectingItem(
+            rS,
+            rE,
+            AllAppsDrawer.visibleBumpItems(sceneState),
+            sceneState.piles,
+        )
         sceneState.selectedWidget = widgetHit?.first
         widgetHit?.first?.let { beginWidgetDrag(it, x, y) }
 
         sceneState.selectedItem?.let {
             dragStartPos = it.transform.position.copy()
             dragStartSurface = it.transform.surface
+
+            val group = sceneState.groupSelectedItems
+            if (group != null && group.contains(it)) {
+                groupDragLastAnchorPos = it.transform.position.copy()
+            } else if (group != null) {
+                sceneState.groupSelectedItems = null
+            }
             
             val pile = sceneState.getPileOf(it)
             if (pile != null && !pile.isExpanded) {
@@ -178,7 +192,9 @@ class InteractionManager(
         }
 
         if (sceneState.selectedItem == null && sceneState.selectedWidget == null && 
-            (camera.currentViewMode == CameraManager.ViewMode.DEFAULT || camera.currentViewMode == CameraManager.ViewMode.FLOOR)) { 
+            (camera.currentViewMode == CameraManager.ViewMode.DEFAULT || camera.currentViewMode == CameraManager.ViewMode.FLOOR)) {
+            sceneState.groupSelectedItems = null
+            groupDragLastAnchorPos = null
             lassoPoints.clear()
             isLassoPending = true
             lassoStartPoint = getFloorPoint(x, y)
@@ -209,7 +225,9 @@ class InteractionManager(
                 val selectedItem = sceneState.selectedItem
                 if (selectedItem != null) {
                     val pile = sceneState.getPileOf(selectedItem)
-                    if (pile != null && !pile.isExpanded && dyTouch > dxTouch * 2.5f && dyTouch > 30f) {
+                    val inGroupMove = sceneState.groupSelectedItems?.contains(selectedItem) == true
+                    if (pile != null && !pile.isExpanded && !inGroupMove &&
+                        dyTouch > dxTouch * 2.5f && dyTouch > 30f) {
                         isLeafing = true
                     } else {
                         isDragging = true
@@ -376,7 +394,12 @@ class InteractionManager(
                     }
                 }
                 item.transform.position = finalPos
-                
+
+                val group = sceneState.groupSelectedItems
+                val isGroupDrag = group != null && group.size > 1 && group.contains(item)
+                if (isGroupDrag) {
+                    syncGroupDrag(sceneState, item)
+                } else {
                 pile?.let {
                     if (!it.isExpanded) {
                         it.position = targetPos.copy(y = 0.05f)
@@ -394,6 +417,7 @@ class InteractionManager(
                             }
                         }
                     }
+                }
                 }
             }
         } else if (sceneState.selectedWidget != null && isDragging) {
@@ -447,11 +471,28 @@ class InteractionManager(
             if (item.transform.surface != BumpItem.Surface.FLOOR) {
                 item.transform.isPinned = true
             }
+            sceneState.groupSelectedItems?.forEach { member ->
+                if (member.transform.surface != BumpItem.Surface.FLOOR) {
+                    member.transform.isPinned = true
+                }
+            }
 
             dragStartPos?.let { startPos ->
                 dragStartSurface?.let { startSurface ->
                     if (isDragging && !isLeafing) {
-                        undoManager.execute(MoveCommand(item, startPos, startSurface, item.transform.position.copy(), item.transform.surface))
+                        val wasGroupDrag = sceneState.groupSelectedItems
+                            ?.let { it.size > 1 && it.contains(item) } == true
+                        if (!wasGroupDrag) {
+                            undoManager.execute(
+                                MoveCommand(
+                                    item,
+                                    startPos,
+                                    startSurface,
+                                    item.transform.position.copy(),
+                                    item.transform.surface,
+                                ),
+                            )
+                        }
                     }
                 }
             }
@@ -468,6 +509,8 @@ class InteractionManager(
                     roomSize = roomSize,
                 )
             } else if (pile == null && isDragging) {
+                val wasGroupDrag = sceneState.groupSelectedItems?.size?.let { it > 1 } == true
+                if (!wasGroupDrag) {
                 val nearbyPile = sceneState.piles.find { p ->
                     if (p.isSystem) return@find false
                     val dist = item.transform.position.distance(p.position)
@@ -475,6 +518,7 @@ class InteractionManager(
                 }
                 if (nearbyPile != null) {
                     (context as? LauncherActivity)?.showAddToPileMenu(item, nearbyPile)
+                }
                 }
             }
         } else if (isDragging && (camera.currentViewMode == CameraManager.ViewMode.DEFAULT || camera.currentViewMode == CameraManager.ViewMode.FLOOR) && lassoPoints.isNotEmpty()) {
@@ -490,6 +534,10 @@ class InteractionManager(
                 BumpDeskLog.d(BumpDeskLog.Tag.GESTURE, "lassoCapture", "skipped | need at least 2 items")
             }
         }
+        if (isDragging && !isLeafing) {
+            sceneState.groupSelectedItems = null
+        }
+        groupDragLastAnchorPos = null
         sceneState.selectedItem = null
         sceneState.selectedWidget = null
         widgetDragGrabOffset = null
@@ -883,6 +931,23 @@ class InteractionManager(
         if (abs(rE[1] - rS[1]) < 0.0001f) return Vector3(0f, 0.05f, 0f)
         val t = -rS[1] / (rE[1] - rS[1])
         return Vector3(rS[0] + t * (rE[0] - rS[0]), 0.05f, rS[2] + t * (rE[2] - rS[2]))
+    }
+
+    private fun syncGroupDrag(sceneState: SceneState, anchor: BumpItem) {
+        val group = sceneState.groupSelectedItems ?: return
+        if (group.size < 2 || !group.contains(anchor)) return
+
+        val lastAnchor = groupDragLastAnchorPos ?: anchor.transform.position.copy()
+        val delta = anchor.transform.position - lastAnchor
+        if (delta.lengthSq() < 0.0001f) return
+
+        group.forEach { member ->
+            if (member != anchor) {
+                member.transform.position = member.transform.position + delta
+                member.transform.surface = anchor.transform.surface
+            }
+        }
+        groupDragLastAnchorPos = anchor.transform.position.copy()
     }
 
     private fun captureLassoItems(sceneState: SceneState): List<BumpItem> {

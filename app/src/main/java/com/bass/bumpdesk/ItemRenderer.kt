@@ -274,7 +274,7 @@ class ItemRenderer(
                 // Fade out non-matching items
                 color = floatArrayOf(color[0] * 0.3f, color[1] * 0.3f, color[2] * 0.3f, 0.3f)
             }
-        } else if (item == sceneState.selectedItem) {
+        } else if (item == sceneState.selectedItem || sceneState.groupSelectedItems?.contains(item) == true) {
             val selectionColor = ThemeManager.getSelectionColor()
             color = floatArrayOf(selectionColor[0], selectionColor[1], selectionColor[2], 1.0f)
         }

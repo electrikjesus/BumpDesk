@@ -247,7 +247,29 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
             camera.MIN_Z = -ROOM_SIZE + 1f
         }
         
-        if (prefs.contains("cam_def_pos_x") && !isFlatFloorMode) {
+        if (prefs.getBoolean("reset_camera_trigger", false)) {
+            camera.resetToAbsoluteDefaults()
+            prefs.edit().remove("reset_camera_trigger").apply()
+            sessionProfileApplied = true
+            CameraDiagnostics.log(camera, "updateSettings", "source=resetCameraTrigger")
+        } else if (isFlatFloorMode) {
+            val aspect = displayAspectRatio()
+            val bounds = FlatFloorMode.computeFloorBounds(
+                FlatFloorMode.DEFAULT_EYE_Y,
+                FlatFloorMode.DEFAULT_EYE_Z,
+                FlatFloorMode.DEFAULT_FOV,
+                aspect,
+                FlatFloorMode.DEFAULT_ZOOM,
+            )
+            camera.applyFlatFloorDefaults(bounds, aspect)
+            camera.syncSavedViewFromCurrent()
+            sessionProfileApplied = true
+            (context as? LauncherActivity)?.showResetButton(false)
+            CameraDiagnostics.log(camera, "updateSettings", "source=flatFloorDefaults")
+        } else if (physicsEngine.isInfiniteMode) {
+            applyInfiniteDesktopCamera(displayProfile, "updateSettings")
+            sessionProfileApplied = true
+        } else if (prefs.contains("cam_def_pos_x")) {
             camera.customDefaultPos[0] = prefs.getFloat("cam_def_pos_x", camera.ABSOLUTE_DEFAULT_POS[0])
             camera.customDefaultPos[1] = prefs.getFloat("cam_def_pos_y", camera.ABSOLUTE_DEFAULT_POS[1])
             camera.customDefaultPos[2] = prefs.getFloat("cam_def_pos_z", camera.ABSOLUTE_DEFAULT_POS[2])
@@ -265,13 +287,11 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 camera.customDefaultLookAt = displayProfile.defaultCameraLookAt.clone()
                 camera.customDefaultZoomLevel = displayProfile.defaultZoomLevel
                 camera.baseFieldOfView = displayProfile.defaultFieldOfView
-                if (!sessionProfileApplied && camera.currentViewMode == CameraManager.ViewMode.DEFAULT) {
-                    applyOrientationProfile(displayProfile, "updateSettings")
-                    prefs.edit()
-                        .putString(ScreenMetrics.PREFS_LAST_ORIENTATION, displayProfile.orientationKey)
-                        .apply()
-                    sessionProfileApplied = true
-                }
+                applyOrientationProfile(displayProfile, "updateSettings")
+                prefs.edit()
+                    .putString(ScreenMetrics.PREFS_LAST_ORIENTATION, displayProfile.orientationKey)
+                    .apply()
+                sessionProfileApplied = true
             } else if (!sessionProfileApplied) {
                 camera.reset()
                 sessionProfileApplied = true
@@ -281,28 +301,6 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                     "source=savedCustomCamera latX=${camera.customDefaultLookAt[0]} posX=${camera.customDefaultPos[0]}",
                 )
             }
-        } else if (prefs.getBoolean("reset_camera_trigger", false)) {
-            camera.resetToAbsoluteDefaults()
-            prefs.edit().remove("reset_camera_trigger").apply()
-            sessionProfileApplied = true
-            CameraDiagnostics.log(camera, "updateSettings", "source=resetCameraTrigger")
-        } else if (isFlatFloorMode) {
-            val aspect = if (surfaceWidth > 0 && surfaceHeight > 0) {
-                surfaceWidth.toFloat() / surfaceHeight
-            } else {
-                displayProfile.widthPx.toFloat() / displayProfile.heightPx.coerceAtLeast(1)
-            }
-            val bounds = FlatFloorMode.computeFloorBounds(
-                FlatFloorMode.DEFAULT_EYE_Y,
-                FlatFloorMode.DEFAULT_EYE_Z,
-                FlatFloorMode.DEFAULT_FOV,
-                aspect,
-                FlatFloorMode.DEFAULT_ZOOM,
-            )
-            camera.applyFlatFloorDefaults(bounds, aspect)
-            camera.syncSavedViewFromCurrent()
-            sessionProfileApplied = true
-            CameraDiagnostics.log(camera, "updateSettings", "source=flatFloorDefaults")
         } else {
             camera.customDefaultPos = displayProfile.defaultCameraPos.clone()
             camera.customDefaultLookAt = displayProfile.defaultCameraLookAt.clone()
@@ -325,6 +323,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
 
         configureRecentsPileForCurrentMode()
         sceneState.recentsPile?.reconcilePinnedOpenState()
+        AllAppsDrawer.reconcile(sceneState, camera.currentViewMode)
         constrainWidgetsToActiveBounds(saveIfChanged = true)
         glSurfaceView?.requestRender()
     }
@@ -582,6 +581,13 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         val view = sceneState.widgetViews.remove(id)
         sceneState.widgetItems.remove(widget)
         WidgetCaptureCoordinator.clear(id)
+        if (::widgetRenderer.isInitialized) {
+            glSurfaceView?.queueEvent {
+                widgetRenderer.releaseWidgetTexture(id, widget)
+            }
+        } else {
+            widget.textureId = -1
+        }
         saveState()
         glSurfaceView?.post {
             (context as? LauncherActivity)?.releaseWidgetHost(id, view)
@@ -610,6 +616,45 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
     }
 
     fun togglePin(item: BumpItem) { item.transform.isPinned = !item.transform.isPinned; saveState() }
+
+    fun scaleLassoSelection(items: List<BumpItem>, grow: Boolean) {
+        sceneState.withWriteLock {
+            val targets = PileOperations.releaseItemsToDesktopUnlocked(sceneState, items)
+            SelectionOperations.scaleItems(targets, grow)
+        }
+        sceneState.groupSelectedItems = null
+        saveState()
+        glSurfaceView?.requestRender()
+    }
+
+    fun pinLassoSelection(items: List<BumpItem>, pinned: Boolean) {
+        sceneState.withWriteLock {
+            val targets = PileOperations.releaseItemsToDesktopUnlocked(sceneState, items)
+            SelectionOperations.setPinned(targets, pinned)
+        }
+        sceneState.groupSelectedItems = null
+        saveState()
+        glSurfaceView?.requestRender()
+    }
+
+    fun prepareGroupMove(items: List<BumpItem>) {
+        sceneState.withWriteLock {
+            val targets = PileOperations.releaseItemsToDesktopUnlocked(sceneState, items)
+            sceneState.groupSelectedItems = targets
+        }
+        glSurfaceView?.requestRender()
+    }
+
+    fun deleteLassoSelection(items: List<BumpItem>) {
+        PileOperations.removeItemsFromScene(sceneState, items)
+        sceneState.groupSelectedItems = null
+        saveState()
+        glSurfaceView?.requestRender()
+    }
+
+    fun clearGroupSelection() {
+        sceneState.groupSelectedItems = null
+    }
 
     fun updateRecents(recents: List<AppInfo>) {
         BumpDeskLog.enter(BumpDeskLog.Tag.RECENTS, "updateRecents", "count=${recents.size}")
@@ -682,6 +727,35 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         }
     }
 
+    private fun recentsUsesFloorLayout(): Boolean =
+        isFlatFloorMode || physicsEngine.isInfiniteMode
+
+    private fun displayAspectRatio(): Float {
+        if (surfaceWidth > 0 && surfaceHeight > 0) {
+            return surfaceWidth.toFloat() / surfaceHeight
+        }
+        val profile = ScreenMetrics.from(context)
+        return profile.widthPx.toFloat() / profile.heightPx.coerceAtLeast(1)
+    }
+
+    private fun flatFloorStyleBounds(): FlatFloorMode.Bounds =
+        FlatFloorMode.computeFloorBounds(
+            FlatFloorMode.DEFAULT_EYE_Y,
+            FlatFloorMode.DEFAULT_EYE_Z,
+            FlatFloorMode.DEFAULT_FOV,
+            displayAspectRatio(),
+            FlatFloorMode.DEFAULT_ZOOM,
+        )
+
+    private fun recentsConstrainHalfExtents(): Pair<Float, Float> {
+        if (isFlatFloorMode) return floorHalfWidth to floorHalfDepth
+        if (physicsEngine.isInfiniteMode) {
+            val bounds = flatFloorStyleBounds()
+            return bounds.halfX to bounds.halfZ
+        }
+        return ROOM_SIZE to ROOM_SIZE
+    }
+
     private fun configureRecentsPileForCurrentMode() {
         val pile = sceneState.recentsPile ?: return
         val prefs = context.getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
@@ -692,14 +766,15 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
             return
         }
 
-        RecentsPreferences.applyToPile(pile, prefs, isFlatFloorMode, ROOM_SIZE)
+        RecentsPreferences.applyToPile(pile, prefs, recentsUsesFloorLayout(), ROOM_SIZE)
 
-        val targetSurface = if (isFlatFloorMode) BumpItem.Surface.FLOOR else pile.surface
+        val useFloorRecents = recentsUsesFloorLayout()
+        val targetSurface = if (useFloorRecents) BumpItem.Surface.FLOOR else pile.surface
         val needsTextureRebuild =
             pile.layoutMode != Pile.LayoutMode.FOLDER ||
                 pile.surface != targetSurface ||
-                (isFlatFloorMode && pile.position.y > 1f) ||
-                (!isFlatFloorMode && pile.surface == BumpItem.Surface.FLOOR && pile.position.y <= 1f)
+                (useFloorRecents && pile.position.y > 1f) ||
+                (!useFloorRecents && pile.surface == BumpItem.Surface.FLOOR && pile.position.y <= 1f)
         if (needsTextureRebuild) {
             pile.items.forEach { item ->
                 item.appearance.textureId = -1
@@ -709,10 +784,12 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         }
 
         pile.layoutMode = Pile.LayoutMode.FOLDER
-        if (isFlatFloorMode) {
+        if (useFloorRecents) {
+            val wasOnWall = pile.recentsOnWall()
             pile.surface = BumpItem.Surface.FLOOR
-            if (!prefs.contains(RecentsPreferences.PREF_POS_X) &&
-                (pile.position.y > 1f || pile.position.z < -ROOM_SIZE / 2f)
+            if (wasOnWall ||
+                (!prefs.contains(RecentsPreferences.PREF_POS_X) &&
+                    (pile.position.y > 1f || pile.position.z < -ROOM_SIZE / 2f))
             ) {
                 pile.position = Vector3(-6f, 0.05f, 6f)
             } else {
@@ -753,15 +830,20 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         BumpDeskLog.d(
             BumpDeskLog.Tag.RECENTS,
             "configureRecentsPile",
-            "mode=${if (isFlatFloorMode) "flatFloor" else "room"} view=${pile.recentsViewMode} pinned=${pile.isPinnedOpen} items=${pile.items.size}",
+            "mode=${when {
+                isFlatFloorMode -> "flatFloor"
+                physicsEngine.isInfiniteMode -> "infinite"
+                else -> "room"
+            }} view=${pile.recentsViewMode} pinned=${pile.isPinnedOpen} items=${pile.items.size}",
         )
         pile.reconcilePinnedOpenState()
         if (pile.isRecentsPile() && pile.isPinnedOpen) {
+            val (halfX, halfZ) = recentsConstrainHalfExtents()
             FolderDrawerStyle.constrainRecentsPilePosition(
                 pile,
-                if (isFlatFloorMode) floorHalfWidth else ROOM_SIZE,
-                if (isFlatFloorMode) floorHalfDepth else ROOM_SIZE,
-                if (isFlatFloorMode) floorHalfWidth else ROOM_SIZE,
+                halfX,
+                halfZ,
+                halfX,
             )
         }
         FolderDrawerStyle.syncRecentsDrawerItemScales(pile)
@@ -792,6 +874,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
 
     /** Collapse expanded piles but leave a pinned-open Recents drawer in place. */
     private fun collapseNonPinnedPiles() {
+        AllAppsDrawer.clearForCollapse(sceneState)
         sceneState.piles.forEach { pile ->
             if (pile.isRecentsPile() && pile.isPinnedOpen) {
                 pile.reconcilePinnedOpenState()
@@ -1049,6 +1132,10 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
             return
         }
 
+        if (AllAppsDrawer.reconcile(sceneState, camera.currentViewMode)) {
+            (context as? LauncherActivity)?.showResetButton(false)
+        }
+
         frameCount++
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
         camera.update(); camera.setViewMatrix(viewMatrix)
@@ -1077,7 +1164,13 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         val runOnUiThread: (Runnable) -> Unit = { runnable -> glSurfaceView?.post(runnable) }
 
         if (shader != null) {
-            itemRenderer.drawItems(vPMatrix, sceneState.bumpItems, lightPos, searchQuery, onUpdateTexture)
+            itemRenderer.drawItems(
+                vPMatrix,
+                AllAppsDrawer.visibleBumpItems(sceneState),
+                lightPos,
+                searchQuery,
+                onUpdateTexture,
+            )
             widgetRenderer.drawWidgets(vPMatrix, sceneState.widgetItems, sceneState.widgetViews, frameCount, sceneState.selectedWidget, runOnUiThread, onUpdateTexture)
             pileRenderer.drawPiles(
                 vPMatrix,
@@ -1133,12 +1226,15 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
     }
 
     fun handleTouchUp() {
-        interactionManager.handleTouchUp(sceneState) { captured -> 
+        interactionManager.handleTouchUp(sceneState) { captured ->
             if (captured.isNotEmpty()) {
                 playSound(lassoSoundId, 0.4f)
                 hapticManager.selection()
             }
-            (context as? LauncherActivity)?.showLassoMenu(interactionManager.lastTouchX, interactionManager.lastTouchY, captured) 
+            (context as? LauncherActivity)?.showLassoMenu(interactionManager.lastTouchX, interactionManager.lastTouchY, captured)
+        }
+        if (AllAppsDrawer.removeIfEmpty(sceneState)) {
+            dismissExpandedPile()
         }
         saveState()
     }
@@ -1210,6 +1306,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
             )
         }
         saveState()
+        sceneState.groupSelectedItems = null
         glSurfaceView?.requestRender()
     }
 
@@ -1388,7 +1485,12 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
             }
             return 
         }
-        val item = interactionManager.findIntersectingItem(rS, rE, sceneState.bumpItems, sceneState.piles)
+        val item = interactionManager.findIntersectingItem(
+            rS,
+            rE,
+            AllAppsDrawer.visibleBumpItems(sceneState),
+            sceneState.piles,
+        )
         if (item != null) {
             val pile = sceneState.getPileOf(item)
             if (pile != null && pile == sceneState.recentsPile && pile.showsRecentsTaskCards()) {
@@ -1447,8 +1549,8 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                     val dp = Pile(
                         apps.map { BumpItem(appInfo = it, position = p.copy(), scale = physicsEngine.defaultScale) }.toMutableList(),
                         p,
-                        name = "All Apps",
-                        layoutMode = Pile.LayoutMode.GRID,
+                        name = AllAppsDrawer.PILE_NAME,
+                        layoutMode = Pile.LayoutMode.FOLDER,
                         isSystem = true,
                         scale = folderGroupScale,
                     )
@@ -1477,6 +1579,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
     }
 
     private fun shouldDismissFocusedViewOnEmptyTap(): Boolean {
+        if (AllAppsDrawer.isOpen(sceneState)) return true
         return when (camera.currentViewMode) {
             CameraManager.ViewMode.FOLDER_EXPANDED,
             CameraManager.ViewMode.WIDGET_FOCUS,
@@ -1508,7 +1611,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
 
     fun handleDoubleTap(x: Float, y: Float) {
         val rS = FloatArray(4); val rE = FloatArray(4); interactionManager.calculateRay(x, y, rS, rE)
-        if (!isFlatFloorMode) {
+        if (!isFlatFloorMode && !physicsEngine.isInfiniteMode) {
             val walls = listOf(
                 Triple(BumpItem.Surface.BACK_WALL, floatArrayOf(0f, 4f, 2f), floatArrayOf(0f, 4f, -ROOM_SIZE)),
                 Triple(BumpItem.Surface.LEFT_WALL, floatArrayOf(2f, 4f, 0f), floatArrayOf(-ROOM_SIZE, 4f, 0f)),
@@ -1542,12 +1645,20 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
             }
         }
         val tf = -rS[1] / (rE[1] - rS[1])
+        val (floorBoundX, floorBoundZ) = when {
+            isFlatFloorMode -> floorHalfWidth to floorHalfDepth
+            physicsEngine.isInfiniteMode -> {
+                val bounds = flatFloorStyleBounds()
+                bounds.halfX to bounds.halfZ
+            }
+            else -> floorHalfWidth to floorHalfDepth
+        }
         if (tf > 0 &&
-            abs(rS[0] + tf * (rE[0] - rS[0])) <= floorHalfWidth &&
-            abs(rS[2] + tf * (rE[2] - rS[2])) <= floorHalfDepth
+            abs(rS[0] + tf * (rE[0] - rS[0])) <= floorBoundX &&
+            abs(rS[2] + tf * (rE[2] - rS[2])) <= floorBoundZ
         ) {
             camera.focusOnFloor()
-            (context as? LauncherActivity)?.showResetButton(!isFlatFloorMode)
+            (context as? LauncherActivity)?.showResetButton(!isFlatFloorMode && !physicsEngine.isInfiniteMode)
             playSound(focusSoundId, 0.4f); hapticManager.selection() ; return
         }
         handleSingleTap(x, y)
@@ -1555,7 +1666,13 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
 
     fun handleLongPress(x: Float, y: Float) {
         val rS = FloatArray(4); val rE = FloatArray(4); interactionManager.calculateRay(x, y, rS, rE)
-        val wHit = interactionManager.findIntersectingWidget(rS, rE, sceneState.widgetItems); val iHit = interactionManager.findIntersectingItem(rS, rE, sceneState.bumpItems, sceneState.piles)
+        val wHit = interactionManager.findIntersectingWidget(rS, rE, sceneState.widgetItems)
+        val iHit = interactionManager.findIntersectingItem(
+            rS,
+            rE,
+            AllAppsDrawer.visibleBumpItems(sceneState),
+            sceneState.piles,
+        )
         if (wHit != null && (iHit == null || wHit.second < 0.8f)) { sceneState.selectedWidget = wHit.first; (context as? LauncherActivity)?.showWidgetMenu(x, y, wHit.first); return }
         if (iHit != null) {
             val pile = sceneState.getPileOf(iHit)
@@ -1597,6 +1714,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
 
     fun createPileFromCaptured(capturedItems: List<BumpItem>, layoutMode: Pile.LayoutMode = Pile.LayoutMode.STACK) {
         PileOperations.createPileFromCaptured(sceneState, capturedItems, layoutMode)
+        sceneState.groupSelectedItems = null
         saveState()
     }
 
@@ -1627,7 +1745,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         glSurfaceView?.requestRender()
     }
     fun resetView() {
-        sceneState.piles.removeAll { it.isSystem && it.name == "All Apps" }
+        AllAppsDrawer.removePile(sceneState)
         collapseNonPinnedPiles()
         sceneState.recentsPile?.reconcilePinnedOpenState()
         val profile = ScreenMetrics.from(context)
@@ -1656,7 +1774,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         glSurfaceView?.requestRender()
     }
     fun dismissExpandedPile() {
-        sceneState.piles.removeAll { it.isSystem && it.name == "All Apps" }
+        AllAppsDrawer.removePile(sceneState)
         collapseNonPinnedPiles()
         sceneState.recentsPile?.reconcilePinnedOpenState()
         if (isFlatFloorMode) {
@@ -1728,6 +1846,21 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         )
     }
 
+    private fun applyInfiniteDesktopCamera(profile: ScreenMetrics.DisplayProfile, reason: String) {
+        camera.customDefaultPos = profile.defaultCameraPos.clone()
+        camera.customDefaultLookAt = profile.defaultCameraLookAt.clone()
+        camera.customDefaultZoomLevel = profile.defaultZoomLevel
+        camera.baseFieldOfView = profile.defaultFieldOfView
+        camera.currentViewMode = CameraManager.ViewMode.DEFAULT
+        camera.applyProfileDefaults(profile)
+        (context as? LauncherActivity)?.showResetButton(false)
+        CameraDiagnostics.log(
+            camera,
+            reason,
+            "source=infiniteDesktopDefaults orientation=${profile.orientationKey}",
+        )
+    }
+
     private fun applyOrientationProfile(profile: ScreenMetrics.DisplayProfile, reason: String) {
         val prefs = context.getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
         if (isFlatFloorMode) {
@@ -1746,6 +1879,10 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 reason,
                 "source=flatFloor orientation=${profile.orientationKey} ${profile.widthPx}x${profile.heightPx}"
             )
+            return
+        }
+        if (physicsEngine.isInfiniteMode) {
+            applyInfiniteDesktopCamera(profile, reason)
             return
         }
         val anchor = OrientationCameraAnchor.load(context, profile.orientationKey)
