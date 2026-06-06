@@ -130,6 +130,7 @@ class SettingsActivity : AppCompatActivity() {
 
         setupDesktopModeCards(prefs)
         setupAppToggles(prefs)
+        setupLaunchPreferences(prefs)
         setupRecentsViewMode(prefs)
         setupThemePicker()
         setupSliders()
@@ -281,6 +282,42 @@ class SettingsActivity : AppCompatActivity() {
             }
         }
         updateRecentsSnapshotStatus()
+    }
+
+    private fun setupLaunchPreferences(prefs: android.content.SharedPreferences) {
+        findViewById<MaterialSwitch>(R.id.switchRememberLaunchMode).apply {
+            isChecked = LaunchPreferences.rememberLaunchMode(prefs)
+            setOnCheckedChangeListener { _, isChecked ->
+                prefs.edit().putBoolean(LaunchPreferences.PREF_REMEMBER_LAUNCH_MODE, isChecked).apply()
+            }
+        }
+
+        val group = findViewById<RadioGroup>(R.id.rgDefaultLaunchMode)
+        when (LaunchPreferences.defaultLaunchMode(prefs)) {
+            "maximized" -> group.check(R.id.rbLaunchMaximized)
+            "portrait" -> group.check(R.id.rbLaunchPortrait)
+            "fullscreen" -> group.check(R.id.rbLaunchFullscreen)
+            else -> group.check(R.id.rbLaunchStandard)
+        }
+        group.setOnCheckedChangeListener { _, checkedId ->
+            val mode = when (checkedId) {
+                R.id.rbLaunchMaximized -> "maximized"
+                R.id.rbLaunchPortrait -> "portrait"
+                R.id.rbLaunchFullscreen -> "fullscreen"
+                else -> "standard"
+            }
+            prefs.edit().putString(LaunchPreferences.PREF_DEFAULT_LAUNCH_MODE, mode).apply()
+        }
+
+        val scale = LaunchPreferences.scaleFactor(prefs)
+        val slider = findViewById<Slider>(R.id.sliderLaunchScale)
+        val scaleLabel = findViewById<TextView>(R.id.tvLaunchScaleVal)
+        slider.value = (scale * 100f).coerceIn(50f, 150f)
+        scaleLabel.text = String.format("%.0f%%", slider.value)
+        slider.addOnChangeListener { _, value, _ ->
+            prefs.edit().putFloat(LaunchPreferences.PREF_SCALE_FACTOR, value / 100f).apply()
+            scaleLabel.text = String.format("%.0f%%", value)
+        }
     }
 
     private fun setupRecentsViewMode(prefs: android.content.SharedPreferences) {

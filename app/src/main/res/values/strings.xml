@@ -26,6 +26,13 @@
     <string name="settings_recents_view_icons">Icon grid (recommended)</string>
     <string name="settings_recents_view_cards">Task cards (experimental)</string>
     <string name="settings_show_all_apps">Show All Apps icon</string>
+    <string name="settings_remember_launch_mode">Remember launch mode per app</string>
+    <string name="settings_default_launch_mode">Default app launch mode</string>
+    <string name="settings_launch_standard">Standard window</string>
+    <string name="settings_launch_maximized">Maximized window</string>
+    <string name="settings_launch_portrait">Portrait window</string>
+    <string name="settings_launch_fullscreen">Fullscreen</string>
+    <string name="settings_launch_scale">Standard window scale</string>
     <string name="settings_wallpaper_floor">Use system wallpaper as floor</string>
     <string name="settings_wallpaper_floor_hint">Available in Flat floor mode. Requires Photos access on Android 13+. Live system wallpaper may also need adb Storage grant on Waydroid.</string>
 
