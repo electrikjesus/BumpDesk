@@ -20,10 +20,10 @@ object RadialMenuPreferences {
         else -> scaleForPreset(autoPreset(profile), profile)
     }
 
-    fun autoPreset(profile: ScreenMetrics.DisplayProfile): String = when {
-        profile.isPhone || profile.shortestSideDp < 720f -> PRESET_PHONE
-        profile.shortestSideDp >= 800f -> PRESET_LARGE
-        else -> PRESET_TABLET
+    fun autoPreset(profile: ScreenMetrics.DisplayProfile): String = when (profile.posture) {
+        ScreenMetrics.LayoutPosture.COVER, ScreenMetrics.LayoutPosture.INNER -> PRESET_PHONE
+        ScreenMetrics.LayoutPosture.LARGE -> PRESET_LARGE
+        ScreenMetrics.LayoutPosture.TABLET -> PRESET_TABLET
     }
 
     fun readPreset(prefs: SharedPreferences): String =

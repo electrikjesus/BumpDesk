@@ -7,7 +7,17 @@ import kotlin.math.min
 object ScreenMetrics {
 
     const val PREFS_DISPLAY_DEFAULTS_APPLIED = "display_profile_defaults_v1"
+    /** @deprecated Legacy orientation-only key; use [PREFS_LAST_LAYOUT_PROFILE]. */
     const val PREFS_LAST_ORIENTATION = "orientation_camera_profile_v6"
+    const val PREFS_LAST_LAYOUT_PROFILE = "layout_profile_v1"
+
+    /** Display size class for foldables and responsive chrome (Phase 1). */
+    enum class LayoutPosture {
+        COVER,
+        INNER,
+        TABLET,
+        LARGE,
+    }
 
     data class DisplayProfile(
         val widthPx: Int,
@@ -16,6 +26,7 @@ object ScreenMetrics {
         val shortestSideDp: Float,
         val isPortrait: Boolean,
         val isPhone: Boolean,
+        val posture: LayoutPosture,
         val uiScale: Float,
         val recommendedRoomSize: Int,
         val defaultCameraPos: FloatArray,
@@ -24,6 +35,27 @@ object ScreenMetrics {
         val defaultFieldOfView: Float,
     ) {
         val orientationKey: String get() = if (isPortrait) "portrait" else "landscape"
+
+        val postureKey: String
+            get() = when (posture) {
+                LayoutPosture.COVER -> "cover"
+                LayoutPosture.INNER -> "inner"
+                LayoutPosture.TABLET -> "tablet"
+                LayoutPosture.LARGE -> "large"
+            }
+
+        /** Camera anchor + config-change tracking: e.g. `inner_landscape`, `cover_portrait`. */
+        val layoutProfileKey: String get() = "${postureKey}_$orientationKey"
+
+        fun isCompactPosture(): Boolean =
+            posture == LayoutPosture.COVER || posture == LayoutPosture.INNER
+    }
+
+    fun computePosture(shortestSideDp: Float): LayoutPosture = when {
+        shortestSideDp < 420f -> LayoutPosture.COVER
+        shortestSideDp < 720f -> LayoutPosture.INNER
+        shortestSideDp < 900f -> LayoutPosture.TABLET
+        else -> LayoutPosture.LARGE
     }
 
     fun from(context: Context): DisplayProfile {
@@ -35,19 +67,21 @@ object ScreenMetrics {
         val shortestSidePx = min(widthPx, heightPx)
         val shortestSideDp = shortestSidePx / density
         val isPortrait = heightPx > widthPx
-        val isPhone = shortestSideDp < 600f
-        val uiScale = when {
-            shortestSideDp < 360f -> 0.85f
-            shortestSideDp < 600f -> 0.95f
+        val posture = computePosture(shortestSideDp)
+        val isPhone = posture == LayoutPosture.COVER ||
+            (posture == LayoutPosture.INNER && shortestSideDp < 600f)
+        val uiScale = when (posture) {
+            LayoutPosture.COVER -> 0.85f
+            LayoutPosture.INNER -> 0.95f
             else -> 1.0f
         }
-        val recommendedRoomSize = when {
-            isPhone && isPortrait -> 20
-            isPhone -> 24
-            shortestSideDp < 720f -> 26
-            else -> 30
+        val recommendedRoomSize = when (posture) {
+            LayoutPosture.COVER -> if (isPortrait) 20 else 22
+            LayoutPosture.INNER -> if (isPortrait) 22 else 26
+            LayoutPosture.TABLET -> 28
+            LayoutPosture.LARGE -> 30
         }
-        val camera = defaultCameraFor(isPhone, isPortrait, widthPx, heightPx)
+        val camera = defaultCameraFor(posture, isPortrait)
         return DisplayProfile(
             widthPx = widthPx,
             heightPx = heightPx,
@@ -55,6 +89,7 @@ object ScreenMetrics {
             shortestSideDp = shortestSideDp,
             isPortrait = isPortrait,
             isPhone = isPhone,
+            posture = posture,
             uiScale = uiScale,
             recommendedRoomSize = recommendedRoomSize,
             defaultCameraPos = camera.pos,
@@ -72,15 +107,13 @@ object ScreenMetrics {
     )
 
     private fun defaultCameraFor(
-        isPhone: Boolean,
+        posture: LayoutPosture,
         isPortrait: Boolean,
-        widthPx: Int,
-        heightPx: Int,
     ): CameraDefaults {
         val pos = floatArrayOf(0f, 12f, 25f)
         val lookAt = floatArrayOf(0f, 0f, 5f)
         if (isPortrait) {
-            if (isPhone) {
+            if (posture == LayoutPosture.COVER || posture == LayoutPosture.INNER) {
                 return CameraDefaults(
                     pos = pos,
                     lookAt = lookAt,
@@ -88,7 +121,6 @@ object ScreenMetrics {
                     fov = 60f,
                 )
             }
-            // Tuned from device logs (1440×2160 tablet, twoFingerEnd 2025-05-30).
             return CameraDefaults(
                 pos = floatArrayOf(0.29f, 12f, 27.20f),
                 lookAt = floatArrayOf(0.29f, 0f, 7.20f),
@@ -96,8 +128,8 @@ object ScreenMetrics {
                 fov = 60f,
             )
         }
-        return when {
-            isPhone -> CameraDefaults(
+        return when (posture) {
+            LayoutPosture.COVER, LayoutPosture.INNER -> CameraDefaults(
                 pos = pos,
                 lookAt = lookAt,
                 zoom = 1.65f,

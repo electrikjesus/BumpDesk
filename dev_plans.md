@@ -240,6 +240,29 @@
     - [x] Add configuration-change handling so orientation switches do not break the scene (`configChanges` + `onConfigurationChanged`, preserve EGL context)
     - [ ] Test on phone portrait, phone landscape, and tablet form factors
 
+### Foldable & multi-posture layouts (Pixel Fold and similar)
+
+Today: one global desk layout in Room; camera anchors are per `portrait` / `landscape` only. Fold/unfold changes viewport a lot but reuses the same icon coordinates and often the wrong camera slot.
+
+**Phase 1 — Posture-aware view (no duplicate desks)** — *done*
+- [x] Add `LayoutPosture` + `layoutProfileKey` in `ScreenMetrics` (`cover`, `inner`, `tablet`, `large` × orientation)
+- [x] Key `OrientationCameraAnchor` and `PREFS_LAST_LAYOUT_PROFILE` by `layoutProfileKey` (migrate from orientation-only keys)
+- [x] Apply posture in `onConfigurationChanged` / `onDisplayProfileChanged` (camera, room defaults, compact UI thresholds)
+- [x] Use posture for radial menu auto preset and folder-focus compact framing
+- [x] Unit tests: Pixel Fold cover, inner, tablet size classes
+- [ ] Verify on Pixel Fold: fold/unfold restores sensible camera per mode; icons unchanged
+
+**Phase 2 — Per-posture desk layouts**
+- [ ] Add `layout_profile` to persistence (`desk_items`, piles, widgets) or separate layout blobs per profile
+- [ ] On profile change: save outgoing scene → load incoming (copy-on-first-use from `inner` or empty template)
+- [ ] Keep system piles (Recents, All Apps) special-cased
+- [ ] Settings: optional “sync layouts” or “copy cover from inner” maintenance actions
+
+**Phase 3 — Normalized coordinates (optional long-term)**
+- [ ] Store positions as fractions of active floor/wall bounds instead of fixed world units
+- [ ] Remap on bounds change so one logical layout scales across postures with less duplication
+- [ ] Careful handling for wall-pinned items and widgets
+
 ## Refactoring & Infrastructure (High Impact)
 
 - [x] **Complete**: Component-Based Architecture (Entity Component System Lite)

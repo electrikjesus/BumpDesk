@@ -292,7 +292,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 camera.baseFieldOfView = displayProfile.defaultFieldOfView
                 applyOrientationProfile(displayProfile, "updateSettings")
                 prefs.edit()
-                    .putString(ScreenMetrics.PREFS_LAST_ORIENTATION, displayProfile.orientationKey)
+                    .putString(ScreenMetrics.PREFS_LAST_LAYOUT_PROFILE, displayProfile.layoutProfileKey)
                     .apply()
                 sessionProfileApplied = true
             } else if (!sessionProfileApplied) {
@@ -312,7 +312,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
             if (!sessionProfileApplied && camera.currentViewMode == CameraManager.ViewMode.DEFAULT) {
                 applyOrientationProfile(displayProfile, "updateSettings")
                 prefs.edit()
-                    .putString(ScreenMetrics.PREFS_LAST_ORIENTATION, displayProfile.orientationKey)
+                    .putString(ScreenMetrics.PREFS_LAST_LAYOUT_PROFILE, displayProfile.layoutProfileKey)
                     .apply()
                 sessionProfileApplied = true
             } else {
@@ -468,14 +468,14 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
                 camera.transitionToCustomDefaults()
             }
             prefs.edit()
-                .putString(ScreenMetrics.PREFS_LAST_ORIENTATION, displayProfile.orientationKey)
+                .putString(ScreenMetrics.PREFS_LAST_LAYOUT_PROFILE, displayProfile.layoutProfileKey)
                 .apply()
             (context as? LauncherActivity)?.showResetButton(false)
             CameraDiagnostics.log(camera, reason, "source=leavingFlatFloor savedCustomCamera")
             return
         }
 
-        val anchor = OrientationCameraAnchor.load(context, displayProfile.orientationKey)
+        val anchor = OrientationCameraAnchor.loadForProfile(context, displayProfile)
         if (anchor != null) {
             camera.transitionToAnchor(anchor)
             CameraDiagnostics.log(
@@ -492,7 +492,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
             )
         }
         prefs.edit()
-            .putString(ScreenMetrics.PREFS_LAST_ORIENTATION, displayProfile.orientationKey)
+            .putString(ScreenMetrics.PREFS_LAST_LAYOUT_PROFILE, displayProfile.layoutProfileKey)
             .apply()
         (context as? LauncherActivity)?.showResetButton(false)
     }
@@ -1817,7 +1817,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         collapseNonPinnedPiles()
         sceneState.recentsPile?.reconcilePinnedOpenState()
         val profile = ScreenMetrics.from(context)
-        OrientationCameraAnchor.clear(context, profile.orientationKey)
+        OrientationCameraAnchor.clearForProfile(context, profile)
         val prefs = context.getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
         if (isFlatFloorMode) {
             val aspect = if (surfaceWidth > 0 && surfaceHeight > 0) {
@@ -1868,10 +1868,10 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
             return
         }
 
-        val lastOrientation = prefs.getString(ScreenMetrics.PREFS_LAST_ORIENTATION, null)
-        if (lastOrientation != profile.orientationKey) {
+        val lastProfileKey = prefs.getString(ScreenMetrics.PREFS_LAST_LAYOUT_PROFILE, null)
+        if (lastProfileKey != profile.layoutProfileKey) {
             prefs.edit()
-                .putString(ScreenMetrics.PREFS_LAST_ORIENTATION, profile.orientationKey)
+                .putString(ScreenMetrics.PREFS_LAST_LAYOUT_PROFILE, profile.layoutProfileKey)
                 .apply()
             applyOrientationProfile(profile, "orientationChange")
             sessionProfileApplied = true
@@ -1902,7 +1902,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
     fun persistOrientationCameraAnchor(spanDelta: Float, panTotal: Float, zoomProduct: Float) {
         if (camera.currentViewMode != CameraManager.ViewMode.DEFAULT) return
         val profile = ScreenMetrics.from(context)
-        OrientationCameraAnchor.save(context, profile.orientationKey, camera)
+        OrientationCameraAnchor.saveForProfile(context, profile, camera)
         camera.customDefaultPos = camera.targetPos.clone()
         camera.customDefaultLookAt = camera.targetLookAt.clone()
         camera.customDefaultZoomLevel = camera.zoomLevel
@@ -1953,13 +1953,13 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
             applyInfiniteDesktopCamera(profile, reason)
             return
         }
-        val anchor = OrientationCameraAnchor.load(context, profile.orientationKey)
+        val anchor = OrientationCameraAnchor.loadForProfile(context, profile)
         if (anchor != null) {
             camera.applyAnchor(anchor)
             CameraDiagnostics.log(
                 camera,
                 reason,
-                "source=userAnchor orientation=${profile.orientationKey} ${profile.widthPx}x${profile.heightPx}"
+                "source=userAnchor profile=${profile.layoutProfileKey} ${profile.widthPx}x${profile.heightPx}"
             )
         } else {
             camera.applyProfileDefaults(profile)
@@ -1974,7 +1974,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         val roomHalfZ = floorHalfDepth
         val roomSize = if (isFlatFloorMode) floorHalfWidth else ROOM_SIZE
         val panelCenter = FolderDrawerStyle.drawerFocusLookAt(pile, roomHalfX, roomHalfZ, roomSize)
-        val compactScreen = profile.isPhone || profile.shortestSideDp < 720f
+        val compactScreen = profile.isCompactPosture()
         camera.focusOnFolder(
             folderLookAt = panelCenter,
             scale = pile.scale,
