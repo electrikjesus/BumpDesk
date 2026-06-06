@@ -113,6 +113,10 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
         appManager = AppManager(this)
 
         glSurfaceView = findViewById(R.id.glSurfaceView)
+        btnResetView = findViewById(R.id.btnResetView)
+        radialMenu = findViewById(R.id.radialMenu)
+        widgetContainer = findViewById(R.id.widgetContainer)
+
         glSurfaceView.setEGLContextClientVersion(2)
         glSurfaceView.preserveEGLContextOnPause = true
 
@@ -135,9 +139,6 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
         dialogManager = DialogManager(this, glSurfaceView, renderer)
         actionHandler = ActionHandler(this, glSurfaceView, renderer)
 
-        btnResetView = findViewById(R.id.btnResetView)
-        radialMenu = findViewById(R.id.radialMenu)
-        widgetContainer = findViewById(R.id.widgetContainer)
         menuManager = MenuManager(this, radialMenu, glSurfaceView, renderer, this)
         
         btnResetView.setOnClickListener {
@@ -620,7 +621,10 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
         appManager.refreshRecents()
     }
 
-    fun showResetButton(show: Boolean) = runOnUiThread { btnResetView.visibility = if (show) View.VISIBLE else View.GONE }
+    fun showResetButton(show: Boolean) = runOnUiThread {
+        if (!::btnResetView.isInitialized) return@runOnUiThread
+        btnResetView.visibility = if (show) View.VISIBLE else View.GONE
+    }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
