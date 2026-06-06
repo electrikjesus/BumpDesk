@@ -341,6 +341,25 @@ object FolderDrawerStyle {
         return cols to rows
     }
 
+    fun computeRecentsFloorGridResize(
+        pile: Pile,
+        deltaX: Float,
+        deltaZ: Float,
+        startCols: Int,
+        startRows: Int,
+    ): Pair<Int, Int> {
+        val cell = recentsWallCellSpacing(pile).coerceAtLeast(0.01f)
+        val colDelta = kotlin.math.round(deltaX / cell).toInt()
+        val rowDelta = kotlin.math.round(deltaZ / cell).toInt()
+        val cols = coerceRecentsDrawerColumns(startCols + colDelta)
+        val rows = coerceRecentsDrawerRows(startRows + rowDelta)
+        return cols to rows
+    }
+
+    private fun recentsDrawerResizeHitRadius(pile: Pile, layout: Layout): Float =
+        recentsDrawerResizeHandleHitRadius(pile, layout)
+            .coerceAtLeast(WidgetHandleStyle.HANDLE_SIZE * 0.45f)
+
     fun hitTestRecentsWallResizeHandle(
         pile: Pile,
         hitPrimary: Float,
@@ -352,8 +371,31 @@ object FolderDrawerStyle {
         if (!pile.showsDesktopPinnedDrawer() || !pile.recentsOnWall()) return false
         val layout = layoutForPile(pile, roomHalfX, roomHalfZ, roomSize)
         val handle = recentsWallResizeHandleCenter(pile, pile.surface, layout)
-        val radius = recentsDrawerResizeHandleHitRadius(pile, layout)
+        val radius = recentsDrawerResizeHitRadius(pile, layout)
         return abs(hitPrimary - handle[0]) < radius && abs(hitVertical - handle[1]) < radius
+    }
+
+    fun recentsFloorResizeHandleCenter(pile: Pile, layout: Layout): FloatArray {
+        val inset = recentsDrawerResizeHandleHalfSize(pile, layout) + WidgetHandleStyle.HANDLE_INSET * pile.scale
+        // Sit just outside the bottom-right corner (matches wall: resize opposite the close control).
+        return floatArrayOf(
+            layout.pos[0] + layout.halfDimX + inset * 0.2f,
+            layout.pos[2] + layout.halfDimZ + inset * 0.2f,
+        )
+    }
+
+    fun hitTestRecentsFloorResizeHandle(
+        pile: Pile,
+        hitX: Float,
+        hitZ: Float,
+        roomHalfX: Float,
+        roomHalfZ: Float,
+    ): Boolean {
+        if (!usesFloorPinnedRecents(pile)) return false
+        val layout = layout(pile, roomHalfX, roomHalfZ)
+        val handle = recentsFloorResizeHandleCenter(pile, layout)
+        val radius = recentsDrawerResizeHitRadius(pile, layout)
+        return abs(hitX - handle[0]) < radius && abs(hitZ - handle[1]) < radius
     }
 
     fun recentsWallResizeHandleCenter(pile: Pile, surface: BumpItem.Surface, layout: Layout): FloatArray {

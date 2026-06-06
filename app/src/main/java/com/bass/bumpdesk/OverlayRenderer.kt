@@ -428,6 +428,24 @@ class OverlayRenderer(
             1.0f,
             false,
         )
+
+        if (FolderDrawerStyle.usesFloorPinnedRecents(pile)) {
+            ensureResizeHandleTexture()
+            val resize = FolderDrawerStyle.recentsFloorResizeHandleCenter(pile, data)
+            val handleHalf = FolderDrawerStyle.recentsDrawerResizeHandleHalfSize(pile, data)
+            Matrix.setIdentityM(modelMatrix, 0)
+            Matrix.translateM(modelMatrix, 0, resize[0], chromeY, resize[1])
+            Matrix.scaleM(modelMatrix, 0, handleHalf, 1f, handleHalf)
+            folderBgPlane.draw(
+                vPMatrix,
+                modelMatrix,
+                FolderDrawerStyle.buttonContainerColor(),
+                resizeHandleTextureId,
+                lightPos,
+                1.0f,
+                false,
+            )
+        }
     }
 
     fun drawPaginationUI(
