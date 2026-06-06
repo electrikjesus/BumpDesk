@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: set up JDK 17
       uses: actions/setup-java@v4
       with:
@@ -21,12 +21,34 @@ jobs:
 
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
-      
-    - name: Build Release APK (Unsigned)
+
+    - name: Decode signing keystore
+      env:
+        SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+      run: |
+        if [ -z "$SIGNING_KEY" ]; then
+          echo "::error::SIGNING_KEY repository secret is not set. See keystore.properties.example."
+          exit 1
+        fi
+        echo "$SIGNING_KEY" | base64 -d > app/release.keystore
+
+    - name: Build signed Release APK
+      env:
+        RELEASE_STORE_FILE: app/release.keystore
+        RELEASE_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+        RELEASE_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+        RELEASE_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
       run: ./gradlew assembleRelease
+
+    - name: Verify release APK signature
+      run: jarsigner -verify -verbose -certs app/build/outputs/apk/release/app-release.apk
 
     - name: Upload Release APK
       uses: actions/upload-artifact@v4
       with:
-        name: BumpDesk-Release-Unsigned
-        path: app/build/outputs/apk/release/app-release-unsigned.apk
+        name: BumpDesk-Release
+        path: app/build/outputs/apk/release/app-release.apk
+
+    - name: Remove signing keystore
+      if: always()
+      run: rm -f app/release.keystore

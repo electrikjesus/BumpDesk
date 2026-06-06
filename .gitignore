@@ -30,3 +30,10 @@ local.properties
 # OS generated files
 ehthumbs.db
 Thumbs.db
+
+# Release signing (never commit real credentials or keystores)
+keystore/
+keystore.properties
+*.jks
+*.keystore
+app/release.keystore
