@@ -46,10 +46,10 @@ object FlatFloorMode {
         )
     }
 
-    /** Floor plane width:depth for wallpaper center-crop when flat floor mode is enabled. */
+    /** Floor plane width:depth for wallpaper center-crop (flat floor uses screen frustum; room/infinite use 1:1). */
     fun floorCropAspectFor(context: Context): Pair<Float, Float> {
         val prefs = context.getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
-        if (!prefs.getBoolean(PREF_KEY, false)) {
+        if (!prefs.getBoolean(PREF_KEY, false) || prefs.getBoolean("infinite_desktop_mode", false)) {
             return 1f to 1f
         }
         val profile = ScreenMetrics.from(context)

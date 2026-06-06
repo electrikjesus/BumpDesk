@@ -42,7 +42,6 @@ class SettingsActivity : AppCompatActivity() {
 
     private lateinit var appManager: AppManager
     private var pendingWallpaperSwitch: MaterialSwitch? = null
-    private lateinit var wallpaperFloorGroup: View
     private lateinit var wallpaperFloorSwitch: MaterialSwitch
     private val desktopCards = linkedMapOf<DesktopMode, MaterialCardView>()
     private var selectedDesktopMode = DesktopMode.ROOM
@@ -125,7 +124,6 @@ class SettingsActivity : AppCompatActivity() {
 
         findViewById<MaterialToolbar>(R.id.toolbar).setNavigationOnClickListener { finish() }
 
-        wallpaperFloorGroup = findViewById(R.id.groupWallpaperFloor)
         wallpaperFloorSwitch = findViewById(R.id.switchUseWallpaperAsFloor)
 
         setupDesktopModeCards(prefs)
@@ -176,7 +174,6 @@ class SettingsActivity : AppCompatActivity() {
         selectedDesktopMode = readDesktopMode(prefs)
         applyDesktopOptionsLayout()
         refreshDesktopModeCards()
-        updateWallpaperFloorVisibility()
     }
 
     private fun applyDesktopOptionsLayout() {
@@ -219,7 +216,6 @@ class SettingsActivity : AppCompatActivity() {
             }
         }
         refreshDesktopModeCards()
-        updateWallpaperFloorVisibility()
     }
 
     private fun refreshDesktopModeCards() {
@@ -236,18 +232,6 @@ class SettingsActivity : AppCompatActivity() {
             )
             card.findViewById<View>(R.id.ivSelected).visibility =
                 if (selected) View.VISIBLE else View.GONE
-        }
-    }
-
-    private fun updateWallpaperFloorVisibility() {
-        val flatFloor = selectedDesktopMode == DesktopMode.FLAT_FLOOR
-        wallpaperFloorGroup.visibility = if (flatFloor) View.VISIBLE else View.GONE
-        if (!flatFloor && wallpaperFloorSwitch.isChecked) {
-            wallpaperFloorSwitch.isChecked = false
-            getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
-                .edit().putBoolean("use_wallpaper_as_floor", false).apply()
-            WallpaperFloorProvider.clear()
-            WallpaperFloorProvider.clearPickedWallpaper(this)
         }
     }
 
@@ -389,9 +373,10 @@ class SettingsActivity : AppCompatActivity() {
         findViewById<com.google.android.material.button.MaterialButton>(R.id.btnClearCache).setOnClickListener {
             prefs.edit().apply {
                 remove("onboarding_complete")
-                remove("selected_theme")
+                putString("selected_theme", ThemeManager.DEFAULT_THEME)
                 apply()
             }
+            ThemeManager.setTheme(ThemeManager.DEFAULT_THEME, this)
             Toast.makeText(this, "Cache cleared. Some changes require restart.", Toast.LENGTH_SHORT).show()
         }
 
@@ -407,10 +392,12 @@ class SettingsActivity : AppCompatActivity() {
                 putBoolean("show_app_drawer_icon", true)
                 putBoolean("infinite_desktop_mode", false)
                 putBoolean(FlatFloorMode.PREF_KEY, false)
-                putBoolean("use_wallpaper_as_floor", false)
+                putBoolean("use_wallpaper_as_floor", true)
+                putString("selected_theme", ThemeManager.DEFAULT_THEME)
                 putString(RecentsPreferences.PREF_VIEW_MODE, RecentsPreferences.VIEW_ICONS)
                 apply()
             }
+            ThemeManager.setTheme(ThemeManager.DEFAULT_THEME, this)
             WallpaperFloorProvider.clearPickedWallpaper(this)
             recreate()
         }

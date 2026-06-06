@@ -34,7 +34,7 @@
     <string name="settings_launch_fullscreen">Fullscreen</string>
     <string name="settings_launch_scale">Standard window scale</string>
     <string name="settings_wallpaper_floor">Use system wallpaper as floor</string>
-    <string name="settings_wallpaper_floor_hint">Available in Flat floor mode. Requires Photos access on Android 13+. Live system wallpaper may also need adb Storage grant on Waydroid.</string>
+    <string name="settings_wallpaper_floor_hint">Works in 3D room, infinite, and flat floor modes. Requires Photos access on Android 13+. Live system wallpaper may also need adb Storage grant on Waydroid.</string>
 
     <string name="settings_theme_hint">Swap room textures, floor art, and icon styling.</string>
     <string name="settings_select_theme">Select visual theme</string>

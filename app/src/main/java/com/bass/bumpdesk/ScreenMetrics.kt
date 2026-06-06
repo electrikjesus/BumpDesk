@@ -116,6 +116,12 @@ object ScreenMetrics {
         if (prefs.getBoolean(PREFS_DISPLAY_DEFAULTS_APPLIED, false)) return
         val profile = from(context)
         prefs.edit().apply {
+            if (!prefs.contains("selected_theme")) {
+                putString("selected_theme", ThemeManager.DEFAULT_THEME)
+            }
+            if (!prefs.contains("use_wallpaper_as_floor")) {
+                putBoolean("use_wallpaper_as_floor", true)
+            }
             if (!prefs.contains("room_size_scale")) {
                 putInt("room_size_scale", profile.recommendedRoomSize)
             }
