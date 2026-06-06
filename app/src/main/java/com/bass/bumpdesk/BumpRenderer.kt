@@ -381,6 +381,8 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         }
     }
 
+    fun saveDeskState() = saveState()
+
     private fun saveState() {
         if (!persistenceReady) return
         sceneState.recentsPile?.let { pile ->
@@ -518,7 +520,17 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         val rS = FloatArray(4); val rE = FloatArray(4); interactionManager.calculateRay(x, y, rS, rE)
         val hit = interactionManager.findWallOrFloorHit(rS, rE, 0.05f)
         val pos = if (hit != null) Vector3.fromArray(hit.second) else Vector3(0f, 0.05f, 0f)
-        sceneState.bumpItems.add(BumpItem(type = BumpItem.Type.STICKY_NOTE, text = text, position = pos, surface = hit?.first ?: BumpItem.Surface.FLOOR, color = floatArrayOf(1f, 1f, 0.6f, 1f), scale = physicsEngine.defaultScale))
+        val noteScale = (physicsEngine.defaultScale * TextRenderer.STICKY_NOTE_DEFAULT_SCALE_MULTIPLIER).coerceAtLeast(1.0f)
+        sceneState.bumpItems.add(
+            BumpItem(
+                type = BumpItem.Type.STICKY_NOTE,
+                text = text,
+                position = pos,
+                surface = hit?.first ?: BumpItem.Surface.FLOOR,
+                color = floatArrayOf(1f, 1f, 1f, 1f),
+                scale = noteScale,
+            ),
+        )
         saveState()
     }
 

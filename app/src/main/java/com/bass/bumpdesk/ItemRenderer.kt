@@ -9,6 +9,7 @@ import android.opengl.Matrix
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.graphics.BitmapFactory
+import android.opengl.GLES20
 
 class ItemRenderer(
     private val context: Context,
@@ -17,7 +18,9 @@ class ItemRenderer(
     private val sceneState: SceneState
 ) {
     private val appIconBox = Box(shader)
+    private val handlePlane = Plane(shader)
     private val modelMatrix = FloatArray(16)
+    private var stickyNoteResizeHandleTextureId = -1
 
     fun drawItems(
         vPMatrix: FloatArray,
@@ -66,7 +69,7 @@ class ItemRenderer(
             }
             BumpItem.Type.STICKY_NOTE -> {
                 val text = item.textData?.text ?: ""
-                val bitmap = TextRenderer.createTextBitmap(text, 512, 512)
+                val bitmap = TextRenderer.createStickyNoteBitmap(context, text)
                 appearance.textureId = textureManager.loadTextureFromBitmap(bitmap)
                 bitmap.recycle()
             }
@@ -241,7 +244,7 @@ class ItemRenderer(
             }
         }
         
-        val heightMult = when (appearance.type) { 
+        val heightMult = when (appearance.type) {
             BumpItem.Type.APP -> if (pile?.layoutMode == Pile.LayoutMode.CAROUSEL) 1.6f else 1.25f
             BumpItem.Type.RECENT_APP -> {
                 if (pile?.showsRecentsIconGrid() == true) {
@@ -251,9 +254,19 @@ class ItemRenderer(
                 }
             }
             BumpItem.Type.APP_DRAWER -> 1.38f
-            else -> 1.0f 
+            else -> 1.0f
         }
-        Matrix.scaleM(modelMatrix, 0, transform.scale, 1f, transform.scale * heightMult)
+        if (appearance.type == BumpItem.Type.STICKY_NOTE) {
+            Matrix.scaleM(
+                modelMatrix,
+                0,
+                transform.scale * transform.shapeHalfX,
+                1f,
+                transform.scale * transform.shapeHalfZ,
+            )
+        } else {
+            Matrix.scaleM(modelMatrix, 0, transform.scale, 1f, transform.scale * heightMult)
+        }
         
         var color = if (transform.isPinned) floatArrayOf(0.8f, 0.8f, 1.0f, 1.0f) else appearance.color
         
@@ -280,6 +293,87 @@ class ItemRenderer(
         }
 
         appIconBox.draw(vPMatrix, modelMatrix, appearance.textureId, color)
+
+        if (item == sceneState.selectedItem && appearance.type == BumpItem.Type.STICKY_NOTE) {
+            drawStickyNoteChrome(vPMatrix, item, surfaceToUse, posX, posY, posZ)
+        }
+    }
+
+    private fun drawStickyNoteChrome(
+        vPMatrix: FloatArray,
+        item: BumpItem,
+        surface: BumpItem.Surface,
+        posX: Float,
+        posY: Float,
+        posZ: Float,
+    ) {
+        ensureStickyNoteHandleTexture()
+        val base = stickyNoteBaseMatrix(surface, posX, posY, posZ)
+        val half = StickyNoteStyle.displayHalfSize(item)
+
+        GLES20.glDisable(GLES20.GL_DEPTH_TEST)
+        val (cx, lift, cz) = WidgetHandleStyle.handleCenter(half, WidgetHandleStyle.Kind.RESIZE)
+        val handleSize = WidgetHandleStyle.handleSizeForWidget(half)
+        Matrix.setIdentityM(modelMatrix, 0)
+        System.arraycopy(base, 0, modelMatrix, 0, 16)
+        Matrix.translateM(modelMatrix, 0, cx, lift, cz)
+        Matrix.scaleM(modelMatrix, 0, handleSize, 1f, handleSize)
+        handlePlane.draw(
+            vPMatrix,
+            modelMatrix,
+            floatArrayOf(1f, 1f, 1f, 1f),
+            stickyNoteResizeHandleTextureId,
+            floatArrayOf(0f, 10f, 0f),
+            1.0f,
+            useLighting = false,
+            isAnimated = false,
+        )
+        GLES20.glEnable(GLES20.GL_DEPTH_TEST)
+    }
+
+    private fun stickyNoteBaseMatrix(
+        surface: BumpItem.Surface,
+        posX: Float,
+        posY: Float,
+        posZ: Float,
+    ): FloatArray {
+        Matrix.setIdentityM(modelMatrix, 0)
+        when (surface) {
+            BumpItem.Surface.BACK_WALL -> {
+                Matrix.translateM(modelMatrix, 0, posX, posY, posZ)
+                Matrix.rotateM(modelMatrix, 0, 180f, 0f, 1f, 0f)
+                Matrix.rotateM(modelMatrix, 0, 90f, 1f, 0f, 0f)
+                Matrix.rotateM(modelMatrix, 0, 180f, 0f, 0f, 1f)
+            }
+            BumpItem.Surface.LEFT_WALL -> {
+                Matrix.translateM(modelMatrix, 0, posX, posY, posZ)
+                Matrix.rotateM(modelMatrix, 0, 90f, 0f, 1f, 0f)
+                Matrix.rotateM(modelMatrix, 0, 180f, 0f, 1f, 0f)
+                Matrix.rotateM(modelMatrix, 0, 90f, 1f, 0f, 0f)
+                Matrix.rotateM(modelMatrix, 0, 180f, 0f, 0f, 1f)
+            }
+            BumpItem.Surface.RIGHT_WALL -> {
+                Matrix.translateM(modelMatrix, 0, posX, posY, posZ)
+                Matrix.rotateM(modelMatrix, 0, -90f, 0f, 1f, 0f)
+                Matrix.rotateM(modelMatrix, 0, 180f, 0f, 1f, 0f)
+                Matrix.rotateM(modelMatrix, 0, 90f, 1f, 0f, 0f)
+                Matrix.rotateM(modelMatrix, 0, 180f, 0f, 0f, 1f)
+            }
+            BumpItem.Surface.FLOOR -> Matrix.translateM(modelMatrix, 0, posX, posY, posZ)
+        }
+        return modelMatrix.clone()
+    }
+
+    private fun ensureStickyNoteHandleTexture() {
+        if (stickyNoteResizeHandleTextureId > 0) return
+        val bitmap = TextRenderer.createMaterialHandleBitmap(
+            "⇲",
+            backgroundColor = WidgetHandleStyle.resizeBackground,
+            foregroundColor = WidgetHandleStyle.resizeForeground,
+            strokeColor = WidgetHandleStyle.strokeColor,
+        )
+        stickyNoteResizeHandleTextureId = textureManager.loadTextureFromBitmap(bitmap)
+        bitmap.recycle()
     }
 
     fun drawPileFolderPreview(vPMatrix: FloatArray, pile: Pile, lightPos: FloatArray) {

@@ -5,6 +5,7 @@ import com.bass.bumpdesk.AppInfo
 import com.bass.bumpdesk.BumpItem
 import com.bass.bumpdesk.SceneState
 import com.bass.bumpdesk.WidgetItem
+import com.bass.bumpdesk.StickyNoteStyle
 import com.bass.bumpdesk.Vector3
 import com.bass.bumpdesk.Pile
 import kotlinx.coroutines.Dispatchers
@@ -98,8 +99,16 @@ class DeskRepository(context: Context) {
             posX = item.transform.position.x,
             posY = item.transform.position.y,
             posZ = item.transform.position.z,
-            sizeX = 1.0f,
-            sizeZ = 1.0f,
+            sizeX = if (item.appearance.type == BumpItem.Type.STICKY_NOTE) {
+                item.transform.shapeHalfX
+            } else {
+                1.0f
+            },
+            sizeZ = if (item.appearance.type == BumpItem.Type.STICKY_NOTE) {
+                item.transform.shapeHalfZ
+            } else {
+                1.0f
+            },
             surface = item.transform.surface.name,
             isPinned = item.transform.isPinned,
             scale = item.transform.scale,
@@ -158,8 +167,12 @@ class DeskRepository(context: Context) {
                         position = Vector3(saved.posX, saved.posY, saved.posZ),
                         surface = BumpItem.Surface.valueOf(saved.surface),
                         isPinned = saved.isPinned,
-                        scale = saved.scale
+                        scale = saved.scale,
                     )
+                    if (type == BumpItem.Type.STICKY_NOTE) {
+                        item.transform.shapeHalfX = StickyNoteStyle.clampShapeHalf(saved.sizeX)
+                        item.transform.shapeHalfZ = StickyNoteStyle.clampShapeHalf(saved.sizeZ)
+                    }
 
                     if (saved.pileId != null && piles.containsKey(saved.pileId)) {
                         piles[saved.pileId]?.items?.add(item)

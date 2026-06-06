@@ -15,7 +15,11 @@ data class TransformComponent(
     var velocity: Vector3 = Vector3(0f, 0f, 0f),
     var scale: Float = 0.5f,
     var isPinned: Boolean = false,
-    var surface: BumpItem.Surface = BumpItem.Surface.FLOOR
+    var surface: BumpItem.Surface = BumpItem.Surface.FLOOR,
+    /** Sticky note width multiplier relative to [scale] (1 = square). */
+    var shapeHalfX: Float = StickyNoteStyle.DEFAULT_SHAPE_HALF,
+    /** Sticky note depth multiplier relative to [scale] (1 = square). */
+    var shapeHalfZ: Float = StickyNoteStyle.DEFAULT_SHAPE_HALF,
 ) : Component
 
 data class AppearanceComponent(

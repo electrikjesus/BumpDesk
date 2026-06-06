@@ -1,5 +1,6 @@
 package com.bass.bumpdesk
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -8,8 +9,14 @@ import android.graphics.RectF
 import android.graphics.Typeface
 import android.opengl.GLES20
 import android.opengl.GLUtils
+import android.text.Layout
+import android.text.StaticLayout
+import android.text.TextPaint
+import androidx.core.content.ContextCompat
 
 object TextRenderer {
+    const val STICKY_NOTE_BITMAP_SIZE = 512
+    const val STICKY_NOTE_DEFAULT_SCALE_MULTIPLIER = 5f
     fun createTextBitmap(text: String, width: Int = 256, height: Int = 64): Bitmap {
         return createStyledTextBitmap(
             text = text,
@@ -21,6 +28,46 @@ object TextRenderer {
             align = Paint.Align.CENTER,
             shadow = true,
         )
+    }
+
+    /** Sticky note with themed background and wrapped body text. */
+    fun createStickyNoteBitmap(
+        context: Context,
+        text: String,
+        width: Int = STICKY_NOTE_BITMAP_SIZE,
+        height: Int = STICKY_NOTE_BITMAP_SIZE,
+    ): Bitmap {
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+
+        ContextCompat.getDrawable(context, R.drawable.sticky_note_background)?.let { background ->
+            background.setBounds(0, 0, width, height)
+            background.draw(canvas)
+        }
+
+        val horizontalPadding = width * 0.12f
+        val topPadding = height * 0.14f
+        val textWidth = (width - horizontalPadding * 2f).toInt().coerceAtLeast(1)
+        val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+            textSize = width * 0.085f
+            color = Color.rgb(38, 38, 38)
+            typeface = ThemeManager.getStickyNoteTypeface(context)
+                ?: Typeface.create("sans-serif-medium", Typeface.NORMAL)
+        }
+
+        val layout = StaticLayout.Builder
+            .obtain(text, 0, text.length, textPaint, textWidth)
+            .setAlignment(Layout.Alignment.ALIGN_NORMAL)
+            .setLineSpacing(0f, 1.15f)
+            .setIncludePad(false)
+            .build()
+
+        canvas.save()
+        canvas.translate(horizontalPadding, topPadding)
+        layout.draw(canvas)
+        canvas.restore()
+
+        return bitmap
     }
 
     /** App icon label — slightly larger type for readability at default icon scale. */

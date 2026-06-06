@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="512dp"
+    android:height="512dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+    <!-- Soft drop shadow -->
+    <path
+        android:fillColor="#33000000"
+        android:pathData="M40,28 L456,28 Q472,28 472,44 L472,468 Q472,484 456,484 L56,484 Q40,484 40,468 L40,44 Q40,28 56,28 Z" />
+    <!-- Main note body -->
+    <path
+        android:fillColor="#FFF59D"
+        android:pathData="M32,20 L448,20 Q464,20 464,36 L464,476 Q464,492 448,492 L48,492 Q32,492 32,476 L32,36 Q32,20 48,20 Z" />
+    <!-- Folded corner -->
+    <path
+        android:fillColor="#FFE082"
+        android:pathData="M368,492 L464,396 L464,492 Z" />
+    <path
+        android:fillColor="#FFCA28"
+        android:pathData="M368,492 L464,396 L464,476 L448,492 Z" />
+    <!-- Top highlight -->
+    <path
+        android:fillColor="#33FFFFFF"
+        android:pathData="M48,36 L432,36 Q440,36 440,44 L440,52 Q440,44 432,44 L48,44 Q40,44 40,36 Z" />
+</vector>

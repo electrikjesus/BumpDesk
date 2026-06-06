@@ -679,6 +679,11 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
         glSurfaceView.requestRender()
     }
 
+    fun onStickyNoteShapeChanged() {
+        if (!::renderer.isInitialized) return
+        glSurfaceView.queueEvent { renderer.saveDeskState() }
+    }
+
     fun onWidgetResizeFinished(widget: WidgetItem) {
         if (!::renderer.isInitialized) return
         glSurfaceView.queueEvent {
