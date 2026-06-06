@@ -1078,13 +1078,13 @@ object FolderDrawerStyle {
         return HitResult(Hit.NONE)
     }
 
-    fun surfaceColor(): FloatArray = floatArrayOf(0.13f, 0.14f, 0.17f, 0.94f)
+    fun surfaceColor(): FloatArray = ThemeManager.getMaterialSurfaceColor()
 
-    fun onSurfaceColor(): FloatArray = floatArrayOf(0.96f, 0.97f, 0.99f, 1f)
+    fun onSurfaceColor(): FloatArray = ThemeManager.getMaterialOnSurfaceColor()
 
-    fun primaryColor(): FloatArray = floatArrayOf(0.55f, 0.74f, 1f, 1f)
+    fun primaryColor(): FloatArray = ThemeManager.getMaterialPrimaryColor()
 
-    fun buttonContainerColor(): FloatArray = floatArrayOf(0.24f, 0.26f, 0.33f, 0.98f)
+    fun buttonContainerColor(): FloatArray = ThemeManager.getMaterialButtonContainerColor()
 
-    fun inactiveIndicatorColor(): FloatArray = floatArrayOf(0.45f, 0.47f, 0.52f, 0.75f)
+    fun inactiveIndicatorColor(): FloatArray = ThemeManager.getMaterialInactiveIndicatorColor()
 }

@@ -1,0 +1,19 @@
+<svg width="512" height="1024" viewBox="0 0 512 1024" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <linearGradient id="expressiveWall" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" style="stop-color:#FEF7FF;stop-opacity:1" />
+            <stop offset="55%" style="stop-color:#F3EDF7;stop-opacity:1" />
+            <stop offset="100%" style="stop-color:#ECE6F0;stop-opacity:1" />
+        </linearGradient>
+        <radialGradient id="expressiveGlow" cx="50%" cy="18%" r="65%">
+            <stop offset="0%" style="stop-color:#EADDFF;stop-opacity:0.55" />
+            <stop offset="100%" style="stop-color:#EADDFF;stop-opacity:0" />
+        </radialGradient>
+        <pattern id="expressiveAccent" width="48" height="48" patternUnits="userSpaceOnUse">
+            <circle cx="24" cy="24" r="1.5" fill="#6750A4" opacity="0.12" />
+        </pattern>
+    </defs>
+    <rect width="512" height="1024" fill="url(#expressiveWall)" />
+    <rect width="512" height="1024" fill="url(#expressiveGlow)" />
+    <rect width="512" height="1024" fill="url(#expressiveAccent)" />
+</svg>

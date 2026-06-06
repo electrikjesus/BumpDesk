@@ -1,0 +1,82 @@
+{
+	"header": {
+		"version": "1.0",
+		"name": "Material Expressive",
+		"author": "BumpDesk",
+		"description": "Material 3 Expressive surfaces — tonal layers, vibrant containers, soft accent texture.",
+		"schema": "theme/1.0.3"
+	},
+	"colorSource": "system",
+	"ui": {
+		"icon": {
+			"highlight": {
+				"color": {
+					"selection": [103, 80, 164, 130],
+					"hover": [103, 80, 164, 70],
+					"freshness": [56, 102, 89, 210]
+				}
+			},
+			"font": {
+				"family": ["sans-serif", "Roboto", "Arial"],
+				"size": 11,
+				"color": [29, 27, 32, 255]
+			}
+		},
+		"lasso": {
+			"color": {
+				"overlay": [103, 80, 164, 64],
+				"border": {
+					"bottom": [79, 55, 139, 180],
+					"top": [211, 187, 255, 120]
+				}
+			}
+		},
+		"markingMenu": {
+			"color": {
+				"default": {
+					"inner": [236, 230, 240, 245],
+					"outer": [232, 222, 248, 230]
+				},
+				"highlight": {
+					"inner": [211, 187, 255, 255],
+					"outer": [103, 80, 164, 220]
+				},
+				"border": [121, 116, 126, 200]
+			},
+			"font": {
+				"family": ["sans-serif", "Roboto"],
+				"size": 16,
+				"subTextSize": 10,
+				"color": [29, 27, 32, 255],
+				"subTextColor": [73, 69, 79, 255]
+			}
+		},
+		"stickyNote": {
+			"font": {
+				"family": ["sans-serif"],
+				"size": 14
+			}
+		}
+	},
+	"material": {
+		"surface": [236, 230, 240, 245],
+		"onSurface": [29, 27, 32, 255],
+		"primary": [103, 80, 164, 255],
+		"buttonContainer": [232, 222, 248, 252],
+		"inactiveIndicator": [202, 196, 208, 200]
+	},
+	"textures": {
+		"floor": {
+			"desktop": "floor.svg"
+		},
+		"wall": {
+			"top": "wall.svg",
+			"right": "wall.svg",
+			"bottom": "wall.svg",
+			"left": "wall.svg"
+		},
+		"pile": {
+			"background": "background.svg"
+		}
+	}
+}
