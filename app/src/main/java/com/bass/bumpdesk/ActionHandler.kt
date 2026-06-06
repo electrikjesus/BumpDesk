@@ -1,66 +1,64 @@
 package com.bass.bumpdesk
 
 import android.app.ActivityManager
-import android.app.ActivityOptions
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.graphics.Rect
-import android.net.Uri
-import android.opengl.GLSurfaceView
-import android.util.Log
+import android.content.SharedPreferences
 
-class ActionHandler(private val context: Context, private val glSurfaceView: GLSurfaceView, private val renderer: BumpRenderer) {
+class ActionHandler(private val context: Context, private val glSurfaceView: android.opengl.GLSurfaceView, private val renderer: BumpRenderer) {
 
-    fun launchApp(item: BumpItem, windowingMode: Int = LauncherActivity.WINDOWING_MODE_UNDEFINED) {
+    private val prefs: SharedPreferences
+        get() = context.getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
+
+    fun launchApp(
+        item: BumpItem,
+        windowingMode: Int = LauncherActivity.WINDOWING_MODE_UNDEFINED,
+        rememberMode: Boolean = true,
+    ) {
         val appInfo = item.appInfo ?: return
         val packageName = appInfo.packageName
         val className = appInfo.className
-        val taskId = appInfo.taskId
         val savedIntent = appInfo.intent
-        
-        Log.d("ActionHandler", "Launching app: $packageName, class: $className, taskId: $taskId, mode: $windowingMode")
 
-        val options = ActivityOptions.makeBasic()
-        if (windowingMode != LauncherActivity.WINDOWING_MODE_UNDEFINED) {
-            try {
-                val setLaunchWindowingModeMethod = ActivityOptions::class.java.getMethod("setLaunchWindowingMode", Int::class.javaPrimitiveType)
-                setLaunchWindowingModeMethod.invoke(options, windowingMode)
-                
-                if (windowingMode == LauncherActivity.WINDOWING_MODE_FREEFORM) {
-                    val dm = context.resources.displayMetrics
-                    val rect = Rect(dm.widthPixels/4, dm.heightPixels/4, dm.widthPixels*3/4, dm.heightPixels*3/4)
-                    val setLaunchBoundsMethod = ActivityOptions::class.java.getMethod("setLaunchBounds", Rect::class.java)
-                    setLaunchBoundsMethod.invoke(options, rect)
-                }
-            } catch (e: Exception) {
-                Log.w("ActionHandler", "Failed to set windowing mode: ${e.message}")
-            }
+        val explicitMode = AppLaunchUtils.windowingModeToLaunchMode(windowingMode)
+        val launchMode = LaunchPreferences.resolveLaunchMode(prefs, packageName, explicitMode)
+
+        if (rememberMode && explicitMode != null && LaunchPreferences.rememberLaunchMode(prefs)) {
+            LaunchPreferences.savePackageLaunchMode(prefs, packageName, launchMode)
         }
 
-        // 1. Try moving existing task to front if we have a taskId
-        if (taskId != -1 && windowingMode == LauncherActivity.WINDOWING_MODE_UNDEFINED) {
-            val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
-            try {
-                am.moveTaskToFront(taskId, ActivityManager.MOVE_TASK_WITH_HOME, options.toBundle())
-                return
-            } catch (e: Exception) {
-                Log.w("ActionHandler", "Failed to move task to front: ${e.message}")
-            }
-        }
+        BumpDeskLog.i(
+            BumpDeskLog.Tag.LAUNCH,
+            "launchApp",
+            "pkg=$packageName mode=$launchMode explicit=$explicitMode",
+        )
 
-        // 2. Try using the saved intent from Recents if available
+        AppLaunchUtils.prepareFreeformLaunch(context, launchMode) {
+            launchAppInternal(packageName, className, savedIntent, launchMode)
+        }
+    }
+
+    private fun launchAppInternal(
+        packageName: String,
+        className: String?,
+        savedIntent: Intent?,
+        launchMode: String,
+    ) {
+        val options = AppLaunchUtils.makeActivityOptions(context, launchMode, prefs)
+        val optionsBundle = options.toBundle()
+
         if (savedIntent != null) {
             try {
                 savedIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                context.startActivity(savedIntent, options.toBundle())
+                context.startActivity(savedIntent, optionsBundle)
+                notifyFreeformLaunchDone(context)
                 return
             } catch (e: Exception) {
-                Log.w("ActionHandler", "Failed to start activity with saved intent: ${e.message}")
+                BumpDeskLog.w(BumpDeskLog.Tag.LAUNCH, "launchApp", "saved intent failed: ${e.message}")
             }
         }
 
-        // 3. Fallback to constructing an intent from package/class name
         val intent = if (className != null) {
             Intent().apply {
                 component = ComponentName(packageName, className)
@@ -73,21 +71,31 @@ class ActionHandler(private val context: Context, private val glSurfaceView: GLS
         }
 
         if (intent == null) {
-            Log.e("ActionHandler", "Could not create intent for $packageName")
+            BumpDeskLog.fail(BumpDeskLog.Tag.LAUNCH, "launchApp", "no intent for $packageName")
             return
         }
-        
+
         try {
-            context.startActivity(intent, options.toBundle())
+            context.startActivity(intent, optionsBundle)
+            notifyFreeformLaunchDone(context)
         } catch (e: Exception) {
-            Log.e("ActionHandler", "Failed to start activity: ${e.message}")
-            // Final fallback to basic launch intent
+            BumpDeskLog.fail(BumpDeskLog.Tag.LAUNCH, "launchApp", "startActivity failed: ${e.message}", e)
             val fallbackIntent = context.packageManager.getLaunchIntentForPackage(packageName)
             if (fallbackIntent != null) {
                 fallbackIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                context.startActivity(fallbackIntent)
+                try {
+                    context.startActivity(fallbackIntent, optionsBundle)
+                    notifyFreeformLaunchDone(context)
+                } catch (e2: Exception) {
+                    BumpDeskLog.fail(BumpDeskLog.Tag.LAUNCH, "launchApp", "fallback failed: ${e2.message}", e2)
+                }
             }
         }
+    }
+
+    private fun notifyFreeformLaunchDone(context: Context) {
+        if (!FreeformHackHelper.isFreeformHackActive) return
+        context.sendBroadcast(Intent(InvisibleActivityFreeform.ACTION_FREEFORM_LAUNCH_DONE))
     }
 
     fun removeTask(taskId: Int) {
@@ -96,16 +104,9 @@ class ActionHandler(private val context: Context, private val glSurfaceView: GLS
         try {
             val removeTaskMethod = am.javaClass.getMethod("removeTask", Int::class.javaPrimitiveType)
             removeTaskMethod.invoke(am, taskId)
-            Log.d("ActionHandler", "Removed task: $taskId")
+            BumpDeskLog.d(BumpDeskLog.Tag.LAUNCH, "removeTask", "taskId=$taskId")
         } catch (e: Exception) {
-            Log.w("ActionHandler", "Failed to remove task $taskId: ${e.message}")
-            // Fallback for non-privileged apps or different Android versions
-            try {
-                @Suppress("DEPRECATION")
-                am.getRecentTasks(100, ActivityManager.RECENT_IGNORE_UNAVAILABLE).find { it.persistentId == taskId }?.let {
-                   // Some versions might allow it via hidden activity manager if we are system app
-                }
-            } catch (ex: Exception) {}
+            BumpDeskLog.w(BumpDeskLog.Tag.LAUNCH, "removeTask", "failed taskId=$taskId: ${e.message}")
         }
     }
 
@@ -119,9 +120,9 @@ class ActionHandler(private val context: Context, private val glSurfaceView: GLS
                 Boolean::class.javaPrimitiveType,
             )
             moveTaskToBack.invoke(am, taskId, false)
-            Log.d("ActionHandler", "Minimized task: $taskId")
+            BumpDeskLog.d(BumpDeskLog.Tag.LAUNCH, "minimizeTask", "taskId=$taskId")
         } catch (e: Exception) {
-            Log.w("ActionHandler", "Failed to minimize task $taskId: ${e.message}")
+            BumpDeskLog.w(BumpDeskLog.Tag.LAUNCH, "minimizeTask", "failed taskId=$taskId: ${e.message}")
         }
     }
 

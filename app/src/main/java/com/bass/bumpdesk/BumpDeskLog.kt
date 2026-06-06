@@ -23,6 +23,7 @@ object BumpDeskLog {
         const val RADIAL_MENU = "$PREFIX:RadialMenu"
         const val CORE = "$PREFIX:Core"
         const val WIDGET = "$PREFIX:Widget"
+        const val LAUNCH = "$PREFIX:Launch"
     }
 
     private fun write(level: Int, tag: String, message: String, throwable: Throwable? = null) {

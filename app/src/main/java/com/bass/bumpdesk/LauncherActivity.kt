@@ -92,6 +92,7 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
         
         ThemeManager.init(this)
         val prefs = getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
+        AppLaunchUtils.init(this)
         ScreenMetrics.applyFirstLaunchDefaults(this, prefs)
         touchSlop = ScreenMetrics.touchSlopPx(this)
         prefs.registerOnSharedPreferenceChangeListener(this)
@@ -580,8 +581,8 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
         glSurfaceView.queueEvent { renderer.createPileFromCaptured(capturedItems, layoutMode) }
     }
 
-    fun launchApp(item: BumpItem, mode: Int = WINDOWING_MODE_UNDEFINED) {
-        actionHandler.launchApp(item, mode)
+    fun launchApp(item: BumpItem, mode: Int = WINDOWING_MODE_UNDEFINED, rememberMode: Boolean = true) {
+        actionHandler.launchApp(item, mode, rememberMode)
         glSurfaceView.postDelayed({ updateRecents() }, 1000)
     }
 

@@ -82,6 +82,7 @@ dependencies {
     ksp(libs.androidx.room.compiler)
 
     implementation(libs.androidsvg)
+    implementation(libs.hiddenapibypass)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

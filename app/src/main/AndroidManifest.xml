@@ -79,6 +79,15 @@
             android:exported="false"
             android:label="BumpDesk Settings"
             android:theme="@style/Theme.BumpDesk.Settings" />
+
+        <!-- Keeps a freeform workspace active before launching windowed apps (Taskbar pattern). -->
+        <activity
+            android:name=".InvisibleActivityFreeform"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleInstance"
+            android:taskAffinity="com.bass.bumpdesk.freeform_hack"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
     </application>
 
 </manifest>
