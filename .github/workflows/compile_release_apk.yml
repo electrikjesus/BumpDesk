@@ -25,12 +25,7 @@ jobs:
     - name: Decode signing keystore
       env:
         SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
-      run: |
-        if [ -z "$SIGNING_KEY" ]; then
-          echo "::error::SIGNING_KEY repository secret is not set. See keystore.properties.example."
-          exit 1
-        fi
-        echo "$SIGNING_KEY" | base64 -d > app/release.keystore
+      run: bash .github/scripts/decode-signing-keystore.sh app/release.keystore
 
     - name: Build signed Release APK
       env:
