@@ -59,6 +59,72 @@ object WallpaperPermissions {
         }
     }
 
+    /** On API 33+, [READ_EXTERNAL_STORAGE] cannot be requested at runtime when targeting SDK 33+. */
+    fun canRequestLegacyStorageAtRuntime(context: Context): Boolean {
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
+    }
+
+    /** True when live wallpaper still needs legacy storage before giving up. */
+    fun shouldPromptLegacyStorage(context: Context): Boolean {
+        return needsStorageForWallpaper(context)
+    }
+
+    data class Status(
+        val apiLevel: Int,
+        val readMediaImages: Boolean,
+        val readExternalStorage: Boolean,
+        val appOpAllowed: Boolean,
+        val canReadWallpaperFile: Boolean,
+        val needsLegacyStorage: Boolean,
+        val canRequestLegacyAtRuntime: Boolean,
+    ) {
+        fun toLogString(): String =
+            "API=$apiLevel READ_MEDIA_IMAGES=$readMediaImages READ_EXTERNAL_STORAGE=$readExternalStorage " +
+                "appOp=${if (appOpAllowed) "allowed" else "blocked"} " +
+                "canReadFile=$canReadWallpaperFile needsLegacyStorage=$needsLegacyStorage " +
+                "canRequestLegacyAtRuntime=$canRequestLegacyAtRuntime"
+
+        fun blockingReason(): String? = when {
+            apiLevel >= Build.VERSION_CODES.TIRAMISU && !readMediaImages ->
+                "Photos and videos access is not allowed. BumpDesk needs this permission " +
+                    "before it can load a wallpaper for the floor."
+            apiLevel >= Build.VERSION_CODES.TIRAMISU &&
+                apiLevel <= 34 &&
+                !readExternalStorage ->
+                if (readMediaImages) {
+                    "Photos access is granted, but Android 13–14 still requires legacy Storage " +
+                        "to read the live system wallpaper. App Settings cannot grant that to sideloaded apps."
+                } else {
+                    "Live system wallpaper on Android 13–14 also needs legacy Storage, which " +
+                        "Settings cannot grant to sideloaded apps. Pick an image, or grant Storage via adb."
+                }
+            !appOpAllowed ->
+                "Storage access is blocked by App Ops. Open permission settings and allow access."
+            else -> null
+        }
+
+        fun needsMediaImagesPrompt(): Boolean =
+            apiLevel >= Build.VERSION_CODES.TIRAMISU && !readMediaImages
+    }
+
+    fun diagnose(context: Context): Status {
+        val imagesGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_IMAGES) ==
+                PackageManager.PERMISSION_GRANTED
+        } else {
+            false
+        }
+        return Status(
+            apiLevel = Build.VERSION.SDK_INT,
+            readMediaImages = imagesGranted,
+            readExternalStorage = hasLegacyStorage(context),
+            appOpAllowed = hasAppOpAccess(context),
+            canReadWallpaperFile = canReadWallpaperFile(context),
+            needsLegacyStorage = needsStorageForWallpaper(context),
+            canRequestLegacyAtRuntime = canRequestLegacyStorageAtRuntime(context),
+        )
+    }
+
     fun hasAppOpAccess(context: Context): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true
         val appOps = context.getSystemService(AppOpsManager::class.java) ?: return true
@@ -89,20 +155,8 @@ object WallpaperPermissions {
     }
 
     fun logStatus(context: Context, tag: String) {
-        val imagesGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_IMAGES) ==
-                PackageManager.PERMISSION_GRANTED
-        } else {
-            false
-        }
-        val storageGranted = hasLegacyStorage(context)
-        BumpDeskLog.d(
-            BumpDeskLog.Tag.WALLPAPER,
-            tag,
-            "READ_MEDIA_IMAGES=$imagesGranted READ_EXTERNAL_STORAGE=$storageGranted " +
-                "appOp=${if (hasAppOpAccess(context)) "allowed" else "blocked"} " +
-                "canReadFile=${canReadWallpaperFile(context)}"
-        )
+        val status = diagnose(context)
+        BumpDeskLog.d(BumpDeskLog.Tag.WALLPAPER, tag, status.toLogString())
     }
 
     fun openAppSettings(context: Context) {
@@ -112,5 +166,23 @@ object WallpaperPermissions {
         )
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         context.startActivity(intent)
+    }
+
+    /** Opens the per-permission screen for Photos (Android 12+). Falls back to app details. */
+    fun openPhotosPermissionSettings(context: Context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            try {
+                val intent = Intent("android.intent.action.MANAGE_APP_PERMISSION").apply {
+                    putExtra(Intent.EXTRA_PACKAGE_NAME, context.packageName)
+                    putExtra("android.intent.extra.PERMISSION_NAME", Manifest.permission.READ_MEDIA_IMAGES)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(intent)
+                return
+            } catch (_: Exception) {
+                // Fall through to app details.
+            }
+        }
+        openAppSettings(context)
     }
 }

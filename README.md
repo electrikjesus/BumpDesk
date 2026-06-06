@@ -68,6 +68,28 @@ For the best experience, several system-level settings should be configured via 
    adb shell pm grant com.bass.bumpdesk android.permission.REAL_GET_TASKS
    ```
 
+4. **Wallpaper floor (Flat floor mode)** — **Android 13+ / Waydroid**:
+   Enabling **Use system wallpaper as floor** in Settings requests **Photos and videos** access first. That permission can be granted in the runtime dialog or in App Settings.
+
+   On **Android 13 and 14**, the live system wallpaper API still checks legacy **Storage** (`READ_EXTERNAL_STORAGE`) at the system binder. Sideloaded builds **cannot** self-grant Storage from App Settings — use ADB (or pick the same image manually).
+
+   ```bash
+   # Grantable in App Settings as "Photos and videos" (Android 13+)
+   adb shell pm grant com.bass.bumpdesk android.permission.READ_MEDIA_IMAGES
+
+   # Live system wallpaper on API 33–34 (required on Waydroid; not shown in App Settings UI)
+   adb shell pm grant com.bass.bumpdesk android.permission.READ_EXTERNAL_STORAGE
+   ```
+
+   **Alternative:** when prompted, choose **Pick Image** and select the same wallpaper from Photos — no legacy Storage grant needed.
+
+   Filter wallpaper diagnostics in logcat:
+   ```bash
+   adb logcat -s "BumpDesk:Wallpaper"
+   ```
+
+   Log lines include permission state, e.g. `READ_MEDIA_IMAGES=… READ_EXTERNAL_STORAGE=… canReadFile=…`.
+
 ## 🛠 Architecture
 
 BumpDesk is built using:

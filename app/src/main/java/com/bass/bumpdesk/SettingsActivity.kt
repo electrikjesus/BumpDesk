@@ -79,6 +79,20 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
+    private val mediaPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        val switch = pendingWallpaperSwitch ?: return@registerForActivityResult
+        WallpaperPermissions.logStatus(this, "mediaPermissionResult granted=$granted")
+        if (granted) {
+            enableWallpaperFloorPref(switch, allowFallbackDialog = true)
+        } else {
+            showPhotosPermissionRequiredDialog(switch)
+        }
+    }
+
+    private var awaitingWallpaperPermissionFromSettings = false
+
     private val pickWallpaperLauncher = registerForActivityResult(
         ActivityResultContracts.PickVisualMedia()
     ) { uri ->
@@ -381,26 +395,26 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun beginWallpaperSetup(switch: MaterialSwitch) {
         pendingWallpaperSwitch = switch
-        if (WallpaperPermissions.needsStorageForWallpaper(this)) {
-            switch.isChecked = false
-            requestStorageForWallpaper(switch)
-            return
-        }
-        enableWallpaperFloorPref(switch, allowFallbackDialog = true)
+        WallpaperPermissions.logStatus(this, "beginWallpaperSetup")
+        enableWallpaperFloorPref(switch, allowFallbackDialog = false)
     }
 
     private fun requestStorageForWallpaper(switch: MaterialSwitch) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            requestMediaImagesForWallpaper(switch)
+            return
+        }
         val launchRequest = {
             storagePermissionLauncher.launch(Manifest.permission.READ_EXTERNAL_STORAGE)
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
             shouldShowRequestPermissionRationale(Manifest.permission.READ_EXTERNAL_STORAGE)
         ) {
-            androidx.appcompat.app.AlertDialog.Builder(this)
+            MaterialAlertDialogBuilder(this)
                 .setTitle("Storage Permission Required")
                 .setMessage(
-                    "On Android 13 and 14, the system wallpaper API requires the Storage permission. " +
-                        "Photos access alone is not enough. You can also pick the wallpaper image manually."
+                    "The system wallpaper API requires Storage permission. " +
+                        "You can also pick the wallpaper image manually."
                 )
                 .setPositiveButton("Allow Storage") { _, _ -> launchRequest() }
                 .setNeutralButton("Pick Image") { _, _ -> showWallpaperFallbackDialog(switch) }
@@ -413,23 +427,151 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
-    private fun enableWallpaperFloorPref(switch: MaterialSwitch, allowFallbackDialog: Boolean) {
-        val (cropW, cropH) = FlatFloorMode.floorCropAspectFor(this)
-        WallpaperFloorProvider.refreshWithRetry(this, cropW, cropH) { loaded ->
-            if (loaded) {
-                pendingWallpaperSwitch = null
-                getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
-                    .edit().putBoolean("use_wallpaper_as_floor", true).apply()
-                switch.isChecked = true
-                Toast.makeText(this, "Wallpaper floor enabled.", Toast.LENGTH_SHORT).show()
-                return@refreshWithRetry
+    private fun requestMediaImagesForWallpaper(switch: MaterialSwitch) {
+        pendingWallpaperSwitch = switch
+        switch.isChecked = false
+        if (WallpaperPermissions.hasRuntimePermission(this)) {
+            showLiveWallpaperAccessDialog(switch)
+            return
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+            shouldShowRequestPermissionRationale(Manifest.permission.READ_MEDIA_IMAGES)
+        ) {
+            MaterialAlertDialogBuilder(this)
+                .setTitle("Photos Permission Required")
+                .setMessage(
+                    "Allow Photos and videos access so BumpDesk can read the system wallpaper " +
+                        "for the floor. You can also pick the image manually."
+                )
+                .setPositiveButton("Allow") { _, _ ->
+                    mediaPermissionLauncher.launch(Manifest.permission.READ_MEDIA_IMAGES)
+                }
+                .setNeutralButton("Pick Image") { _, _ -> showWallpaperFallbackDialog(switch) }
+                .setNegativeButton("Cancel") { _, _ ->
+                    pendingWallpaperSwitch = null
+                }
+                .show()
+        } else {
+            mediaPermissionLauncher.launch(Manifest.permission.READ_MEDIA_IMAGES)
+        }
+    }
+
+    private fun showPhotosPermissionRequiredDialog(switch: MaterialSwitch) {
+        if (isFinishing || isDestroyed) return
+        pendingWallpaperSwitch = switch
+        WallpaperPermissions.logStatus(this, "showPhotosPermissionRequiredDialog")
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Photos Permission Required")
+            .setMessage(
+                "Photos and videos access was denied. Allow it in permission settings, " +
+                    "or pick the wallpaper image manually."
+            )
+            .setPositiveButton("Permission Settings") { _, _ ->
+                awaitingWallpaperPermissionFromSettings = true
+                WallpaperPermissions.openPhotosPermissionSettings(this)
             }
-            pendingWallpaperSwitch = null
-            resetWallpaperSwitch(switch)
-            if (allowFallbackDialog) {
+            .setNeutralButton("Pick Image") { _, _ ->
+                awaitingWallpaperPermissionFromSettings = false
                 showWallpaperFallbackDialog(switch)
             }
+            .setNegativeButton("Cancel") { _, _ ->
+                awaitingWallpaperPermissionFromSettings = false
+                pendingWallpaperSwitch = null
+            }
+            .show()
+    }
+
+    private fun showLiveWallpaperAccessDialog(switch: MaterialSwitch) {
+        if (isFinishing || isDestroyed) return
+        pendingWallpaperSwitch = switch
+        val status = WallpaperPermissions.diagnose(this)
+        WallpaperPermissions.logStatus(this, "showLiveWallpaperAccessDialog")
+        val reason = status.blockingReason().orEmpty()
+        MaterialAlertDialogBuilder(this)
+            .setTitle("System Wallpaper Access")
+            .setMessage(
+                buildString {
+                    if (reason.isNotEmpty()) {
+                        append(reason)
+                        append("\n\n")
+                    }
+                    append("Choose one:\n")
+                    append("• Pick Image — select the same wallpaper from Photos\n")
+                    append("• adb — for live system wallpaper on Waydroid:\n")
+                    append("adb shell pm grant com.bass.bumpdesk android.permission.READ_EXTERNAL_STORAGE")
+                }
+            )
+            .setPositiveButton("Pick Image") { _, _ ->
+                launchWallpaperPicker()
+            }
+            .setNegativeButton("Cancel") { _, _ ->
+                awaitingWallpaperPermissionFromSettings = false
+                pendingWallpaperSwitch = null
+                resetWallpaperSwitch(switch)
+            }
+            .show()
+    }
+
+    private fun launchWallpaperPicker() {
+        pickWallpaperLauncher.launch(
+            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+        )
+    }
+
+    private fun enableWallpaperFloorPref(switch: MaterialSwitch, allowFallbackDialog: Boolean) {
+        val (cropW, cropH) = FlatFloorMode.floorCropAspectFor(this)
+        try {
+            WallpaperFloorProvider.refreshWithRetry(this, cropW, cropH) { loaded ->
+                if (isFinishing || isDestroyed) return@refreshWithRetry
+                handleWallpaperFloorLoadResult(switch, allowFallbackDialog, loaded)
+            }
+        } catch (e: Exception) {
+            BumpDeskLog.fail(
+                BumpDeskLog.Tag.WALLPAPER,
+                "enableWallpaperFloorPref",
+                WallpaperPermissions.diagnose(this).toLogString(),
+                e
+            )
+            resetWallpaperSwitch(switch)
+            Toast.makeText(this, "Could not load wallpaper: ${e.message}", Toast.LENGTH_LONG).show()
         }
+    }
+
+    private fun handleWallpaperFloorLoadResult(
+        switch: MaterialSwitch,
+        allowFallbackDialog: Boolean,
+        loaded: Boolean,
+    ) {
+        if (loaded) {
+            pendingWallpaperSwitch = null
+            getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
+                .edit().putBoolean("use_wallpaper_as_floor", true).apply()
+            switch.isChecked = true
+            Toast.makeText(this, "Wallpaper floor enabled.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        WallpaperPermissions.logStatus(this, "enableWallpaperFloorPref_failed")
+        if (!allowFallbackDialog) {
+            val status = WallpaperPermissions.diagnose(this@SettingsActivity)
+            pendingWallpaperSwitch = switch
+            switch.isChecked = false
+            when {
+                status.needsMediaImagesPrompt() -> requestMediaImagesForWallpaper(switch)
+                WallpaperPermissions.shouldPromptLegacyStorage(this@SettingsActivity) ->
+                    showLiveWallpaperAccessDialog(switch)
+                else -> requestStorageForWallpaper(switch)
+            }
+            return
+        }
+        if (WallpaperPermissions.shouldPromptLegacyStorage(this)) {
+            pendingWallpaperSwitch = switch
+            switch.isChecked = false
+            showLiveWallpaperAccessDialog(switch)
+            return
+        }
+        pendingWallpaperSwitch = null
+        resetWallpaperSwitch(switch)
+        showWallpaperFallbackDialog(switch)
     }
 
     private fun resetWallpaperSwitch(switch: MaterialSwitch) {
@@ -439,22 +581,21 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun showWallpaperFallbackDialog(switch: MaterialSwitch) {
+        if (isFinishing || isDestroyed) return
         pendingWallpaperSwitch = switch
-        androidx.appcompat.app.AlertDialog.Builder(this)
+        WallpaperPermissions.logStatus(this, "showWallpaperFallbackDialog")
+        MaterialAlertDialogBuilder(this)
             .setTitle("Use Wallpaper Image")
             .setMessage(
                 "BumpDesk could not read the live system wallpaper on this device. " +
                     "Pick the same image from Photos to use it on the floor."
             )
             .setPositiveButton("Pick Image") { _, _ ->
-                pickWallpaperLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-            }
-            .setNeutralButton("App Settings") { _, _ ->
-                WallpaperPermissions.openAppSettings(this)
-                pendingWallpaperSwitch = null
+                launchWallpaperPicker()
             }
             .setNegativeButton("Cancel") { _, _ ->
                 pendingWallpaperSwitch = null
+                resetWallpaperSwitch(switch)
             }
             .show()
     }
@@ -479,6 +620,10 @@ class SettingsActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         updateRecentsSnapshotStatus()
+        if (!awaitingWallpaperPermissionFromSettings) return
+        val switch = pendingWallpaperSwitch ?: return
+        awaitingWallpaperPermissionFromSettings = false
+        enableWallpaperFloorPref(switch, allowFallbackDialog = true)
     }
 
     private fun updateRecentsSnapshotStatus() {

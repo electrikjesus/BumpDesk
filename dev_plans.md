@@ -182,25 +182,24 @@
     - [x] Fix BumpDesk Next SVG defs order so floor/wall patterns render
     - [ ] Fix reload path without requiring app restart
 
-- [ ] **Wallpaper**: System wallpaper not showing on floor plane when selected from Settings
+- [x] **Wallpaper**: System wallpaper not showing on floor plane when selected from Settings
     - [x] Add `BumpDesk:Wallpaper` logging for Settings selection → floor texture pipeline
     - [x] Load wallpaper via `getWallpaperFile` / drawable rasterization with GL-safe bitmap prep
-    - [x] Prefer `WallpaperManager.drawable` (no storage permission) before `getWallpaperFile`
+    - [x] Prefer `WallpaperManager.drawable` / parameterless `getDrawable()` before flagged APIs (Waydroid lacks `getDrawable(int)`)
     - [x] Load wallpaper on main thread via `WallpaperFloorProvider` (GL thread gets SecurityException)
     - [x] Defer pref write until photos permission granted; reload floor on resume after grant
     - [x] Avoid full theme reload when only wallpaper pref changes (`reloadFloorTexture`)
-    - [x] Request `READ_MEDIA_IMAGES` / legacy storage permission when enabling wallpaper
-    - [x] Request photos/media permission during onboarding wizard
+    - [x] Request `READ_MEDIA_IMAGES` at runtime when enabling wallpaper (grantable as Photos and videos)
     - [x] Defer GL theme reload until launcher resumes (fixes black screen from shader compile without context)
     - [x] Fix permission callback treating empty/dismissed results as granted (`permissionsGranted`)
     - [x] Only persist wallpaper pref after verified bitmap load; revert checkbox on failure
-    - [x] AppOps check + permission status logging; help dialog → App Settings for “Allow all photos”
+    - [x] AppOps check + `WallpaperPermissions.diagnose()` logging; dialogs for Photos vs legacy Storage
     - [x] Retry wallpaper load after permission grant / onResume (300–400ms delay)
     - [x] API 34+: PixelCopy window capture removed (captures app buffer, not wallpaper — always black)
-    - [x] Request READ_MEDIA_IMAGES + READ_EXTERNAL_STORAGE on API 33–34 for WallpaperManager binder
-    - [x] WallpaperColors gradient fallback removed (masked missing Storage permission as false success)
-    - [x] Request READ_EXTERNAL_STORAGE before load on API 33–34 (WallpaperManager binder requirement)
-    - [ ] Verify system wallpaper renders correctly on floor plane (device test)
+    - [x] Document `READ_EXTERNAL_STORAGE` adb grant for live wallpaper on API 33–34 (not self-grantable in App Settings for sideloads)
+    - [x] Catch `LinkageError` / `NoSuchMethodError` on WallpaperManager flagged drawable APIs
+    - [x] **System Wallpaper Access** dialog after Photos grant (Pick Image or adb Storage); verified on Waydroid API 33
+    - [x] README, release intro, and architecture docs updated with adb permission commands
 
 - [ ] **Gestures**: 2-finger pan works but 2-finger pinch zoom does not
     - [x] Add `BumpDesk:Gesture` logging for multi-touch dispatch and pinch detection

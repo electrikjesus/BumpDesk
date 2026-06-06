@@ -41,8 +41,13 @@ object WallpaperFloorProvider {
         cropAspectWidth = floorAspectWidth
         cropAspectHeight = floorAspectDepth
         WallpaperPermissions.logStatus(context, "refresh")
-        val loaded = TextureUtils.loadSystemWallpaperBitmap(context) ?: return false
-        return ingestSource(loaded)
+        return try {
+            val loaded = TextureUtils.loadSystemWallpaperBitmap(context) ?: return false
+            ingestSource(loaded)
+        } catch (e: Exception) {
+            BumpDeskLog.fail(BumpDeskLog.Tag.WALLPAPER, "refresh", WallpaperPermissions.diagnose(context).toLogString(), e)
+            false
+        }
     }
 
     fun refreshWithRetry(

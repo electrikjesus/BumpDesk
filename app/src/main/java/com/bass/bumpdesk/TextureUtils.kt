@@ -102,27 +102,14 @@ object TextureUtils {
 
         val wm = WallpaperManager.getInstance(context)
 
-        // On API 33+, WallpaperManager's binder still checks READ_EXTERNAL_STORAGE (not Photos).
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N &&
             WallpaperPermissions.canReadWallpaperFile(context)
         ) {
             loadWallpaperFromFile(wm)?.let { return validateWallpaperBitmap(it, "getWallpaperFile") }
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            BumpDeskLog.d(
-                BumpDeskLog.Tag.WALLPAPER,
-                "loadSystemWallpaperBitmap",
-                "skipping WallpaperManager (READ_EXTERNAL_STORAGE not granted on API 33+)"
-            )
-            return null
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            loadWallpaperFromManager(context, "getDrawable(FLAG_SYSTEM)") {
-                wm.getDrawable(WallpaperManager.FLAG_SYSTEM)
-            }?.let { return validateWallpaperBitmap(it, "getDrawable") }
-            loadWallpaperFromManager(context, "peekDrawable(FLAG_SYSTEM)") {
-                wm.peekDrawable(WallpaperManager.FLAG_SYSTEM)
-            }?.let { return validateWallpaperBitmap(it, "peekDrawable") }
+            loadWallpaperFromDrawables(context, wm)?.let { return it }
         }
 
         loadWallpaperFromManager(context, "drawable") { wm.drawable }
@@ -131,8 +118,24 @@ object TextureUtils {
         BumpDeskLog.w(
             BumpDeskLog.Tag.WALLPAPER,
             "loadSystemWallpaperBitmap",
-            "WallpaperManager unavailable; grant Storage in Settings or pick a wallpaper image"
+            "WallpaperManager unavailable; ${WallpaperPermissions.diagnose(context).toLogString()}"
         )
+        return null
+    }
+
+    private fun loadWallpaperFromDrawables(context: Context, wm: WallpaperManager): Bitmap? {
+        val attempts = buildList {
+            add("drawable" to { wm.drawable })
+            add("getDrawable()" to { wm.getDrawable() })
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                add("getDrawable(FLAG_SYSTEM)" to { wm.getDrawable(WallpaperManager.FLAG_SYSTEM) })
+                add("peekDrawable(FLAG_SYSTEM)" to { wm.peekDrawable(WallpaperManager.FLAG_SYSTEM) })
+            }
+        }
+        for ((source, supplier) in attempts) {
+            loadWallpaperFromManager(context, source, supplier)
+                ?.let { return validateWallpaperBitmap(it, source) }
+        }
         return null
     }
 
@@ -195,6 +198,16 @@ object TextureUtils {
         } catch (e: SecurityException) {
             BumpDeskLog.w(BumpDeskLog.Tag.WALLPAPER, "loadSystemWallpaperBitmap", "$source permission denied")
             null
+        } catch (e: LinkageError) {
+            BumpDeskLog.w(
+                BumpDeskLog.Tag.WALLPAPER,
+                "loadSystemWallpaperBitmap",
+                "$source unavailable on this device: ${e.message}"
+            )
+            null
+        } catch (e: Exception) {
+            BumpDeskLog.w(BumpDeskLog.Tag.WALLPAPER, "loadSystemWallpaperBitmap", "$source failed: ${e.message}")
+            null
         }
     }
 
@@ -212,6 +225,13 @@ object TextureUtils {
             }
         } catch (e: SecurityException) {
             BumpDeskLog.w(BumpDeskLog.Tag.WALLPAPER, "loadSystemWallpaperBitmap", "getWallpaperFile permission denied")
+            null
+        } catch (e: LinkageError) {
+            BumpDeskLog.w(
+                BumpDeskLog.Tag.WALLPAPER,
+                "loadSystemWallpaperBitmap",
+                "getWallpaperFile unavailable on this device: ${e.message}"
+            )
             null
         } catch (e: Exception) {
             BumpDeskLog.w(BumpDeskLog.Tag.WALLPAPER, "loadSystemWallpaperBitmap", "getWallpaperFile failed: ${e.message}")

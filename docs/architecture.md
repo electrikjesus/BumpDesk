@@ -58,7 +58,7 @@ adb logcat -s "BumpDesk:IconGroup" "BumpDesk:Theme" "BumpDesk:Recents" "BumpDesk
 |-----|------|----------------|
 | `BumpDesk:IconGroup` | Piles / folders | `createPileFromCaptured`, `addItemToPile`, `breakPile`, `removeItemFromExpandedPile`, `categorizeAllApps` |
 | `BumpDesk:Theme` | Theme reload | `init`, `loadThemeConfig`, `reloadTheme` |
-| `BumpDesk:Wallpaper` | Floor wallpaper | `getFloorTexture` (system wallpaper path) |
+| `BumpDesk:Wallpaper` | Floor wallpaper | `refresh`, `getFloorTexture`, `beginWallpaperSetup`, permission diagnostics |
 | `BumpDesk:Recents` | Recents widget | `updateRecents`, preference toggles |
 | `BumpDesk:Gesture` | Multi-touch | `pinch`, `twoFingerPan` |
 | `BumpDesk:Launch` | App launch / Open As | `launchApp` (Fullscreen, Freeform, Pinned) |
@@ -68,3 +68,33 @@ adb logcat -s "BumpDesk:IconGroup" "BumpDesk:Theme" "BumpDesk:Recents" "BumpDesk
 Log lines use the format `[operation] message` so you can grep by operation name, e.g. `adb logcat -s "BumpDesk:IconGroup" | grep createPileFromCaptured`.
 
 Pile mutations are centralized in `PileOperations` for testability and consistent logging.
+
+## Wallpaper floor (Flat floor mode)
+
+System wallpaper on the floor is loaded on the **main thread** by `WallpaperFloorProvider` (calling `TextureUtils.loadSystemWallpaperBitmap`). The GL thread only receives a prepared bitmap copy — `WallpaperManager` can throw `SecurityException` off the UI thread.
+
+### Load order (`TextureUtils`)
+
+1. Cached picked image (`filesDir/wallpaper_floor.jpg`) if the user chose **Pick Image**
+2. `getWallpaperFile()` when legacy Storage is granted
+3. `WallpaperManager.drawable` / `getDrawable()` (with safe fallbacks; some images e.g. Waydroid lack `getDrawable(int)`)
+4. Failure → Settings shows **System Wallpaper Access** or **Pick Image**
+
+### Permissions (`WallpaperPermissions`)
+
+| Permission | Manifest | Android 13+ UI | Live wallpaper |
+|------------|----------|----------------|----------------|
+| `READ_MEDIA_IMAGES` | Yes | **Photos and videos** — grantable | Required step; requested at runtime from Settings |
+| `READ_EXTERNAL_STORAGE` | Yes (`maxSdkVersion="34"`) | **Not grantable** for sideloaded targetSdk 33+ apps | Required by `WallpaperManager` binder on API 33–34 |
+
+`WallpaperPermissions.diagnose()` logs: `API`, `READ_MEDIA_IMAGES`, `READ_EXTERNAL_STORAGE`, app ops, `canReadFile`, `needsLegacyStorage`.
+
+### ADB grants (testing / Waydroid)
+
+```bash
+adb shell pm grant com.bass.bumpdesk android.permission.READ_MEDIA_IMAGES
+adb shell pm grant com.bass.bumpdesk android.permission.READ_EXTERNAL_STORAGE
+adb logcat -s "BumpDesk:Wallpaper"
+```
+
+**Pick Image** in Settings does not require legacy Storage.
