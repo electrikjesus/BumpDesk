@@ -266,6 +266,9 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
             sessionProfileApplied = true
             (context as? LauncherActivity)?.showResetButton(false)
             CameraDiagnostics.log(camera, "updateSettings", "source=flatFloorDefaults")
+        } else if (leavingFlatFloorCamera()) {
+            transitionCameraOutOfFlatFloor(displayProfile, prefs, "updateSettings")
+            sessionProfileApplied = true
         } else if (physicsEngine.isInfiniteMode) {
             applyInfiniteDesktopCamera(displayProfile, "updateSettings")
             sessionProfileApplied = true
@@ -427,6 +430,73 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
     }
 
     /** Top-down camera saved from flat-floor mode is unusable in the 3D room view. */
+    private fun leavingFlatFloorCamera(): Boolean =
+        !isFlatFloorMode && camera.currentViewMode == CameraManager.ViewMode.FLOOR
+
+    private fun transitionCameraOutOfFlatFloor(
+        displayProfile: ScreenMetrics.DisplayProfile,
+        prefs: android.content.SharedPreferences,
+        reason: String,
+    ) {
+        if (physicsEngine.isInfiniteMode) {
+            camera.transitionToProfileDefaults(displayProfile)
+            (context as? LauncherActivity)?.showResetButton(false)
+            CameraDiagnostics.log(
+                camera,
+                reason,
+                "source=leavingFlatFloor infinite orientation=${displayProfile.orientationKey}",
+            )
+            return
+        }
+
+        if (prefs.contains("cam_def_pos_x")) {
+            camera.customDefaultPos[0] = prefs.getFloat("cam_def_pos_x", camera.ABSOLUTE_DEFAULT_POS[0])
+            camera.customDefaultPos[1] = prefs.getFloat("cam_def_pos_y", camera.ABSOLUTE_DEFAULT_POS[1])
+            camera.customDefaultPos[2] = prefs.getFloat("cam_def_pos_z", camera.ABSOLUTE_DEFAULT_POS[2])
+            camera.customDefaultLookAt[0] = prefs.getFloat("cam_def_lat_x", camera.ABSOLUTE_DEFAULT_LOOKAT[0])
+            camera.customDefaultLookAt[1] = prefs.getFloat("cam_def_lat_y", camera.ABSOLUTE_DEFAULT_LOOKAT[1])
+            camera.customDefaultLookAt[2] = prefs.getFloat("cam_def_lat_z", camera.ABSOLUTE_DEFAULT_LOOKAT[2])
+            if (isFlatFloorStyleSavedCamera(camera.customDefaultPos, camera.customDefaultLookAt)) {
+                BumpDeskLog.w(
+                    BumpDeskLog.Tag.CAMERA,
+                    reason,
+                    "clearing flat-floor cam_def while leaving flat floor",
+                )
+                clearSavedCustomCameraPrefs(prefs)
+                camera.transitionToProfileDefaults(displayProfile)
+            } else {
+                camera.transitionToCustomDefaults()
+            }
+            prefs.edit()
+                .putString(ScreenMetrics.PREFS_LAST_ORIENTATION, displayProfile.orientationKey)
+                .apply()
+            (context as? LauncherActivity)?.showResetButton(false)
+            CameraDiagnostics.log(camera, reason, "source=leavingFlatFloor savedCustomCamera")
+            return
+        }
+
+        val anchor = OrientationCameraAnchor.load(context, displayProfile.orientationKey)
+        if (anchor != null) {
+            camera.transitionToAnchor(anchor)
+            CameraDiagnostics.log(
+                camera,
+                reason,
+                "source=leavingFlatFloor userAnchor orientation=${displayProfile.orientationKey}",
+            )
+        } else {
+            camera.transitionToProfileDefaults(displayProfile)
+            CameraDiagnostics.log(
+                camera,
+                reason,
+                "source=leavingFlatFloor profile orientation=${displayProfile.orientationKey}",
+            )
+        }
+        prefs.edit()
+            .putString(ScreenMetrics.PREFS_LAST_ORIENTATION, displayProfile.orientationKey)
+            .apply()
+        (context as? LauncherActivity)?.showResetButton(false)
+    }
+
     private fun isFlatFloorStyleSavedCamera(pos: FloatArray, lookAt: FloatArray): Boolean {
         val dy = pos[1] - lookAt[1]
         if (dy < 15f) return false

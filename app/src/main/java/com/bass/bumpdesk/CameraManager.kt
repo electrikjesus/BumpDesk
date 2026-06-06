@@ -230,6 +230,41 @@ class CameraManager {
         )
     }
 
+    /** Animate from the current eye position to [customDefaultPos] / [customDefaultLookAt]. */
+    fun transitionToCustomDefaults() {
+        targetPos = customDefaultPos.clone()
+        targetLookAt = customDefaultLookAt.clone()
+        zoomLevel = customDefaultZoomLevel
+        fieldOfView = baseFieldOfView
+        currentViewMode = if (isFlatFloorMode) ViewMode.FLOOR else ViewMode.DEFAULT
+        CameraDiagnostics.logTransition(
+            this,
+            "customDefaults",
+            "mode=$currentViewMode zoom=$zoomLevel animate=true",
+        )
+    }
+
+    fun transitionToProfileDefaults(profile: ScreenMetrics.DisplayProfile) {
+        customDefaultPos = profile.defaultCameraPos.clone()
+        customDefaultLookAt = profile.defaultCameraLookAt.clone()
+        customDefaultZoomLevel = profile.defaultZoomLevel
+        baseFieldOfView = profile.defaultFieldOfView
+        transitionToCustomDefaults()
+        CameraDiagnostics.log(
+            this,
+            "transitionToProfileDefaults",
+            "orientation=${profile.orientationKey} phone=${profile.isPhone} ${profile.widthPx}x${profile.heightPx}",
+        )
+    }
+
+    fun transitionToAnchor(anchor: OrientationCameraAnchor.Anchor) {
+        customDefaultPos = anchor.pos.clone()
+        customDefaultLookAt = anchor.lookAt.clone()
+        customDefaultZoomLevel = anchor.zoom
+        baseFieldOfView = anchor.fov
+        transitionToCustomDefaults()
+    }
+
     fun saveAsDefault() {
         customDefaultPos = targetPos.clone()
         customDefaultLookAt = targetLookAt.clone()

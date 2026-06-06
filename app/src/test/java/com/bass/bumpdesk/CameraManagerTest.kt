@@ -82,6 +82,23 @@ class CameraManagerTest {
     }
 
     @Test
+    fun transitionToCustomDefaults_leavesCurrentPosForAnimation() {
+        val camera = CameraManager()
+        camera.isFlatFloorMode = false
+        camera.currentPos = floatArrayOf(0f, 24f, 0.1f)
+        camera.currentLookAt = floatArrayOf(0f, 0f, 0f)
+        camera.currentViewMode = CameraManager.ViewMode.FLOOR
+        camera.customDefaultPos = floatArrayOf(0f, 12f, 25f)
+        camera.customDefaultLookAt = floatArrayOf(0f, 0f, 5f)
+
+        camera.transitionToCustomDefaults()
+
+        assertEquals(CameraManager.ViewMode.DEFAULT, camera.currentViewMode)
+        assertEquals(12f, camera.targetPos[1], 0.01f)
+        assertEquals(24f, camera.currentPos[1], 0.01f)
+    }
+
+    @Test
     fun orbitYawScalesWithScreenWidth() {
         val camera = CameraManager()
         camera.currentViewMode = CameraManager.ViewMode.DEFAULT
