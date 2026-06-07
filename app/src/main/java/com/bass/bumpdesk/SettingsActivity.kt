@@ -414,6 +414,14 @@ class SettingsActivity : AppCompatActivity() {
                 .show()
         }
 
+        findViewById<com.google.android.material.button.MaterialButton>(R.id.btnCopyInnerToCover).setOnClickListener {
+            queueLayoutCopy(prefs, sourcePosture = null, targetPosture = "cover")
+        }
+
+        findViewById<com.google.android.material.button.MaterialButton>(R.id.btnCopyCoverToInner).setOnClickListener {
+            queueLayoutCopy(prefs, sourcePosture = "cover", targetPosture = "inner")
+        }
+
         findViewById<com.google.android.material.button.MaterialButton>(R.id.btnClearCache).setOnClickListener {
             prefs.edit().apply {
                 remove("onboarding_complete")
@@ -699,5 +707,23 @@ class SettingsActivity : AppCompatActivity() {
     private fun updateRecentsSnapshotStatus() {
         findViewById<TextView>(R.id.tvRecentsSnapshotStatus)?.text =
             RecentsSnapshotCapability.settingsLabel(this)
+    }
+
+    private fun queueLayoutCopy(
+        prefs: android.content.SharedPreferences,
+        sourcePosture: String?,
+        targetPosture: String,
+    ) {
+        val orientation = ScreenMetrics.from(this).orientationKey
+        val targetKey = "${targetPosture}_$orientation"
+        prefs.edit()
+            .putString(
+                "copy_layout_source",
+                sourcePosture?.let { "${it}_$orientation" },
+            )
+            .putString("copy_layout_target", targetKey)
+            .apply()
+        Toast.makeText(this, R.string.settings_copy_layout_done, Toast.LENGTH_SHORT).show()
+        finish()
     }
 }

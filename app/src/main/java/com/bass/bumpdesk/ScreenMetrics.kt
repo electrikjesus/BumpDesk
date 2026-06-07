@@ -2,7 +2,9 @@ package com.bass.bumpdesk
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.content.res.Configuration
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 object ScreenMetrics {
 
@@ -61,6 +63,13 @@ object ScreenMetrics {
     fun from(context: Context): DisplayProfile {
         val dm = context.resources.displayMetrics
         return computeProfile(dm.widthPixels, dm.heightPixels, dm.density)
+    }
+
+    /** Use the [Configuration] from [android.app.Activity.onConfigurationChanged] (stable during fold). */
+    fun fromConfiguration(config: Configuration, density: Float): DisplayProfile {
+        val widthPx = (config.screenWidthDp * density).roundToInt().coerceAtLeast(1)
+        val heightPx = (config.screenHeightDp * density).roundToInt().coerceAtLeast(1)
+        return computeProfile(widthPx, heightPx, density)
     }
 
     fun computeProfile(widthPx: Int, heightPx: Int, density: Float): DisplayProfile {

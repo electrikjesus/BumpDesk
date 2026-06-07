@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.math.roundToInt
 
 class ScreenMetricsTest {
 
@@ -96,5 +97,22 @@ class ScreenMetricsTest {
         assertEquals(ScreenMetrics.LayoutPosture.TABLET, ScreenMetrics.computePosture(720f))
         assertEquals(ScreenMetrics.LayoutPosture.TABLET, ScreenMetrics.computePosture(899f))
         assertEquals(ScreenMetrics.LayoutPosture.LARGE, ScreenMetrics.computePosture(900f))
+    }
+
+    @Test
+    fun fromConfiguration_matchesComputeProfileForFoldCover() {
+        val density = 2.625f
+        val config = android.content.res.Configuration().apply {
+            screenWidthDp = 411
+            screenHeightDp = 797
+        }
+        val fromConfig = ScreenMetrics.fromConfiguration(config, density)
+        val fromPx = ScreenMetrics.computeProfile(
+            (411 * density).roundToInt(),
+            (797 * density).roundToInt(),
+            density,
+        )
+        assertEquals(fromPx.layoutProfileKey, fromConfig.layoutProfileKey)
+        assertEquals(ScreenMetrics.LayoutPosture.COVER, fromConfig.posture)
     }
 }

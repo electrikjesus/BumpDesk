@@ -1,11 +1,14 @@
 package com.bass.bumpdesk.persistence
 
 import androidx.room.Entity
-import androidx.room.PrimaryKey
 
-@Entity(tableName = "desk_piles")
+@Entity(
+    tableName = "desk_piles",
+    primaryKeys = ["name", "layoutProfileKey"],
+)
 data class DeskPile(
-    @PrimaryKey val name: String,
+    val name: String,
+    val layoutProfileKey: String,
     val posX: Float,
     val posY: Float,
     val posZ: Float,
@@ -13,5 +16,5 @@ data class DeskPile(
     val surface: String,
     val scale: Float,
     val isSystem: Boolean,
-    val isFannedOut: Boolean
+    val isFannedOut: Boolean,
 )

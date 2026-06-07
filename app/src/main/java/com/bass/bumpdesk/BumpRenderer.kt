@@ -7,6 +7,8 @@ import android.opengl.GLES20
 import android.opengl.GLSurfaceView
 import android.opengl.Matrix
 import com.bass.bumpdesk.persistence.DeskRepository
+import com.bass.bumpdesk.persistence.LayoutBounds
+import com.bass.bumpdesk.persistence.NormalizedLayout
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -19,6 +21,8 @@ import android.media.SoundPool
 import android.net.Uri
 import android.content.Intent
 import android.provider.Settings
+import android.os.SystemClock
+import android.content.res.Configuration
 import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.hypot
@@ -67,11 +71,25 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
     private val saveMutex = Mutex()
     @Volatile
     private var persistenceReady = false
+    @Volatile
+    private var activeLayoutProfileKey: String? = null
+    @Volatile
+    private var layoutSaveGeneration = 0
+    @Volatile
+    private var layoutSwapInProgress = false
+    @Volatile
+    private var pendingSwapTargetKey: String? = null
+    @Volatile
+    private var lastLayoutSwapUptimeMs = 0L
+    private var cachedDisplayProfile: ScreenMetrics.DisplayProfile? = null
+    private var lastAppliedLayoutBounds: LayoutBounds? = null
     
     private var frameCount = 0
     var glSurfaceView: GLSurfaceView? = null
     private var searchQuery = ""
+    @Volatile
     private var surfaceWidth = 0
+    @Volatile
     private var surfaceHeight = 0
     private var sessionProfileApplied = false
 
@@ -220,6 +238,10 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
 
         if (isFlatFloorMode) {
             applyFlatFloorBounds(displayProfile)
+        } else if (!physicsEngine.isInfiniteMode) {
+            val newBounds = layoutBoundsForProfile(displayProfile)
+            lastAppliedLayoutBounds?.let { applyLayoutBoundsIfChanged(it, newBounds) }
+                ?: run { lastAppliedLayoutBounds = newBounds }
         }
 
         syncWallpaperFloorCrop()
@@ -327,7 +349,9 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         configureRecentsPileForCurrentMode()
         sceneState.recentsPile?.reconcilePinnedOpenState()
         AllAppsDrawer.reconcile(sceneState, camera.currentViewMode)
-        constrainWidgetsToActiveBounds(saveIfChanged = true)
+        if (SystemClock.uptimeMillis() - lastLayoutSwapUptimeMs > 800L) {
+            constrainWidgetsToActiveBounds(saveIfChanged = true)
+        }
         glSurfaceView?.requestRender()
     }
 
@@ -386,14 +410,32 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
 
     fun saveDeskState() = saveState()
 
+    private fun layoutProfileFromSurface(): ScreenMetrics.DisplayProfile? {
+        if (surfaceWidth <= 0 || surfaceHeight <= 0) return null
+        return ScreenMetrics.computeProfile(
+            surfaceWidth,
+            surfaceHeight,
+            context.resources.displayMetrics.density,
+        )
+    }
+
+    private fun currentLayoutProfileKey(): String {
+        activeLayoutProfileKey?.let { return it }
+        return layoutProfileFromSurface()?.layoutProfileKey
+            ?: ScreenMetrics.from(context).layoutProfileKey
+    }
+
     private fun saveState() {
-        if (!persistenceReady) return
+        if (!persistenceReady || layoutSwapInProgress) return
+        val generation = layoutSaveGeneration
         sceneState.recentsPile?.let { pile ->
             RecentsPreferences.saveFromPile(pile, context.getSharedPreferences("bump_prefs", Context.MODE_PRIVATE))
         }
         repositoryScope.launch {
             saveMutex.withLock {
-                repository.saveState(sceneState)
+                if (generation != layoutSaveGeneration || layoutSwapInProgress) return@withLock
+                val layoutProfileKey = activeLayoutProfileKey ?: return@withLock
+                repository.saveState(sceneState, layoutProfileKey, currentLayoutBounds())
             }
         }
     }
@@ -505,24 +547,15 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
     }
 
     fun loadSavedState(allApps: List<AppInfo>, onComplete: () -> Unit = {}) {
+        val layoutProfile = layoutProfileFromSurface() ?: ScreenMetrics.from(context)
+        val layoutProfileKey = layoutProfile.layoutProfileKey
+        val bounds = layoutBoundsForProfile(layoutProfile)
         repositoryScope.launch {
-            val result = repository.loadState(allApps)
-            val bumpItems = result.first
-            val widgetItems = result.second
-            val piles = result.third
-            
-            sceneState.withWriteLock {
-                sceneState.bumpItems.clear()
-                sceneState.bumpItems.addAll(bumpItems)
-                sceneState.widgetItems.clear()
-                sceneState.widgetItems.addAll(widgetItems)
-                sceneState.piles.clear()
-                sceneState.piles.addAll(piles)
-
-                sceneState.recentsPile = sceneState.piles.find { it.isSystem && it.name == "Recents" }
-                sceneState.appDrawerItem = sceneState.bumpItems.find { it.appearance.type == BumpItem.Type.APP_DRAWER }
-            }
-
+            val result = repository.loadState(allApps, layoutProfileKey, bounds)
+            applyLayoutFromPersistence(result)
+            activeLayoutProfileKey = layoutProfileKey
+            cachedDisplayProfile = layoutProfile
+            lastAppliedLayoutBounds = bounds
             persistenceReady = true
 
             val reconcile = DesktopReconciliation.reconcile(
@@ -555,6 +588,180 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         }
     }
 
+    private fun applyLayoutFromPersistence(
+        result: Triple<List<BumpItem>, List<WidgetItem>, List<Pile>>,
+    ) {
+        val bumpItems = result.first
+        val widgetItems = result.second
+        val piles = result.third
+
+        sceneState.withWriteLock {
+            val recents = sceneState.recentsPile
+            sceneState.bumpItems.clear()
+            sceneState.widgetItems.clear()
+            sceneState.piles.removeAll { !it.isSystem }
+            sceneState.bumpItems.addAll(bumpItems)
+            sceneState.widgetItems.addAll(widgetItems)
+            sceneState.piles.addAll(piles)
+            if (recents != null && sceneState.piles.none { it.isSystem && it.name == "Recents" }) {
+                sceneState.piles.add(recents)
+            }
+            sceneState.recentsPile = sceneState.piles.find { it.isSystem && it.name == "Recents" } ?: recents
+            sceneState.appDrawerItem = sceneState.bumpItems.find { it.appearance.type == BumpItem.Type.APP_DRAWER }
+        }
+    }
+
+    private fun swapLayoutProfileIfNeeded(newProfile: ScreenMetrics.DisplayProfile) {
+        val oldKey = activeLayoutProfileKey ?: return
+        val newKey = newProfile.layoutProfileKey
+        if (oldKey == newKey || !persistenceReady) return
+
+        AllAppsDrawer.removePile(sceneState)
+        collapseNonPinnedPiles()
+        pendingSwapTargetKey = newKey
+        if (layoutSwapInProgress) return
+
+        layoutSwapInProgress = true
+        ++layoutSaveGeneration
+        BumpDeskLog.i(
+            BumpDeskLog.Tag.ICON_GROUP,
+            "swapLayoutProfile",
+            "queue $oldKey -> $newKey surface=${surfaceWidth}x${surfaceHeight}",
+        )
+        repositoryScope.launch {
+            saveMutex.withLock {
+                while (true) {
+                    val targetKey = pendingSwapTargetKey ?: break
+                    pendingSwapTargetKey = null
+                    val fromKey = activeLayoutProfileKey ?: break
+                    if (fromKey == targetKey) continue
+
+                    val fromProfile = cachedDisplayProfile ?: ScreenMetrics.from(context)
+                    val saveBounds = layoutBoundsForProfile(fromProfile)
+                    repository.saveState(sceneState, fromKey, saveBounds)
+
+                    val targetProfile = if (targetKey == newProfile.layoutProfileKey) {
+                        newProfile
+                    } else {
+                        ScreenMetrics.from(context)
+                    }
+                    val loadBounds = layoutBoundsForProfile(targetProfile)
+                    lastAppliedLayoutBounds = loadBounds
+                    applyEngineFromLayoutBounds(loadBounds)
+
+                    val result = repository.loadState(
+                        sceneState.allAppsList.toList(),
+                        targetKey,
+                        loadBounds,
+                    )
+                    applyLayoutFromPersistence(result)
+                    activeLayoutProfileKey = targetKey
+                    cachedDisplayProfile = targetProfile
+                    finalizeWidgetsAfterLayoutLoad(targetKey)
+                    DesktopReconciliation.reconcile(
+                        sceneState,
+                        boundX = floorHalfWidth,
+                        boundZ = floorHalfDepth,
+                    )
+                    lastLayoutSwapUptimeMs = SystemClock.uptimeMillis()
+                    BumpDeskLog.i(
+                        BumpDeskLog.Tag.ICON_GROUP,
+                        "swapLayoutProfile",
+                        "complete $fromKey -> $targetKey " +
+                            "items=${result.first.size} widgets=${result.second.size} " +
+                            "piles=${result.third.size}",
+                    )
+                    if (pendingSwapTargetKey == null) break
+                }
+                layoutSwapInProgress = false
+            }
+            val tail = pendingSwapTargetKey
+            if (tail != null && tail != activeLayoutProfileKey) {
+                swapLayoutProfileIfNeeded(newProfile)
+            }
+            glSurfaceView?.post {
+                (context as? LauncherActivity)?.syncWidgetHostViews()
+            }
+            glSurfaceView?.requestRender()
+        }
+    }
+
+    private suspend fun finalizeWidgetsAfterLayoutLoad(layoutProfileKey: String) {
+        val appWidgetManager = AppWidgetManager.getInstance(context)
+        sceneState.widgetItems.forEach { widget ->
+            val info = appWidgetManager.getAppWidgetInfo(widget.appWidgetId) ?: return@forEach
+            if (widget.aspectRatio <= 0.01f) {
+                widget.aspectRatio = WidgetUtils.aspectRatioFromProvider(info)
+            }
+            if (WidgetUtils.needsAspectCorrection(info, widget.size)) {
+                widget.size = WidgetUtils.defaultWorldSize(info)
+            } else {
+                widget.size = WidgetUtils.normalizeGridSize(info, widget.size)
+            }
+        }
+        val bounds = activeWidgetBounds()
+        val changed = sceneState.withWriteLockResult {
+            WidgetPlacement.constrainAll(sceneState.widgetItems, bounds, relocateOverlaps = false)
+        }
+        if (changed) {
+            repository.saveState(sceneState, layoutProfileKey, currentLayoutBounds())
+        }
+    }
+
+    /** Fold/unfold layout swap — driven by [Configuration], not GL surface size (avoids stale re-swap). */
+    fun onConfigurationLayoutChanged(config: Configuration) {
+        val density = context.resources.displayMetrics.density
+        val profile = ScreenMetrics.fromConfiguration(config, density)
+        BumpDeskLog.i(
+            BumpDeskLog.Tag.ICON_GROUP,
+            "configurationLayout",
+            "profile=${profile.layoutProfileKey} ${profile.widthPx}x${profile.heightPx}",
+        )
+        swapLayoutProfileIfNeeded(profile)
+        applyCameraForDisplayProfile(profile, "configurationLayout")
+    }
+
+    fun copyLayoutProfile(sourceKey: String, targetKey: String) {
+        repositoryScope.launch {
+            saveMutex.withLock {
+                repository.copyLayoutProfile(sourceKey, targetKey)
+                if (activeLayoutProfileKey == targetKey) {
+                    val bounds = currentLayoutBounds()
+                    val result = repository.loadState(sceneState.allAppsList.toList(), targetKey, bounds)
+                    applyLayoutFromPersistence(result)
+                    lastAppliedLayoutBounds = bounds
+                    DesktopReconciliation.reconcile(
+                        sceneState,
+                        boundX = floorHalfWidth,
+                        boundZ = floorHalfDepth,
+                    )
+                }
+            }
+            glSurfaceView?.requestRender()
+        }
+    }
+
+    fun copyLayoutProfileAuto(targetKey: String) {
+        repositoryScope.launch {
+            saveMutex.withLock {
+                val sourceKey = repository.resolveCopySourceKey(targetKey) ?: return@withLock
+                repository.copyLayoutProfile(sourceKey, targetKey)
+                if (activeLayoutProfileKey == targetKey) {
+                    val bounds = currentLayoutBounds()
+                    val result = repository.loadState(sceneState.allAppsList.toList(), targetKey, bounds)
+                    applyLayoutFromPersistence(result)
+                    lastAppliedLayoutBounds = bounds
+                    DesktopReconciliation.reconcile(
+                        sceneState,
+                        boundX = floorHalfWidth,
+                        boundZ = floorHalfDepth,
+                    )
+                }
+            }
+            glSurfaceView?.requestRender()
+        }
+    }
+
     fun setAllAppsList(apps: List<AppInfo>) {
         sceneState.allAppsList.clear()
         sceneState.allAppsList.addAll(apps)
@@ -574,6 +781,12 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         }
         BumpDeskLog.i(BumpDeskLog.Tag.ICON_GROUP, "resetDesktopLayout", "cleared user icons and piles")
         saveState()
+        val profileKey = activeLayoutProfileKey ?: currentLayoutProfileKey()
+        repositoryScope.launch {
+            saveMutex.withLock {
+                repository.clearLayoutProfile(profileKey)
+            }
+        }
         glSurfaceView?.requestRender()
     }
 
@@ -1854,14 +2067,18 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         (context as? LauncherActivity)?.showResetButton(showReset)
         glSurfaceView?.requestRender()
     }
-    fun onDisplayProfileChanged() {
+    fun onDisplayProfileChanged(fromSurface: Boolean = false) {
+        val profile = layoutProfileFromSurface() ?: ScreenMetrics.from(context)
+        applyCameraForDisplayProfile(profile, if (fromSurface) "surfaceChanged" else "orientationChange")
+    }
+
+    private fun applyCameraForDisplayProfile(profile: ScreenMetrics.DisplayProfile, reason: String) {
         val prefs = context.getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
         interactionManager.updateTouchMetrics(context)
-        val profile = ScreenMetrics.from(context)
         if (prefs.contains("cam_def_pos_x") && !isFlatFloorMode) {
             CameraDiagnostics.log(
                 camera,
-                "orientationChange",
+                reason,
                 "skipped=savedCustomCamera orientation=${profile.orientationKey} ${profile.widthPx}x${profile.heightPx}"
             )
             glSurfaceView?.requestRender()
@@ -1873,18 +2090,18 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
             prefs.edit()
                 .putString(ScreenMetrics.PREFS_LAST_LAYOUT_PROFILE, profile.layoutProfileKey)
                 .apply()
-            applyOrientationProfile(profile, "orientationChange")
+            applyOrientationProfile(profile, reason)
             sessionProfileApplied = true
         } else if (!sessionProfileApplied &&
             (camera.currentViewMode == CameraManager.ViewMode.DEFAULT ||
                 (isFlatFloorMode && camera.currentViewMode == CameraManager.ViewMode.FLOOR))
         ) {
-            applyOrientationProfile(profile, "orientationChange")
+            applyOrientationProfile(profile, reason)
             sessionProfileApplied = true
         } else {
             CameraDiagnostics.log(
                 camera,
-                "orientationChange",
+                reason,
                 "unchanged orientation=${profile.orientationKey} ${profile.widthPx}x${profile.heightPx}"
             )
         }
@@ -1933,7 +2150,7 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         val prefs = context.getSharedPreferences("bump_prefs", Context.MODE_PRIVATE)
         if (isFlatFloorMode) {
             applyFlatFloorBounds(profile)
-            val aspect = surfaceWidth.toFloat() / surfaceHeight.coerceAtLeast(1)
+            val aspect = aspectRatioForProfile(profile)
             val bounds = FlatFloorMode.computeFloorBounds(
                 FlatFloorMode.DEFAULT_EYE_Y,
                 FlatFloorMode.DEFAULT_EYE_Z,
@@ -1987,31 +2204,101 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         )
     }
 
-    private fun applyFlatFloorBounds(profile: ScreenMetrics.DisplayProfile) {
-        val aspect = if (surfaceWidth > 0 && surfaceHeight > 0) {
-            surfaceWidth.toFloat() / surfaceHeight
+    private fun surfaceMatchesProfile(profile: ScreenMetrics.DisplayProfile): Boolean {
+        if (surfaceWidth <= 0 || surfaceHeight <= 0) return false
+        val surfaceProfile = ScreenMetrics.computeProfile(
+            surfaceWidth,
+            surfaceHeight,
+            context.resources.displayMetrics.density,
+        )
+        return surfaceProfile.layoutProfileKey == profile.layoutProfileKey
+    }
+
+    private fun aspectRatioForProfile(profile: ScreenMetrics.DisplayProfile): Float {
+        return if (surfaceMatchesProfile(profile)) {
+            surfaceWidth.toFloat() / surfaceHeight.coerceAtLeast(1)
         } else {
             profile.widthPx.toFloat() / profile.heightPx.coerceAtLeast(1)
         }
-        val bounds = FlatFloorMode.computeFloorBounds(
-            FlatFloorMode.DEFAULT_EYE_Y,
-            FlatFloorMode.DEFAULT_EYE_Z,
-            FlatFloorMode.DEFAULT_FOV,
-            aspect,
-            FlatFloorMode.DEFAULT_ZOOM,
+    }
+
+    private fun layoutBoundsForProfile(profile: ScreenMetrics.DisplayProfile): LayoutBounds {
+        if (isFlatFloorMode) {
+            val aspect = aspectRatioForProfile(profile)
+            val frustum = FlatFloorMode.computeFloorBounds(
+                FlatFloorMode.DEFAULT_EYE_Y,
+                FlatFloorMode.DEFAULT_EYE_Z,
+                FlatFloorMode.DEFAULT_FOV,
+                aspect,
+                FlatFloorMode.DEFAULT_ZOOM,
+            )
+            return LayoutBounds(
+                boundX = frustum.halfX,
+                boundZ = frustum.halfZ,
+                roomSize = frustum.halfX,
+                roomHeight = ROOM_HEIGHT,
+            )
+        }
+        return LayoutBounds(
+            boundX = ROOM_SIZE,
+            boundZ = ROOM_SIZE,
+            roomSize = ROOM_SIZE,
+            roomHeight = ROOM_HEIGHT,
         )
-        floorHalfWidth = bounds.halfX
-        floorHalfDepth = bounds.halfZ
-        physicsEngine.floorHalfX = bounds.halfX
-        physicsEngine.floorHalfZ = bounds.halfZ
-        interactionManager.floorHalfX = bounds.halfX
-        interactionManager.floorHalfZ = bounds.halfZ
-        interactionManager.roomSize = bounds.halfX
-        physicsEngine.roomSize = bounds.halfX
-        camera.MAX_X = bounds.halfX - 1f
-        camera.MAX_Z = bounds.halfZ - 1f
-        camera.MIN_X = -bounds.halfX + 1f
-        camera.MIN_Z = -bounds.halfZ + 1f
+    }
+
+    private fun currentLayoutBounds(): LayoutBounds =
+        layoutBoundsForProfile(cachedDisplayProfile ?: ScreenMetrics.from(context))
+
+    private fun applyLayoutBoundsIfChanged(oldBounds: LayoutBounds, newBounds: LayoutBounds) {
+        if (!oldBounds.isSameGeometry(newBounds)) {
+            sceneState.withWriteLock {
+                NormalizedLayout.remapScene(sceneState, oldBounds, newBounds)
+            }
+        }
+        lastAppliedLayoutBounds = newBounds
+    }
+
+    private fun applyEngineFromLayoutBounds(bounds: LayoutBounds) {
+        floorHalfWidth = bounds.boundX
+        floorHalfDepth = bounds.boundZ
+        physicsEngine.floorHalfX = bounds.boundX
+        physicsEngine.floorHalfZ = bounds.boundZ
+        interactionManager.floorHalfX = bounds.boundX
+        interactionManager.floorHalfZ = bounds.boundZ
+        interactionManager.roomSize = bounds.boundX
+        physicsEngine.roomSize = bounds.boundX
+        camera.MAX_X = bounds.boundX - 1f
+        camera.MAX_Z = bounds.boundZ - 1f
+        camera.MIN_X = -bounds.boundX + 1f
+        camera.MIN_Z = -bounds.boundZ + 1f
+    }
+
+    private fun applyFlatFloorBounds(
+        profile: ScreenMetrics.DisplayProfile,
+        remapFrom: ScreenMetrics.DisplayProfile? = null,
+    ) {
+        val oldBounds = layoutBoundsForProfile(remapFrom ?: cachedDisplayProfile ?: profile)
+        val newBounds = layoutBoundsForProfile(profile)
+        applyLayoutBoundsIfChanged(oldBounds, newBounds)
+        applyEngineFromLayoutBounds(newBounds)
+    }
+
+    private fun surfaceLayoutProfileKey(): String? {
+        if (surfaceWidth <= 0 || surfaceHeight <= 0) return null
+        return ScreenMetrics.computeProfile(
+            surfaceWidth,
+            surfaceHeight,
+            context.resources.displayMetrics.density,
+        ).layoutProfileKey
+    }
+
+    private fun isStaleSurfaceForActiveLayout(): Boolean {
+        val surfaceKey = surfaceLayoutProfileKey() ?: return false
+        val contextKey = ScreenMetrics.from(context).layoutProfileKey
+        if (surfaceKey != contextKey) return true
+        val activeKey = activeLayoutProfileKey ?: return false
+        return surfaceKey != activeKey
     }
 
     override fun onSurfaceChanged(unused: GL10, w: Int, h: Int) {
@@ -2019,11 +2306,16 @@ class BumpRenderer(private val context: Context) : GLSurfaceView.Renderer {
         GLES20.glViewport(0, 0, w, h); interactionManager.screenWidth = w; interactionManager.screenHeight = h;
         Matrix.perspectiveM(projectionMatrix, 0, camera.fieldOfView, w.toFloat() / h, 0.1f, 100f)
         CameraDiagnostics.log(camera, "surfaceChanged", "surface=${w}x${h}")
-        if (isFlatFloorMode) {
+        val staleSurface = isStaleSurfaceForActiveLayout()
+        if (isFlatFloorMode && !staleSurface) {
             applyFlatFloorBounds(ScreenMetrics.from(context))
-            constrainWidgetsToActiveBounds(saveIfChanged = true)
+            if (SystemClock.uptimeMillis() - lastLayoutSwapUptimeMs > 800L) {
+                constrainWidgetsToActiveBounds(saveIfChanged = true)
+            }
         }
         syncWallpaperFloorCrop()
-        onDisplayProfileChanged()
+        if (!staleSurface) {
+            onDisplayProfileChanged(fromSurface = true)
+        }
     }
 }

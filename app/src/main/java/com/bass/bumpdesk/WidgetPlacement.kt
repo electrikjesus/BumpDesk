@@ -54,13 +54,17 @@ object WidgetPlacement {
         )
     }
 
-    fun constrainAll(widgets: List<WidgetItem>, bounds: RoomBounds): Boolean {
+    fun constrainAll(
+        widgets: List<WidgetItem>,
+        bounds: RoomBounds,
+        relocateOverlaps: Boolean = true,
+    ): Boolean {
         if (bounds.isInfiniteMode) return false
         var changed = false
         widgets.forEach { widget ->
             if (constrain(widget, bounds)) changed = true
         }
-        if (separateOverlappingFloorWidgets(widgets, bounds)) changed = true
+        if (relocateOverlaps && separateOverlappingFloorWidgets(widgets, bounds)) changed = true
         return changed
     }
 

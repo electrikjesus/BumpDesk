@@ -281,6 +281,19 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
             sharedPreferences.edit().remove("reset_desktop_trigger").apply()
             glSurfaceView.queueEvent { renderer.resetDesktopLayout() }
         }
+        val copySource = sharedPreferences?.getString("copy_layout_source", null)
+        val copyTarget = sharedPreferences?.getString("copy_layout_target", null)
+        if (copyTarget != null) {
+            sharedPreferences.edit()
+                .remove("copy_layout_source")
+                .remove("copy_layout_target")
+                .apply()
+            if (copySource != null) {
+                renderer.copyLayoutProfile(copySource, copyTarget)
+            } else {
+                renderer.copyLayoutProfileAuto(copyTarget)
+            }
+        }
         if (sharedPreferences?.getBoolean("show_recent_apps", true) == true) {
             updateRecents()
         }
@@ -758,6 +771,10 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
     }
 
     fun restoreSavedWidgets() {
+        syncWidgetHostViews()
+    }
+
+    fun syncWidgetHostViews() {
         if (!::renderer.isInitialized || !::appWidgetHost.isInitialized) return
         glSurfaceView.queueEvent {
             val widgetIds = renderer.sceneState.widgetItems.map { it.appWidgetId }.toList()
@@ -841,7 +858,7 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
         )
         if (::renderer.isInitialized) {
             CameraDiagnostics.log(renderer.camera, "configurationChanged", "beforeProfileRefresh")
-            renderer.onDisplayProfileChanged()
+            renderer.onConfigurationLayoutChanged(newConfig)
             CameraDiagnostics.log(renderer.camera, "configurationChanged", "afterProfileRefresh")
         }
     }
@@ -874,5 +891,8 @@ class LauncherActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferen
     override fun onPause() { 
         super.onPause()
         glSurfaceView.onPause()
+        if (::renderer.isInitialized) {
+            renderer.onPause()
+        }
     }
 }

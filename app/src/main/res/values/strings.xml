@@ -56,6 +56,9 @@
     <string name="settings_reset_desktop_layout">Reset desktop icons</string>
     <string name="settings_reset_desktop_layout_message">Remove all floor icons and folders? Widgets and the All Apps icon are kept.</string>
     <string name="settings_reset_desktop_layout_done">Desktop icons cleared.</string>
+    <string name="settings_copy_inner_to_cover">Copy inner screen layout to cover</string>
+    <string name="settings_copy_cover_to_inner">Copy cover screen layout to inner</string>
+    <string name="settings_copy_layout_done">Layout copied for this orientation.</string>
     <string name="settings_clear_cache">Clear cache</string>
     <string name="settings_reset_all">Reset all settings</string>
     <string name="settings_save_apply">Save &amp; apply</string>

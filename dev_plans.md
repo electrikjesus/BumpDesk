@@ -252,16 +252,19 @@ Today: one global desk layout in Room; camera anchors are per `portrait` / `land
 - [x] Unit tests: Pixel Fold cover, inner, tablet size classes
 - [ ] Verify on Pixel Fold: fold/unfold restores sensible camera per mode; icons unchanged
 
-**Phase 2 — Per-posture desk layouts**
-- [ ] Add `layout_profile` to persistence (`desk_items`, piles, widgets) or separate layout blobs per profile
-- [ ] On profile change: save outgoing scene → load incoming (copy-on-first-use from `inner` or empty template)
-- [ ] Keep system piles (Recents, All Apps) special-cased
-- [ ] Settings: optional “sync layouts” or “copy cover from inner” maintenance actions
+**Phase 2 — Per-posture desk layouts** — *done (superseded by Phase 3 shared layout)*
+- [x] Add `layoutProfileKey` to persistence (`desk_items`, `desk_piles`) with Room v3 migration from legacy global desk
+- [x] On profile change: save outgoing scene → load incoming (copy-on-first-use from inner, then legacy)
+- [x] Keep system piles (Recents, All Apps) special-cased
+- [x] Settings: copy inner ↔ cover layout for current orientation
+- [x] Verify on Pixel Fold: distinct cover vs inner icon layouts persist across fold/unfold
 
-**Phase 3 — Normalized coordinates (optional long-term)**
-- [ ] Store positions as fractions of active floor/wall bounds instead of fixed world units
-- [ ] Remap on bounds change so one logical layout scales across postures with less duplication
-- [ ] Careful handling for wall-pinned items and widgets
+**Phase 3 — Normalized coordinates** — *in progress*
+- [x] Store positions as fractions of active floor/wall bounds instead of fixed world units (`NormalizedLayout`, `LayoutBounds`)
+- [x] Per-posture DB rows (Phase 2) with normalized encoding; fold/unfold save/load each profile separately
+- [x] In-session bounds remap only (resume / frustum drift), not cross-posture remapping
+- [x] Widget sizes stay in world units; positions normalized per profile
+- [ ] Verify on Pixel Fold: cover and inner remember independent layouts across fold/unfold
 
 ## Refactoring & Infrastructure (High Impact)
 

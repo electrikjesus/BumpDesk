@@ -687,6 +687,20 @@
                         android:text="@string/settings_reset_desktop_layout" />
 
                     <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnCopyInnerToCover"
+                        style="@style/Widget.Material3.Button.TextButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/settings_copy_inner_to_cover" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnCopyCoverToInner"
+                        style="@style/Widget.Material3.Button.TextButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/settings_copy_cover_to_inner" />
+
+                    <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnClearCache"
                         style="@style/Widget.Material3.Button.TextButton"
                         android:layout_width="match_parent"
